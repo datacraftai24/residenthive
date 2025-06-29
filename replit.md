@@ -1,0 +1,118 @@
+# Real Estate Buyer Profile Management System
+
+## Overview
+
+This is a full-stack web application for capturing and managing real estate buyer profiles. The system allows users to input buyer preferences through text or voice input, uses AI (OpenAI GPT-4o) to extract structured data, and saves profiles to a database. The application features a modern UI built with React and shadcn/ui components, with a Node.js/Express backend.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React with TypeScript
+- **Build Tool**: Vite for fast development and optimized builds
+- **UI Framework**: shadcn/ui components built on Radix UI primitives
+- **Styling**: Tailwind CSS with CSS variables for theming
+- **State Management**: TanStack Query (React Query) for server state
+- **Routing**: Wouter for lightweight client-side routing
+- **Voice Input**: Web Speech API for speech-to-text functionality
+
+### Backend Architecture
+- **Runtime**: Node.js with Express.js framework
+- **Language**: TypeScript with ES modules
+- **Database**: PostgreSQL with Drizzle ORM
+- **Database Provider**: Neon serverless PostgreSQL
+- **AI Integration**: OpenAI GPT-4o for natural language processing
+- **Session Management**: Connect-pg-simple for PostgreSQL session storage
+
+### Development Setup
+- **Monorepo Structure**: Client, server, and shared code in separate directories
+- **Hot Reload**: Vite dev server with HMR for frontend
+- **Development Mode**: tsx for running TypeScript server code directly
+- **Build Process**: Vite for frontend, esbuild for backend bundling
+
+## Key Components
+
+### Database Schema (`shared/schema.ts`)
+- **buyerProfiles Table**: Stores structured buyer profile data
+  - id (serial primary key)
+  - name, budget, location, bedrooms, bathrooms
+  - mustHaveFeatures and dealbreakers (JSON arrays)
+  - rawInput (original user input)
+  - createdAt timestamp
+
+### API Endpoints (`server/routes.ts`)
+- **POST /api/extract-profile**: Processes raw text input using OpenAI to extract structured profile data
+- **POST /api/buyer-profiles**: Saves buyer profiles to database
+- **GET /api/buyer-profiles**: Retrieves all saved buyer profiles
+- **DELETE /api/buyer-profiles/:id**: Removes specific buyer profile
+
+### Frontend Components
+- **ProfileForm**: Input form with text area and voice recording capabilities
+- **ProfileDisplay**: Shows extracted profile data with save functionality
+- **Sidebar**: Lists saved profiles with search and selection
+- **VoiceInput**: Handles speech-to-text conversion using Web Speech API
+
+### AI Processing (`server/openai.ts`)
+- Uses GPT-4o model for natural language understanding
+- Extracts structured data: name, budget, location, bedrooms, bathrooms, features, dealbreakers
+- Validates extracted data against Zod schemas
+- Handles missing information with reasonable defaults
+
+## Data Flow
+
+1. **Input Capture**: User provides buyer requirements via text input or voice recording
+2. **AI Processing**: Raw input sent to OpenAI GPT-4o for structured data extraction
+3. **Validation**: Extracted data validated using Zod schemas
+4. **Preview**: Structured profile displayed to user for review
+5. **Storage**: Confirmed profiles saved to PostgreSQL database
+6. **Retrieval**: Saved profiles displayed in sidebar and can be selected for viewing
+
+## External Dependencies
+
+### Core Dependencies
+- **@neondatabase/serverless**: Neon PostgreSQL client with connection pooling
+- **drizzle-orm**: Type-safe SQL query builder and ORM
+- **openai**: Official OpenAI API client for GPT-4o integration
+- **@tanstack/react-query**: Server state management and caching
+
+### UI Dependencies
+- **@radix-ui/***: Accessible, unstyled UI primitives
+- **tailwindcss**: Utility-first CSS framework
+- **lucide-react**: Consistent icon library
+- **wouter**: Lightweight routing library
+
+### Development Dependencies
+- **vite**: Fast build tool and dev server
+- **tsx**: TypeScript execution engine for development
+- **esbuild**: Fast JavaScript bundler for production
+
+## Deployment Strategy
+
+### Development
+- **Frontend**: Vite dev server on port 5173 with HMR
+- **Backend**: Express server with tsx for TypeScript execution
+- **Database**: Neon serverless PostgreSQL with connection pooling
+- **Environment**: DATABASE_URL and OPENAI_API_KEY required
+
+### Production Build
+- **Frontend**: `vite build` outputs to `dist/public`
+- **Backend**: `esbuild` bundles server code to `dist/index.js`
+- **Static Assets**: Express serves built frontend from `dist/public`
+- **Database**: Drizzle migrations applied via `db:push` command
+
+### Configuration
+- **Database Config**: `drizzle.config.ts` defines PostgreSQL connection and migration settings
+- **Build Config**: `vite.config.ts` handles client build with path aliases
+- **TypeScript**: Shared configuration across client, server, and shared directories
+
+## Changelog
+
+```
+Changelog:
+- June 29, 2025. Initial setup
+```
+
+## User Preferences
+
+```
+Preferred communication style: Simple, everyday language.
+```
