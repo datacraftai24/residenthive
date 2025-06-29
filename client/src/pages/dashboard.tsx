@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
 import BuyerForm from "@/components/buyer-form";
+import ProfileForm from "@/components/profile-form";
 import ProfileDisplay from "@/components/profile-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -65,31 +66,7 @@ export default function Dashboard() {
               </TabsContent>
               
               <TabsContent value="voice" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quick Profile Creation</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-slate-500 mb-4">
-                      For a faster approach, describe the buyer in natural language and let AI extract the details.
-                    </p>
-                    {/* Keep the original simple form for quick input */}
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-2 block">
-                          Describe the buyer
-                        </label>
-                        <textarea
-                          className="w-full min-h-[128px] resize-none border border-slate-300 rounded-md p-3"
-                          placeholder="Example: Young couple looking for a 3-bedroom house in downtown area, budget around $500K, needs garage and modern kitchen, no fixer-uppers..."
-                        />
-                      </div>
-                      <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">
-                        Extract Profile
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <ProfileForm onProfileExtracted={setExtractedProfile} />
               </TabsContent>
             </Tabs>
             

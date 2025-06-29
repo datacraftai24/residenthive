@@ -13,7 +13,8 @@ import {
   Edit,
   Copy,
   Search,
-  Clock
+  Clock,
+  Settings
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -54,12 +55,25 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
     const profileToSave: InsertBuyerProfile = {
       name: extractedProfile.name,
       budget: extractedProfile.budget,
-      location: extractedProfile.location,
+      budgetMin: extractedProfile.budgetMin,
+      budgetMax: extractedProfile.budgetMax,
+      homeType: extractedProfile.homeType,
       bedrooms: extractedProfile.bedrooms,
       bathrooms: extractedProfile.bathrooms,
       mustHaveFeatures: extractedProfile.mustHaveFeatures,
       dealbreakers: extractedProfile.dealbreakers,
-      rawInput: `Budget: ${extractedProfile.budget}, Location: ${extractedProfile.location}, ${extractedProfile.bedrooms} bedrooms, ${extractedProfile.bathrooms} bathrooms`
+      preferredAreas: extractedProfile.preferredAreas || [],
+      lifestyleDrivers: extractedProfile.lifestyleDrivers || [],
+      specialNeeds: extractedProfile.specialNeeds || [],
+      budgetFlexibility: extractedProfile.budgetFlexibility || 50,
+      locationFlexibility: extractedProfile.locationFlexibility || 50,
+      timingFlexibility: extractedProfile.timingFlexibility || 50,
+      emotionalContext: extractedProfile.emotionalContext,
+      voiceTranscript: undefined,
+      inferredTags: extractedProfile.inferredTags || [],
+      emotionalTone: extractedProfile.emotionalTone,
+      priorityScore: extractedProfile.priorityScore || 50,
+      rawInput: `Budget: ${extractedProfile.budget}, Home Type: ${extractedProfile.homeType}, ${extractedProfile.bedrooms} bedrooms, ${extractedProfile.bathrooms} bathrooms`
     };
 
     saveMutation.mutate(profileToSave);
@@ -92,13 +106,17 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
             <p className="text-lg font-semibold text-slate-900">{extractedProfile.budget}</p>
           </div>
 
-          {/* Location */}
+          {/* Preferred Areas */}
           <div className="bg-slate-50 rounded-lg p-4">
             <div className="flex items-center space-x-2 mb-2">
               <MapPin className="h-4 w-4 text-blue-600" />
-              <h3 className="font-medium text-slate-900">Location</h3>
+              <h3 className="font-medium text-slate-900">Areas</h3>
             </div>
-            <p className="text-lg font-semibold text-slate-900">{extractedProfile.location}</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {extractedProfile.preferredAreas && extractedProfile.preferredAreas.length > 0 
+                ? extractedProfile.preferredAreas.join(", ") 
+                : "Flexible"}
+            </p>
           </div>
 
           {/* Bedrooms */}
@@ -119,6 +137,17 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
             <p className="text-lg font-semibold text-slate-900">{extractedProfile.bathrooms}</p>
           </div>
 
+          {/* Home Type */}
+          <div className="bg-slate-50 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <DollarSign className="h-4 w-4 text-orange-600" />
+              <h3 className="font-medium text-slate-900">Home Type</h3>
+            </div>
+            <p className="text-lg font-semibold text-slate-900 capitalize">
+              {extractedProfile.homeType.replace('-', ' ')}
+            </p>
+          </div>
+
           {/* Must-Have Features */}
           <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
             <div className="flex items-center space-x-2 mb-3">
@@ -134,6 +163,63 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
                 ))
               ) : (
                 <span className="text-sm text-slate-500">No specific requirements</span>
+              )}
+            </div>
+          </div>
+
+          {/* Preferred Areas */}
+          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
+            <div className="flex items-center space-x-2 mb-3">
+              <MapPin className="h-4 w-4 text-indigo-600" />
+              <h3 className="font-medium text-slate-900">Preferred Areas</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {extractedProfile.preferredAreas?.length > 0 ? (
+                extractedProfile.preferredAreas.map((area, index) => (
+                  <Badge key={index} className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                    {area}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-slate-500">No specific areas</span>
+              )}
+            </div>
+          </div>
+
+          {/* Lifestyle Drivers */}
+          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
+            <div className="flex items-center space-x-2 mb-3">
+              <Star className="h-4 w-4 text-purple-600" />
+              <h3 className="font-medium text-slate-900">Lifestyle Priorities</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {extractedProfile.lifestyleDrivers?.length > 0 ? (
+                extractedProfile.lifestyleDrivers.map((driver, index) => (
+                  <Badge key={index} className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                    {driver}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-slate-500">No specific priorities</span>
+              )}
+            </div>
+          </div>
+
+          {/* Special Needs */}
+          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
+            <div className="flex items-center space-x-2 mb-3">
+              <Star className="h-4 w-4 text-cyan-600" />
+              <h3 className="font-medium text-slate-900">Special Requirements</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {extractedProfile.specialNeeds?.length > 0 ? (
+                extractedProfile.specialNeeds.map((need, index) => (
+                  <Badge key={index} className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100">
+                    {need}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-slate-500">No special requirements</span>
               )}
             </div>
           </div>
@@ -156,6 +242,72 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
               )}
             </div>
           </div>
+
+          {/* Flexibility Scores */}
+          {(extractedProfile.budgetFlexibility !== undefined || 
+            extractedProfile.locationFlexibility !== undefined || 
+            extractedProfile.timingFlexibility !== undefined) && (
+            <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">
+              <div className="flex items-center space-x-2 mb-3">
+                <Settings className="h-4 w-4 text-slate-600" />
+                <h3 className="font-medium text-slate-900">Flexibility Scores</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {extractedProfile.budgetFlexibility !== undefined && (
+                  <div className="text-center">
+                    <p className="text-sm text-slate-600">Budget</p>
+                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.budgetFlexibility}%</p>
+                  </div>
+                )}
+                {extractedProfile.locationFlexibility !== undefined && (
+                  <div className="text-center">
+                    <p className="text-sm text-slate-600">Location</p>
+                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.locationFlexibility}%</p>
+                  </div>
+                )}
+                {extractedProfile.timingFlexibility !== undefined && (
+                  <div className="text-center">
+                    <p className="text-sm text-slate-600">Timing</p>
+                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.timingFlexibility}%</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AI Insights */}
+          {(extractedProfile.inferredTags?.length > 0 || extractedProfile.emotionalTone || extractedProfile.priorityScore !== undefined) && (
+            <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">
+              <div className="flex items-center space-x-2 mb-3">
+                <Star className="h-4 w-4 text-amber-600" />
+                <h3 className="font-medium text-slate-900">AI Insights</h3>
+              </div>
+              <div className="space-y-3">
+                {extractedProfile.inferredTags?.length > 0 && (
+                  <div>
+                    <p className="text-sm text-slate-600 mb-2">Profile Tags:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {extractedProfile.inferredTags.map((tag, index) => (
+                        <Badge key={index} className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {extractedProfile.emotionalTone && (
+                  <div>
+                    <p className="text-sm text-slate-600">Emotional Tone: <span className="font-medium text-slate-900">{extractedProfile.emotionalTone}</span></p>
+                  </div>
+                )}
+                {extractedProfile.priorityScore !== undefined && (
+                  <div>
+                    <p className="text-sm text-slate-600">Priority Score: <span className="font-medium text-slate-900">{extractedProfile.priorityScore}/100</span></p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Profile Actions */}
