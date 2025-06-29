@@ -74,7 +74,7 @@ export type BuyerFormData = z.infer<typeof buyerFormSchema>;
 // Schema for OpenAI extraction and enhancement
 export const extractedProfileSchema = z.object({
   name: z.string().describe("Buyer name(s) extracted from the input"),
-  email: z.string().email().optional().describe("Buyer email address if mentioned"),
+  email: z.string().optional().describe("Buyer email address if mentioned"),
   budget: z.string().describe("Budget range in format like '$450K - $520K'"),
   budgetMin: z.number().optional().describe("Minimum budget as number"),
   budgetMax: z.number().optional().describe("Maximum budget as number"),

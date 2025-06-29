@@ -37,7 +37,22 @@ Analyze the input text and extract the following information:
 - emotionalTone: Overall emotional tone (excited, cautious, urgent, relaxed, etc.)
 - priorityScore: Priority/urgency score 0-100 based on language and context
 
-Use reasonable defaults and inferences. Respond with valid JSON in the exact format specified.`
+Use reasonable defaults and inferences. If any field cannot be determined, use these defaults:
+- email: null (will be handled by form input)
+- bathrooms: "1+"
+- mustHaveFeatures: []
+- dealbreakers: []
+- preferredAreas: []
+- lifestyleDrivers: []
+- specialNeeds: []
+- budgetFlexibility: 50
+- locationFlexibility: 50
+- timingFlexibility: 50
+- inferredTags: []
+- priorityScore: 50
+- homeType: "single-family"
+
+Respond with valid JSON in the exact format specified.`
         },
         {
           role: "user",
@@ -49,8 +64,32 @@ Use reasonable defaults and inferences. Respond with valid JSON in the exact for
 
     const extractedData = JSON.parse(response.choices[0].message.content || "{}");
     
-    // Validate the extracted data against our schema
-    const validated = extractedProfileSchema.parse(extractedData);
+    // Handle null values and provide defaults
+    const cleanedData = {
+      name: extractedData.name || "Unknown Buyer",
+      email: extractedData.email || undefined,
+      budget: extractedData.budget || "Not specified",
+      budgetMin: typeof extractedData.budgetMin === 'number' ? extractedData.budgetMin : undefined,
+      budgetMax: typeof extractedData.budgetMax === 'number' ? extractedData.budgetMax : undefined,
+      homeType: extractedData.homeType || "single-family",
+      bedrooms: typeof extractedData.bedrooms === 'number' ? extractedData.bedrooms : 2,
+      bathrooms: extractedData.bathrooms || "1+",
+      mustHaveFeatures: Array.isArray(extractedData.mustHaveFeatures) ? extractedData.mustHaveFeatures : [],
+      dealbreakers: Array.isArray(extractedData.dealbreakers) ? extractedData.dealbreakers : [],
+      preferredAreas: Array.isArray(extractedData.preferredAreas) ? extractedData.preferredAreas : [],
+      lifestyleDrivers: Array.isArray(extractedData.lifestyleDrivers) ? extractedData.lifestyleDrivers : [],
+      specialNeeds: Array.isArray(extractedData.specialNeeds) ? extractedData.specialNeeds : [],
+      budgetFlexibility: typeof extractedData.budgetFlexibility === 'number' ? extractedData.budgetFlexibility : 50,
+      locationFlexibility: typeof extractedData.locationFlexibility === 'number' ? extractedData.locationFlexibility : 50,
+      timingFlexibility: typeof extractedData.timingFlexibility === 'number' ? extractedData.timingFlexibility : 50,
+      emotionalContext: extractedData.emotionalContext || undefined,
+      inferredTags: Array.isArray(extractedData.inferredTags) ? extractedData.inferredTags : [],
+      emotionalTone: extractedData.emotionalTone || undefined,
+      priorityScore: typeof extractedData.priorityScore === 'number' ? extractedData.priorityScore : 50
+    };
+    
+    // Validate the cleaned data against our schema
+    const validated = extractedProfileSchema.parse(cleanedData);
     
     return validated;
   } catch (error) {
