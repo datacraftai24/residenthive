@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { BuyerProfile } from "@shared/schema";
+import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
-import ProfileForm from "@/components/profile-form";
+import BuyerForm from "@/components/buyer-form";
 import ProfileDisplay from "@/components/profile-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Home } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bell, Home, FormInput, Mic } from "lucide-react";
 
 export default function Dashboard() {
   const [selectedProfile, setSelectedProfile] = useState<BuyerProfile | null>(null);
-  const [extractedProfile, setExtractedProfile] = useState<any>(null);
+  const [extractedProfile, setExtractedProfile] = useState<ExtractedProfile | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<BuyerProfile[]>({
     queryKey: ["/api/buyer-profiles"],
@@ -29,8 +30,8 @@ export default function Dashboard() {
         <header className="bg-white border-b border-slate-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900">Create Buyer Profile</h1>
-              <p className="text-sm text-slate-500 mt-1">Capture buyer preferences via voice or text input</p>
+              <h1 className="text-xl font-semibold text-slate-900">Buyer Profile Management</h1>
+              <p className="text-sm text-slate-500 mt-1">Create comprehensive buyer profiles with AI-powered insights</p>
             </div>
             <div className="flex items-center space-x-3">
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -45,10 +46,52 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-8">
-            <ProfileForm 
-              onProfileExtracted={setExtractedProfile}
-            />
+          <div className="max-w-6xl mx-auto space-y-8">
+            {/* Profile Creation Tabs */}
+            <Tabs defaultValue="form" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="form" className="flex items-center space-x-2">
+                  <FormInput className="h-4 w-4" />
+                  <span>Structured Form</span>
+                </TabsTrigger>
+                <TabsTrigger value="voice" className="flex items-center space-x-2">
+                  <Mic className="h-4 w-4" />
+                  <span>Quick Voice/Text</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="form" className="mt-6">
+                <BuyerForm onProfileExtracted={setExtractedProfile} />
+              </TabsContent>
+              
+              <TabsContent value="voice" className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Profile Creation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-slate-500 mb-4">
+                      For a faster approach, describe the buyer in natural language and let AI extract the details.
+                    </p>
+                    {/* Keep the original simple form for quick input */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-slate-700 mb-2 block">
+                          Describe the buyer
+                        </label>
+                        <textarea
+                          className="w-full min-h-[128px] resize-none border border-slate-300 rounded-md p-3"
+                          placeholder="Example: Young couple looking for a 3-bedroom house in downtown area, budget around $500K, needs garage and modern kitchen, no fixer-uppers..."
+                        />
+                      </div>
+                      <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">
+                        Extract Profile
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
             
             {extractedProfile && (
               <ProfileDisplay 
@@ -67,7 +110,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {profiles.slice(0, 3).map((profile, index) => (
+                  {profiles.slice(0, 3).map((profile) => (
                     <div key={profile.id} className="flex items-start space-x-3 py-2">
                       <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <Home className="h-4 w-4 text-blue-600" />

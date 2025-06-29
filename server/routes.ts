@@ -1,12 +1,16 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { extractBuyerProfile } from "./openai";
-import { insertBuyerProfileSchema } from "@shared/schema";
+import { extractBuyerProfile, enhanceFormProfile } from "./openai";
+import { insertBuyerProfileSchema, buyerFormSchema } from "@shared/schema";
 import { z } from "zod";
 
 const extractRequestSchema = z.object({
   input: z.string().min(1, "Input text is required")
+});
+
+const enhanceRequestSchema = z.object({
+  formData: buyerFormSchema
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -22,6 +26,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in /api/extract-profile:", error);
       res.status(400).json({ 
         error: "Failed to extract profile",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Enhance form profile with AI insights
+  app.post("/api/enhance-profile", async (req, res) => {
+    try {
+      const { formData } = enhanceRequestSchema.parse(req.body);
+      
+      const enhancedProfile = await enhanceFormProfile(formData);
+      
+      res.json(enhancedProfile);
+    } catch (error) {
+      console.error("Error in /api/enhance-profile:", error);
+      res.status(400).json({ 
+        error: "Failed to enhance profile",
         message: (error as Error).message 
       });
     }

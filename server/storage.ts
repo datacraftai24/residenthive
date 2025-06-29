@@ -29,8 +29,28 @@ export class MemStorage implements IStorage {
   async createBuyerProfile(insertProfile: InsertBuyerProfile): Promise<BuyerProfile> {
     const id = this.currentId++;
     const profile: BuyerProfile = {
-      ...insertProfile,
       id,
+      name: insertProfile.name,
+      budget: insertProfile.budget,
+      budgetMin: insertProfile.budgetMin ?? null,
+      budgetMax: insertProfile.budgetMax ?? null,
+      homeType: insertProfile.homeType,
+      bedrooms: insertProfile.bedrooms,
+      bathrooms: insertProfile.bathrooms,
+      mustHaveFeatures: insertProfile.mustHaveFeatures ? [...insertProfile.mustHaveFeatures] : [],
+      dealbreakers: insertProfile.dealbreakers ? [...insertProfile.dealbreakers] : [],
+      preferredAreas: insertProfile.preferredAreas ? [...insertProfile.preferredAreas] : [],
+      lifestyleDrivers: insertProfile.lifestyleDrivers ? [...insertProfile.lifestyleDrivers] : [],
+      specialNeeds: insertProfile.specialNeeds ? [...insertProfile.specialNeeds] : [],
+      budgetFlexibility: insertProfile.budgetFlexibility ?? 50,
+      locationFlexibility: insertProfile.locationFlexibility ?? 50,
+      timingFlexibility: insertProfile.timingFlexibility ?? 50,
+      emotionalContext: insertProfile.emotionalContext ?? null,
+      voiceTranscript: insertProfile.voiceTranscript ?? null,
+      inferredTags: insertProfile.inferredTags ? [...insertProfile.inferredTags] : [],
+      emotionalTone: insertProfile.emotionalTone ?? null,
+      priorityScore: insertProfile.priorityScore ?? 50,
+      rawInput: insertProfile.rawInput,
       createdAt: new Date().toISOString()
     };
     this.profiles.set(id, profile);

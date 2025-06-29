@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { extractedProfileSchema, type ExtractedProfile } from "@shared/schema";
+import { extractedProfileSchema, type ExtractedProfile, type BuyerFormData } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -13,27 +13,30 @@ export async function extractBuyerProfile(rawInput: string): Promise<ExtractedPr
       messages: [
         {
           role: "system",
-          content: `You are a real estate assistant that extracts structured buyer profile information from natural language descriptions. 
+          content: `You are a real estate assistant that extracts comprehensive buyer profile information from natural language descriptions. 
 
 Analyze the input text and extract the following information:
 - name: Buyer name(s) - if not explicitly mentioned, use "Unknown Buyer"
 - budget: Budget range in format like "$450K - $520K" or "$450,000 - $520,000"
-- location: Preferred location areas (e.g., "Downtown", "Suburbs", "Waterfront")
+- budgetMin: Minimum budget as number (optional)
+- budgetMax: Maximum budget as number (optional)
+- homeType: Type of home (condo, townhouse, single-family, duplex, apartment, other)
 - bedrooms: Number of bedrooms as an integer
 - bathrooms: Number of bathrooms as a string (can be "2+", "3", "2.5", etc.)
-- mustHaveFeatures: Array of must-have features (e.g., ["Modern Kitchen", "Garage", "Hardwood Floors"])
-- dealbreakers: Array of dealbreakers (e.g., ["Fixer-Upper", "Busy Street", "No Parking"])
+- mustHaveFeatures: Array of must-have features
+- dealbreakers: Array of dealbreakers
+- preferredAreas: Array of preferred location areas
+- lifestyleDrivers: Array of lifestyle motivations (schools, commute, walkability, etc.)
+- specialNeeds: Array of special requirements (pets, WFH, accessibility, etc.)
+- budgetFlexibility: Score 0-100 indicating budget flexibility (50 = moderate)
+- locationFlexibility: Score 0-100 indicating location flexibility
+- timingFlexibility: Score 0-100 indicating timing flexibility
+- emotionalContext: Additional emotional context or notes
+- inferredTags: AI-inferred tags about the buyer (e.g., "first-time-buyer", "investor", "family-focused")
+- emotionalTone: Overall emotional tone (excited, cautious, urgent, relaxed, etc.)
+- priorityScore: Priority/urgency score 0-100 based on language and context
 
-If information is not provided, make reasonable inferences based on context or use these defaults:
-- name: "Unknown Buyer"
-- budget: "Not specified"
-- location: "Flexible"
-- bedrooms: 2
-- bathrooms: "1+"
-- mustHaveFeatures: []
-- dealbreakers: []
-
-Respond with valid JSON in the exact format specified.`
+Use reasonable defaults and inferences. Respond with valid JSON in the exact format specified.`
         },
         {
           role: "user",
@@ -52,5 +55,84 @@ Respond with valid JSON in the exact format specified.`
   } catch (error) {
     console.error("Error extracting buyer profile:", error);
     throw new Error("Failed to extract buyer profile: " + (error as Error).message);
+  }
+}
+
+export async function enhanceFormProfile(formData: BuyerFormData): Promise<ExtractedProfile> {
+  try {
+    const combinedInput = `
+Form Data:
+- Name: ${formData.name}
+- Budget: ${formData.budget}
+- Home Type: ${formData.homeType}
+- Bedrooms: ${formData.bedrooms}
+- Bathrooms: ${formData.bathrooms}
+- Must-Have Features: ${formData.mustHaveFeatures.join(', ')}
+- Dealbreakers: ${formData.dealbreakers.join(', ')}
+- Preferred Areas: ${formData.preferredAreas.join(', ')}
+- Lifestyle Drivers: ${formData.lifestyleDrivers.join(', ')}
+- Special Needs: ${formData.specialNeeds.join(', ')}
+- Flexibility Scores: Budget ${formData.budgetFlexibility}%, Location ${formData.locationFlexibility}%, Timing ${formData.timingFlexibility}%
+${formData.emotionalContext ? `- Emotional Context: ${formData.emotionalContext}` : ''}
+${formData.voiceTranscript ? `- Voice Transcript: ${formData.voiceTranscript}` : ''}
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `You are a real estate AI assistant. Analyze the structured form data and enhance it with insights.
+
+Your task is to:
+1. Process the structured form data
+2. Extract budget ranges if possible (budgetMin, budgetMax)
+3. Infer meaningful tags about the buyer profile
+4. Determine emotional tone from context and voice transcript
+5. Assign a priority score based on urgency indicators
+6. Provide enhanced insights while preserving all original form data
+
+Return a comprehensive profile with all fields populated. Use the form data as the primary source, but enhance with AI insights.`
+        },
+        {
+          role: "user",
+          content: combinedInput
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const extractedData = JSON.parse(response.choices[0].message.content || "{}");
+    
+    // Merge form data with AI enhancements
+    const enhanced: ExtractedProfile = {
+      name: formData.name,
+      budget: formData.budget,
+      budgetMin: formData.budgetMin || extractedData.budgetMin,
+      budgetMax: formData.budgetMax || extractedData.budgetMax,
+      homeType: formData.homeType,
+      bedrooms: formData.bedrooms,
+      bathrooms: formData.bathrooms,
+      mustHaveFeatures: formData.mustHaveFeatures,
+      dealbreakers: formData.dealbreakers,
+      preferredAreas: formData.preferredAreas,
+      lifestyleDrivers: formData.lifestyleDrivers,
+      specialNeeds: formData.specialNeeds,
+      budgetFlexibility: formData.budgetFlexibility,
+      locationFlexibility: formData.locationFlexibility,
+      timingFlexibility: formData.timingFlexibility,
+      emotionalContext: formData.emotionalContext,
+      inferredTags: extractedData.inferredTags || [],
+      emotionalTone: extractedData.emotionalTone,
+      priorityScore: extractedData.priorityScore || 50
+    };
+    
+    // Validate the enhanced data
+    const validated = extractedProfileSchema.parse(enhanced);
+    
+    return validated;
+  } catch (error) {
+    console.error("Error enhancing form profile:", error);
+    throw new Error("Failed to enhance profile: " + (error as Error).message);
   }
 }
