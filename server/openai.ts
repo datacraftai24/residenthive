@@ -63,17 +63,18 @@ Respond with valid JSON in the exact format specified.`
     });
 
     const extractedData = JSON.parse(response.choices[0].message.content || "{}");
+    console.log("OpenAI raw response:", extractedData);
     
-    // Handle null values and provide defaults
+    // Transform null values to undefined for optional fields, provide defaults for required fields
     const cleanedData = {
       name: extractedData.name || "Unknown Buyer",
-      email: extractedData.email || undefined,
+      email: extractedData.email === null ? undefined : extractedData.email,
       budget: extractedData.budget || "Not specified",
-      budgetMin: typeof extractedData.budgetMin === 'number' ? extractedData.budgetMin : undefined,
-      budgetMax: typeof extractedData.budgetMax === 'number' ? extractedData.budgetMax : undefined,
+      budgetMin: extractedData.budgetMin === null ? undefined : extractedData.budgetMin,
+      budgetMax: extractedData.budgetMax === null ? undefined : extractedData.budgetMax,
       homeType: extractedData.homeType || "single-family",
       bedrooms: typeof extractedData.bedrooms === 'number' ? extractedData.bedrooms : 2,
-      bathrooms: extractedData.bathrooms || "1+",
+      bathrooms: extractedData.bathrooms === null ? "1+" : (extractedData.bathrooms || "1+"),
       mustHaveFeatures: Array.isArray(extractedData.mustHaveFeatures) ? extractedData.mustHaveFeatures : [],
       dealbreakers: Array.isArray(extractedData.dealbreakers) ? extractedData.dealbreakers : [],
       preferredAreas: Array.isArray(extractedData.preferredAreas) ? extractedData.preferredAreas : [],
@@ -82,9 +83,9 @@ Respond with valid JSON in the exact format specified.`
       budgetFlexibility: typeof extractedData.budgetFlexibility === 'number' ? extractedData.budgetFlexibility : 50,
       locationFlexibility: typeof extractedData.locationFlexibility === 'number' ? extractedData.locationFlexibility : 50,
       timingFlexibility: typeof extractedData.timingFlexibility === 'number' ? extractedData.timingFlexibility : 50,
-      emotionalContext: extractedData.emotionalContext || undefined,
+      emotionalContext: extractedData.emotionalContext === null ? undefined : extractedData.emotionalContext,
       inferredTags: Array.isArray(extractedData.inferredTags) ? extractedData.inferredTags : [],
-      emotionalTone: extractedData.emotionalTone || undefined,
+      emotionalTone: extractedData.emotionalTone === null ? undefined : extractedData.emotionalTone,
       priorityScore: typeof extractedData.priorityScore === 'number' ? extractedData.priorityScore : 50
     };
     
