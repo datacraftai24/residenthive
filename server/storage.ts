@@ -31,6 +31,7 @@ export class MemStorage implements IStorage {
     const profile: BuyerProfile = {
       id,
       name: insertProfile.name,
+      email: insertProfile.email,
       budget: insertProfile.budget,
       budgetMin: insertProfile.budgetMin ?? null,
       budgetMax: insertProfile.budgetMax ?? null,

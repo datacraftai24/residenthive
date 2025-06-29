@@ -17,6 +17,7 @@ export async function extractBuyerProfile(rawInput: string): Promise<ExtractedPr
 
 Analyze the input text and extract the following information:
 - name: Buyer name(s) - if not explicitly mentioned, use "Unknown Buyer"
+- email: Buyer email address if mentioned, otherwise null
 - budget: Budget range in format like "$450K - $520K" or "$450,000 - $520,000"
 - budgetMin: Minimum budget as number (optional)
 - budgetMax: Maximum budget as number (optional)
@@ -63,6 +64,7 @@ export async function enhanceFormProfile(formData: BuyerFormData): Promise<Extra
     const combinedInput = `
 Form Data:
 - Name: ${formData.name}
+- Email: ${formData.email}
 - Budget: ${formData.budget}
 - Home Type: ${formData.homeType}
 - Bedrooms: ${formData.bedrooms}
@@ -107,6 +109,7 @@ Return a comprehensive profile with all fields populated. Use the form data as t
     // Merge form data with AI enhancements
     const enhanced: ExtractedProfile = {
       name: formData.name,
+      email: formData.email,
       budget: formData.budget,
       budgetMin: formData.budgetMin || extractedData.budgetMin,
       budgetMax: formData.budgetMax || extractedData.budgetMax,

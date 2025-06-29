@@ -54,6 +54,7 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
   const handleSave = () => {
     const profileToSave: InsertBuyerProfile = {
       name: extractedProfile.name,
+      email: extractedProfile.email || "noemail@provided.com",
       budget: extractedProfile.budget,
       budgetMin: extractedProfile.budgetMin,
       budgetMax: extractedProfile.budgetMax,

@@ -43,6 +43,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
     resolver: zodResolver(buyerFormSchema),
     defaultValues: {
       name: "",
+      email: "",
       budget: "",
       homeType: "single-family",
       bedrooms: 2,
@@ -151,6 +152,22 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                   )}
                 />
                 
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="john.smith@email.com" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="budget"
