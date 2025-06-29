@@ -96,16 +96,29 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
         </div>
       </CardHeader>
       <CardContent>
+        {/* Profile Overview */}
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-6 mb-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">{extractedProfile.name}</h2>
+              {extractedProfile.email && (
+                <p className="text-slate-600 mb-2">{extractedProfile.email}</p>
+              )}
+              <p className="text-3xl font-bold text-primary">{extractedProfile.budget}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-slate-600 mb-1">Priority Score</p>
+              <div className="flex items-center space-x-2">
+                <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold">{extractedProfile.priorityScore || 50}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Profile Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-          {/* Budget */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <DollarSign className="h-4 w-4 text-green-600" />
-              <h3 className="font-medium text-slate-900">Budget</h3>
-            </div>
-            <p className="text-lg font-semibold text-slate-900">{extractedProfile.budget}</p>
-          </div>
 
           {/* Preferred Areas */}
           <div className="bg-slate-50 rounded-lg p-4">
