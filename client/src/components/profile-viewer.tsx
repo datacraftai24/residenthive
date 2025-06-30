@@ -34,8 +34,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   const [isEditing, setIsEditing] = useState(false);
 
   // Fetch basic profile
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ['/api/buyer-profiles', profileId],
+  const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
+    queryKey: [`/api/buyer-profiles/${profileId}`],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!profileId
   });
@@ -119,7 +119,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             {profile.inputMethod}
           </Badge>
           <ConfidenceDisplay 
-            confidence={profile.nlpConfidence} 
+            confidence={profile.nlpConfidence || 0} 
             inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
             className="ml-2"
           />
@@ -160,7 +160,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
               <Home className="h-4 w-4 text-gray-500" />
               <div>
                 <p className="text-sm text-gray-600">Home Type</p>
-                <p className="font-medium capitalize">{profile.homeType.replace('-', ' ')}</p>
+                <p className="font-medium capitalize">{profile.homeType?.replace('-', ' ') || 'Not specified'}</p>
               </div>
             </div>
 
