@@ -207,14 +207,15 @@ Your task is to:
 5. Assign a priority score based on urgency indicators
 6. Provide enhanced insights while preserving all original form data
 
-Return a comprehensive profile with all fields populated. Use the form data as the primary source, but enhance with AI insights.`
+Return a comprehensive profile as JSON with all fields populated. Use the form data as the primary source, but enhance with AI insights. Respond with valid JSON in the exact format specified.`
         },
         {
           role: "user",
-          content: combinedInput
+          content: `${combinedInput}
+
+Please analyze this form data and return a comprehensive buyer profile as JSON format with all the required fields.`
         }
-      ],
-      response_format: { type: "json_object" }
+      ]
     });
 
     const extractedData = JSON.parse(response.choices[0].message.content || "{}");
