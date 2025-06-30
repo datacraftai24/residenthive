@@ -127,6 +127,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update buyer profile
+  app.patch("/api/buyer-profiles/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const result = insertBuyerProfileSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error.errors });
+      }
+
+      const profile = await storage.updateBuyerProfile(id, result.data);
+      res.json(profile);
+    } catch (error) {
+      console.error("Error updating buyer profile:", error);
+      res.status(500).json({ 
+        error: "Failed to update buyer profile",
+        message: (error as Error).message 
+      });
+    }
+  });
+
   // Enhanced extraction with tags and persona analysis
   app.post("/api/extract-profile-enhanced", async (req, res) => {
     try {
