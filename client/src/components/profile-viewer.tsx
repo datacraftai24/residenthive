@@ -24,6 +24,7 @@ import { getQueryFn } from "@/lib/queryClient";
 import ConversationalEdit from "./conversational-edit";
 import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
+import AgentActions from "./agent-actions";
 
 interface ProfileViewerProps {
   profileId: number;
@@ -291,6 +292,12 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </div>
         </CardContent>
       </Card>
+
+      {/* Agent Actions */}
+      <AgentActions 
+        profile={profile}
+        persona={enhancedProfile?.persona}
+      />
 
       {/* AI Analysis */}
       {enhancedProfile && (enhancedProfile.tags?.length > 0 || enhancedProfile.persona) && (
