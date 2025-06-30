@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
-import ProfileEdit from "./profile-edit";
+import ConversationalEdit from "./conversational-edit";
 import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 
@@ -84,7 +84,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
   if (isEditing) {
     return (
-      <ProfileEdit
+      <ConversationalEdit
         profile={profile}
         onClose={() => setIsEditing(false)}
         onProfileUpdated={handleProfileUpdated}
