@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } from "./openai";
 import { tagEngine } from "./tag-engine";
+import { parseProfileChanges, applyChangesToProfile, generateQuickEditSuggestions } from "./conversational-edit";
 import { insertBuyerProfileSchema, buyerFormSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -368,6 +369,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in /api/insights/explanation:", error);
       res.status(500).json({ 
         error: "Failed to get insights explanation",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Conversational editing endpoints
+  
+  // Parse natural language changes
+  app.post("/api/buyer-profiles/:id/parse-changes", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const { text, currentProfile } = req.body;
+      if (!text || !currentProfile) {
+        return res.status(400).json({ error: "text and currentProfile are required" });
+      }
+
+      const result = await parseProfileChanges(text, currentProfile);
+      res.json(result);
+    } catch (error) {
+      console.error("Error parsing profile changes:", error);
+      res.status(500).json({ 
+        error: "Failed to parse changes",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Apply parsed changes to profile
+  app.patch("/api/buyer-profiles/:id/apply-changes", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const { changes } = req.body;
+      if (!changes || !Array.isArray(changes)) {
+        return res.status(400).json({ error: "changes array is required" });
+      }
+
+      // Get current profile
+      const currentProfile = await storage.getBuyerProfile(id);
+      if (!currentProfile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      // Apply changes
+      const updates = applyChangesToProfile(currentProfile, changes);
+      const updatedProfile = await storage.updateBuyerProfile(id, updates);
+
+      res.json(updatedProfile);
+    } catch (error) {
+      console.error("Error applying profile changes:", error);
+      res.status(500).json({ 
+        error: "Failed to apply changes",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get quick edit suggestions
+  app.get("/api/buyer-profiles/:id/quick-suggestions", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const profile = await storage.getBuyerProfile(id);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const suggestions = await generateQuickEditSuggestions(profile);
+      res.json({ suggestions });
+    } catch (error) {
+      console.error("Error generating quick suggestions:", error);
+      res.status(500).json({ 
+        error: "Failed to generate suggestions",
         message: (error as Error).message 
       });
     }
