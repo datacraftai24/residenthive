@@ -2,12 +2,21 @@ import {
   buyerProfiles, 
   profileTags,
   profilePersona,
+  agentInsightFeedback,
+  agentActionFeedback,
+  agentNotes,
+  profileInsightsLock,
   type BuyerProfile, 
   type InsertBuyerProfile,
   type ProfileTag,
   type InsertProfileTag,
   type ProfilePersona,
-  type InsertProfilePersona
+  type InsertProfilePersona,
+  type InsertAgentInsightFeedback,
+  type InsertAgentActionFeedback,
+  type InsertAgentNotes,
+  type InsertProfileInsightsLock,
+  type AgentNotes
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -25,6 +34,14 @@ export interface IStorage {
   createProfilePersona(persona: InsertProfilePersona): Promise<ProfilePersona>;
   getProfileVersions(profileId: number): Promise<BuyerProfile[]>;
   createProfileVersion(profile: InsertBuyerProfile): Promise<BuyerProfile>;
+  
+  // Agent feedback methods
+  logInsightFeedback(feedback: InsertAgentInsightFeedback): Promise<void>;
+  logActionFeedback(feedback: InsertAgentActionFeedback): Promise<void>;
+  saveAgentNote(note: InsertAgentNotes): Promise<void>;
+  toggleInsightsLock(lock: InsertProfileInsightsLock): Promise<void>;
+  getAgentNotes(profileId: number): Promise<AgentNotes[]>;
+  getInsightsLockStatus(profileId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {

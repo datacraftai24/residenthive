@@ -68,6 +68,38 @@ export const profilePersona = pgTable("profile_persona", {
   createdAt: text("created_at").notNull()
 });
 
+// Agent feedback tables
+export const agentInsightFeedback = pgTable("agent_insight_feedback", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  tagName: text("tag_name"), // For tag disagreements
+  personaField: text("persona_field"), // For persona disagreements (e.g., 'urgencyLevel', 'communicationStyle')
+  feedbackType: text("feedback_type").notNull(), // 'disagree_tag', 'disagree_persona'
+  createdAt: text("created_at").notNull()
+});
+
+export const agentActionFeedback = pgTable("agent_action_feedback", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull(), // From the action suggestions
+  actionTaken: text("action_taken").notNull(), // What the agent actually did
+  createdAt: text("created_at").notNull()
+});
+
+export const agentNotes = pgTable("agent_notes", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  note: text("note").notNull(),
+  createdAt: text("created_at").notNull()
+});
+
+export const profileInsightsLock = pgTable("profile_insights_lock", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  isLocked: integer("is_locked").notNull().default(0), // 0 = unlocked, 1 = locked
+  createdAt: text("created_at").notNull()
+});
+
 export const insertBuyerProfileSchema = createInsertSchema(buyerProfiles).omit({
   id: true,
   createdAt: true
@@ -83,12 +115,40 @@ export const insertProfilePersonaSchema = createInsertSchema(profilePersona).omi
   createdAt: true
 });
 
+export const insertAgentInsightFeedbackSchema = createInsertSchema(agentInsightFeedback).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertAgentActionFeedbackSchema = createInsertSchema(agentActionFeedback).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertAgentNotesSchema = createInsertSchema(agentNotes).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertProfileInsightsLockSchema = createInsertSchema(profileInsightsLock).omit({
+  id: true,
+  createdAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
 export type ProfileTag = typeof profileTags.$inferSelect;
 export type InsertProfilePersona = z.infer<typeof insertProfilePersonaSchema>;
 export type ProfilePersona = typeof profilePersona.$inferSelect;
+export type InsertAgentInsightFeedback = z.infer<typeof insertAgentInsightFeedbackSchema>;
+export type AgentInsightFeedback = typeof agentInsightFeedback.$inferSelect;
+export type InsertAgentActionFeedback = z.infer<typeof insertAgentActionFeedbackSchema>;
+export type AgentActionFeedback = typeof agentActionFeedback.$inferSelect;
+export type InsertAgentNotes = z.infer<typeof insertAgentNotesSchema>;
+export type AgentNotes = typeof agentNotes.$inferSelect;
+export type InsertProfileInsightsLock = z.infer<typeof insertProfileInsightsLockSchema>;
+export type ProfileInsightsLock = typeof profileInsightsLock.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

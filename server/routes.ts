@@ -457,6 +457,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Agent Feedback Endpoints
+  
+  // Log insight disagreement (tag or persona field)
+  app.post("/api/insights/disagree", async (req, res) => {
+    try {
+      const { profileId, tagName, personaField } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "profileId is required" });
+      }
+
+      const feedbackData = {
+        profileId,
+        tagName: tagName || null,
+        personaField: personaField || null,
+        feedbackType: tagName ? 'disagree_tag' : 'disagree_persona',
+        createdAt: new Date().toISOString()
+      };
+
+      await storage.logInsightFeedback(feedbackData);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error logging insight disagreement:", error);
+      res.status(500).json({ 
+        error: "Failed to log feedback",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Log action taken
+  app.post("/api/actions/log", async (req, res) => {
+    try {
+      const { profileId, actionId, actionTaken } = req.body;
+      
+      if (!profileId || !actionId || !actionTaken) {
+        return res.status(400).json({ error: "profileId, actionId, and actionTaken are required" });
+      }
+
+      const actionData = {
+        profileId,
+        actionId,
+        actionTaken,
+        createdAt: new Date().toISOString()
+      };
+
+      await storage.logActionFeedback(actionData);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error logging action feedback:", error);
+      res.status(500).json({ 
+        error: "Failed to log action",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Save agent note
+  app.post("/api/agent-notes", async (req, res) => {
+    try {
+      const { profileId, note } = req.body;
+      
+      if (!profileId || !note?.trim()) {
+        return res.status(400).json({ error: "profileId and note are required" });
+      }
+
+      const noteData = {
+        profileId,
+        note: note.trim(),
+        createdAt: new Date().toISOString()
+      };
+
+      await storage.saveAgentNote(noteData);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving agent note:", error);
+      res.status(500).json({ 
+        error: "Failed to save note",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Toggle insights lock
+  app.post("/api/insights/lock", async (req, res) => {
+    try {
+      const { profileId, isLocked } = req.body;
+      
+      if (!profileId || typeof isLocked !== 'boolean') {
+        return res.status(400).json({ error: "profileId and isLocked (boolean) are required" });
+      }
+
+      const lockData = {
+        profileId,
+        isLocked: isLocked ? 1 : 0,
+        createdAt: new Date().toISOString()
+      };
+
+      await storage.toggleInsightsLock(lockData);
+      res.json({ success: true, isLocked });
+    } catch (error) {
+      console.error("Error toggling insights lock:", error);
+      res.status(500).json({ 
+        error: "Failed to toggle lock",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get agent notes for a profile
+  app.get("/api/agent-notes/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const notes = await storage.getAgentNotes(profileId);
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching agent notes:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch notes",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get insights lock status
+  app.get("/api/insights/lock/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const lockStatus = await storage.getInsightsLockStatus(profileId);
+      res.json({ isLocked: lockStatus });
+    } catch (error) {
+      console.error("Error fetching lock status:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch lock status",
+        message: (error as Error).message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
