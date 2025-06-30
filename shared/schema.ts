@@ -34,8 +34,37 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   emotionalTone: text("emotional_tone"),
   priorityScore: integer("priority_score").notNull().default(50),
   
-  // Meta
+  // Meta & Versioning
   rawInput: text("raw_input").notNull(),
+  inputMethod: text("input_method").notNull().default("form"), // 'form', 'voice', 'text'
+  nlpConfidence: integer("nlp_confidence").default(100), // 0-100 confidence score
+  version: integer("version").notNull().default(1),
+  parentProfileId: integer("parent_profile_id"),
+  createdAt: text("created_at").notNull()
+});
+
+// New table for AI-generated tags (Tag Engine)
+export const profileTags = pgTable("profile_tags", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  tag: text("tag").notNull(),
+  category: text("category").notNull(), // 'behavioral', 'demographic', 'preference', 'urgency'
+  confidence: integer("confidence").notNull(), // 0-100
+  source: text("source").notNull(), // 'ai_inference', 'form_data', 'manual'
+  createdAt: text("created_at").notNull()
+});
+
+// New table for persona analysis
+export const profilePersona = pgTable("profile_persona", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  emotionalTone: text("emotional_tone"), // 'excited', 'cautious', 'urgent', 'analytical'
+  communicationStyle: text("communication_style"), // 'direct', 'collaborative', 'detail-oriented'
+  decisionMakingStyle: text("decision_making_style"), // 'quick', 'research-heavy', 'committee-based'
+  urgencyLevel: integer("urgency_level").notNull().default(50), // 0-100
+  priceOrientation: text("price_orientation"), // 'value-conscious', 'premium-focused', 'budget-driven'
+  personalityTraits: json("personality_traits").$type<string[]>().notNull().default([]),
+  confidenceScore: integer("confidence_score").notNull(), // Overall confidence in persona analysis
   createdAt: text("created_at").notNull()
 });
 
@@ -44,8 +73,22 @@ export const insertBuyerProfileSchema = createInsertSchema(buyerProfiles).omit({
   createdAt: true
 });
 
+export const insertProfileTagSchema = createInsertSchema(profileTags).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertProfilePersonaSchema = createInsertSchema(profilePersona).omit({
+  id: true,
+  createdAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
+export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
+export type ProfileTag = typeof profileTags.$inferSelect;
+export type InsertProfilePersona = z.infer<typeof insertProfilePersonaSchema>;
+export type ProfilePersona = typeof profilePersona.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({
