@@ -137,9 +137,68 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBuyerProfile(id: number): Promise<void> {
     // Delete in proper order due to foreign key constraints
+    await db.delete(agentInsightFeedback).where(eq(agentInsightFeedback.profileId, id));
+    await db.delete(agentActionFeedback).where(eq(agentActionFeedback.profileId, id));
+    await db.delete(agentNotes).where(eq(agentNotes.profileId, id));
+    await db.delete(profileInsightsLock).where(eq(profileInsightsLock.profileId, id));
     await db.delete(profileTags).where(eq(profileTags.profileId, id));
     await db.delete(profilePersona).where(eq(profilePersona.profileId, id));
     await db.delete(buyerProfiles).where(eq(buyerProfiles.id, id));
+  }
+
+  // Agent feedback methods
+  async logInsightFeedback(feedback: InsertAgentInsightFeedback): Promise<void> {
+    await db.insert(agentInsightFeedback).values({
+      ...feedback,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  async logActionFeedback(feedback: InsertAgentActionFeedback): Promise<void> {
+    await db.insert(agentActionFeedback).values({
+      ...feedback,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  async saveAgentNote(note: InsertAgentNotes): Promise<void> {
+    await db.insert(agentNotes).values({
+      ...note,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  async toggleInsightsLock(lock: InsertProfileInsightsLock): Promise<void> {
+    // Use upsert pattern - insert or update if exists
+    const existing = await db.select()
+      .from(profileInsightsLock)
+      .where(eq(profileInsightsLock.profileId, lock.profileId));
+    
+    if (existing.length > 0) {
+      await db.update(profileInsightsLock)
+        .set({ isLocked: lock.isLocked })
+        .where(eq(profileInsightsLock.profileId, lock.profileId));
+    } else {
+      await db.insert(profileInsightsLock).values({
+        ...lock,
+        createdAt: new Date().toISOString()
+      });
+    }
+  }
+
+  async getAgentNotes(profileId: number): Promise<AgentNotes[]> {
+    const notes = await db.select()
+      .from(agentNotes)
+      .where(eq(agentNotes.profileId, profileId))
+      .orderBy(desc(agentNotes.createdAt));
+    return notes;
+  }
+
+  async getInsightsLockStatus(profileId: number): Promise<boolean> {
+    const [lock] = await db.select()
+      .from(profileInsightsLock)
+      .where(eq(profileInsightsLock.profileId, profileId));
+    return lock ? Boolean(lock.isLocked) : false;
   }
 }
 

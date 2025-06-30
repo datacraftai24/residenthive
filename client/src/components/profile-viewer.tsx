@@ -25,6 +25,7 @@ import ConversationalEdit from "./conversational-edit";
 import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
+import AgentFeedback from "./agent-feedback";
 
 interface ProfileViewerProps {
   profileId: number;
@@ -298,6 +299,15 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         profile={profile}
         persona={enhancedProfile?.persona}
       />
+
+      {/* Agent Feedback */}
+      {enhancedProfile && (
+        <AgentFeedback 
+          profile={profile}
+          tags={enhancedProfile.tags || []}
+          persona={enhancedProfile.persona}
+        />
+      )}
 
       {/* AI Analysis */}
       {enhancedProfile && (enhancedProfile.tags?.length > 0 || enhancedProfile.persona) && (
