@@ -79,7 +79,7 @@ export class TagEngine {
 
     } catch (error) {
       console.error("Tag Engine error:", error);
-      throw new Error(`Tag analysis failed: ${error.message}`);
+      throw new Error(`Tag analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
