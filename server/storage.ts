@@ -41,7 +41,10 @@ export class DatabaseStorage implements IStorage {
   async createBuyerProfile(insertProfile: InsertBuyerProfile): Promise<BuyerProfile> {
     const [profile] = await db
       .insert(buyerProfiles)
-      .values(insertProfile)
+      .values({
+        ...insertProfile,
+        createdAt: new Date().toISOString()
+      })
       .returning();
     return profile;
   }
@@ -72,9 +75,14 @@ export class DatabaseStorage implements IStorage {
   async createProfileTags(tags: InsertProfileTag[]): Promise<ProfileTag[]> {
     if (tags.length === 0) return [];
     
+    const tagsWithTimestamp = tags.map(tag => ({
+      ...tag,
+      createdAt: new Date().toISOString()
+    }));
+    
     const createdTags = await db
       .insert(profileTags)
-      .values(tags)
+      .values(tagsWithTimestamp)
       .returning();
     return createdTags;
   }
@@ -82,7 +90,10 @@ export class DatabaseStorage implements IStorage {
   async createProfilePersona(persona: InsertProfilePersona): Promise<ProfilePersona> {
     const [createdPersona] = await db
       .insert(profilePersona)
-      .values(persona)
+      .values({
+        ...persona,
+        createdAt: new Date().toISOString()
+      })
       .returning();
     return createdPersona;
   }
@@ -99,7 +110,10 @@ export class DatabaseStorage implements IStorage {
   async createProfileVersion(profile: InsertBuyerProfile): Promise<BuyerProfile> {
     const [newProfile] = await db
       .insert(buyerProfiles)
-      .values(profile)
+      .values({
+        ...profile,
+        createdAt: new Date().toISOString()
+      })
       .returning();
     return newProfile;
   }
