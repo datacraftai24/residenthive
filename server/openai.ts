@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { extractedProfileSchema, type ExtractedProfile, type BuyerFormData } from "@shared/schema";
+import { tagEngine, type TagEngineInput } from "./tag-engine";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -92,11 +93,83 @@ Respond with valid JSON in the exact format specified.`
     // Validate the cleaned data against our schema
     const validated = extractedProfileSchema.parse(cleanedData);
     
-    return validated;
+    // Calculate confidence based on data richness
+    const confidence = calculateExtractionConfidence(validated, rawInput);
+    
+    return {
+      ...validated,
+      nlpConfidence: confidence
+    } as ExtractedProfile;
   } catch (error) {
     console.error("Error extracting buyer profile:", error);
     throw new Error("Failed to extract buyer profile: " + (error as Error).message);
   }
+}
+
+/**
+ * Enhanced extraction with Tag Engine analysis
+ */
+export async function extractBuyerProfileWithTags(rawInput: string, inputMethod: 'voice' | 'text' = 'text'): Promise<{
+  profile: ExtractedProfile & { inputMethod: string; nlpConfidence: number };
+  tags: any[];
+  persona: any;
+  confidence: number;
+}> {
+  try {
+    // Extract basic profile
+    const profile = await extractBuyerProfile(rawInput);
+    
+    // Prepare Tag Engine input
+    const tagInput: TagEngineInput = {
+      structuredData: profile,
+      rawInput,
+      context: 'profile'
+    };
+    
+    // Generate tags and persona analysis
+    const tagAnalysis = await tagEngine.generateTagsAndPersona(tagInput);
+    
+    return {
+      profile: {
+        ...profile,
+        inputMethod,
+        nlpConfidence: profile.nlpConfidence || 85
+      },
+      tags: tagAnalysis.tags,
+      persona: tagAnalysis.persona,
+      confidence: tagAnalysis.confidence
+    };
+  } catch (error) {
+    console.error("Error in enhanced extraction:", error);
+    throw new Error(`Enhanced extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Calculate confidence score based on data richness and clarity
+ */
+function calculateExtractionConfidence(profile: ExtractedProfile, rawInput: string): number {
+  let confidence = 50; // Base confidence
+  
+  // Add points for complete data
+  if (profile.name && profile.name !== "Unknown Buyer") confidence += 10;
+  if (profile.email) confidence += 5;
+  if (profile.budgetMin && profile.budgetMax) confidence += 10;
+  if (profile.preferredAreas?.length > 0) confidence += 10;
+  if (profile.mustHaveFeatures?.length > 0) confidence += 8;
+  if (profile.dealbreakers?.length > 0) confidence += 5;
+  
+  // Input quality scoring
+  const wordCount = rawInput.split(/\s+/).length;
+  if (wordCount > 50) confidence += 10;
+  else if (wordCount > 20) confidence += 5;
+  
+  // Specificity bonus
+  if (rawInput.includes('$') || rawInput.includes('budget')) confidence += 5;
+  if (/\b\d+\s*(bed|bedroom)/i.test(rawInput)) confidence += 5;
+  if (/\b\d+\s*(bath|bathroom)/i.test(rawInput)) confidence += 5;
+  
+  return Math.min(100, Math.max(10, confidence));
 }
 
 export async function enhanceFormProfile(formData: BuyerFormData): Promise<ExtractedProfile> {
