@@ -131,6 +131,12 @@ Changelog:
   - Added confidence scoring and input method tracking for transparency
   - Created enhanced API endpoints for comprehensive profile analysis
   - Built UI components for displaying tags, persona insights, and confidence scores
+- June 30, 2025. Profile viewing and editing functionality
+  - Fixed database storage createdAt timestamp issue - profiles now save successfully
+  - Implemented clickable profile sidebar with navigation to detailed profile views
+  - Added comprehensive profile editing forms with full feature support
+  - Enhanced dashboard with dynamic view modes (home, profile view, edit mode)
+  - Database operations now properly handle timestamp creation for all entities
 ```
 
 ## User Preferences
