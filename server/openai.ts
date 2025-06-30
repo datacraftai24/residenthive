@@ -218,7 +218,32 @@ Please analyze this form data and return a comprehensive buyer profile as JSON f
       ]
     });
 
-    const extractedData = JSON.parse(response.choices[0].message.content || "{}");
+    const aiResponse = response.choices[0].message.content || "";
+    
+    // Extract JSON from markdown if present
+    let extractedData: any = {};
+    try {
+      const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        extractedData = JSON.parse(jsonMatch[1]);
+      } else {
+        // Try to parse as direct JSON
+        extractedData = JSON.parse(aiResponse);
+      }
+    } catch (e) {
+      // If JSON parsing fails, extract simple insights with regex
+      const budgetMinMatch = aiResponse.match(/budgetMin[":]\s*(\d+)/i);
+      const budgetMaxMatch = aiResponse.match(/budgetMax[":]\s*(\d+)/i);
+      const emotionalToneMatch = aiResponse.match(/emotionalTone[":]\s*"?([^",\n}]+)"?/i);
+      const priorityMatch = aiResponse.match(/priority[":]\s*(\d+)/i);
+      
+      extractedData = {
+        budgetMin: budgetMinMatch ? parseInt(budgetMinMatch[1]) : undefined,
+        budgetMax: budgetMaxMatch ? parseInt(budgetMaxMatch[1]) : undefined,
+        emotionalTone: emotionalToneMatch ? emotionalToneMatch[1].trim() : undefined,
+        priorityScore: priorityMatch ? parseInt(priorityMatch[1]) : 50
+      };
+    }
     
     // Merge form data with AI enhancements
     const enhanced: ExtractedProfile = {
@@ -239,7 +264,7 @@ Please analyze this form data and return a comprehensive buyer profile as JSON f
       locationFlexibility: formData.locationFlexibility,
       timingFlexibility: formData.timingFlexibility,
       emotionalContext: formData.emotionalContext,
-      inferredTags: extractedData.inferredTags || [],
+      inferredTags: extractedData.inferredTags || [], // Will be populated by Tag Engine separately
       emotionalTone: extractedData.emotionalTone,
       priorityScore: extractedData.priorityScore || 50
     };
