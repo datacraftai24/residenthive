@@ -209,8 +209,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           <CardContent>
             {profile.mustHaveFeatures.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {profile.mustHaveFeatures.map((feature) => (
-                  <Badge key={feature} variant="outline">
+                {profile.mustHaveFeatures.map((feature, index) => (
+                  <Badge key={`${feature}-${index}`} variant="outline">
                     {feature.replace('-', ' ')}
                   </Badge>
                 ))}
@@ -228,8 +228,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           <CardContent>
             {profile.dealbreakers.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {profile.dealbreakers.map((dealbreaker) => (
-                  <Badge key={dealbreaker} variant="destructive">
+                {profile.dealbreakers.map((dealbreaker, index) => (
+                  <Badge key={`${dealbreaker}-${index}`} variant="destructive">
                     {dealbreaker.replace('-', ' ')}
                   </Badge>
                 ))}

@@ -122,8 +122,24 @@ function generateAgentActions(profile: BuyerProfile, persona?: AgentActionsProps
 export default function AgentActions({ profile, persona }: AgentActionsProps) {
   const actions = generateAgentActions(profile, persona);
 
+  // Debug: Log the values we're working with
+  console.log('Agent Actions Debug:', {
+    urgencyLevel: persona?.urgencyLevel,
+    locationFlexibility: profile.locationFlexibility,
+    personalityTraits: persona?.personalityTraits,
+    decisionMakingStyle: persona?.decisionMakingStyle,
+    actionsGenerated: actions.length
+  });
+
+  // For debugging - always show at least a fallback action
   if (actions.length === 0) {
-    return null; // Don't show section if no actions
+    actions.push({
+      id: 'default-follow-up',
+      emoji: '📞',
+      action: 'Schedule follow-up call',
+      reason: 'Stay connected with buyer preferences',
+      type: 'communication'
+    });
   }
 
   return (
