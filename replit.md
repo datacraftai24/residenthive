@@ -31,19 +31,35 @@ This is a full-stack web application for capturing and managing real estate buye
 
 ## Key Components
 
-### Database Schema (`shared/schema.ts`)
-- **buyerProfiles Table**: Stores structured buyer profile data
+### Enhanced Database Schema (`shared/schema.ts`)
+- **buyerProfiles Table**: Core buyer profile data with versioning
   - id (serial primary key)
-  - name, budget, location, bedrooms, bathrooms
+  - name, email, budget, location, bedrooms, bathrooms
   - mustHaveFeatures and dealbreakers (JSON arrays)
-  - rawInput (original user input)
-  - createdAt timestamp
+  - inputMethod ('form', 'voice', 'text'), nlpConfidence (0-100)
+  - version, parentProfileId (for profile evolution tracking)
+  - rawInput (original user input), createdAt timestamp
 
-### API Endpoints (`server/routes.ts`)
-- **POST /api/extract-profile**: Processes raw text input using OpenAI to extract structured profile data
-- **POST /api/buyer-profiles**: Saves buyer profiles to database
+- **profileTags Table**: AI-generated behavioral tags
+  - id, profileId (foreign key), tag, category
+  - confidence score (0-100), source ('ai_inference', 'form_data', 'manual')
+  - Categories: demographic, behavioral, preference, urgency, financial
+
+- **profilePersona Table**: Deep persona analysis
+  - id, profileId (foreign key)
+  - emotionalTone, communicationStyle, decisionMakingStyle
+  - urgencyLevel (0-100), priceOrientation, personalityTraits (array)
+  - confidenceScore (overall persona confidence)
+
+### Enhanced API Endpoints (`server/routes.ts`)
+- **POST /api/extract-profile**: Basic profile extraction from raw text
+- **POST /api/extract-profile-enhanced**: Advanced extraction with tags and persona analysis
+- **POST /api/tag-engine/analyze**: Standalone microservice for behavioral analysis (reusable)
+- **POST /api/buyer-profiles**: Saves buyer profiles with enhanced metadata
 - **GET /api/buyer-profiles**: Retrieves all saved buyer profiles
-- **DELETE /api/buyer-profiles/:id**: Removes specific buyer profile
+- **GET /api/buyer-profiles/:id/enhanced**: Gets profile with tags and persona data
+- **GET /api/buyer-profiles/:id/versions**: Retrieves all versions of a profile
+- **DELETE /api/buyer-profiles/:id**: Removes specific buyer profile and associated data
 
 ### Frontend Components
 - **ProfileForm**: Input form with text area and voice recording capabilities
@@ -109,6 +125,12 @@ This is a full-stack web application for capturing and managing real estate buye
 ```
 Changelog:
 - June 29, 2025. Initial setup
+- June 30, 2025. Enhanced with Tag Engine microservice, persona analysis, profile versioning, and transparency features
+  - Added standalone Tag Engine for behavioral analysis and persona insights
+  - Implemented profile versioning system for tracking buyer preference evolution
+  - Added confidence scoring and input method tracking for transparency
+  - Created enhanced API endpoints for comprehensive profile analysis
+  - Built UI components for displaying tags, persona insights, and confidence scores
 ```
 
 ## User Preferences
