@@ -209,6 +209,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Insights explanation endpoint
+  app.get("/api/insights/explanation", async (req, res) => {
+    try {
+      const explanation = {
+        confidenceScoring: {
+          description: "How confident the AI is in its data extraction (0-100%)",
+          baseScore: 50,
+          factors: {
+            completeName: { points: 10, description: "Complete buyer name provided" },
+            email: { points: 5, description: "Email address included" },
+            budgetRange: { points: 10, description: "Clear budget with min/max values" },
+            locationPreferences: { points: 10, description: "Specific location areas mentioned" },
+            mustHaveFeatures: { points: 8, description: "Multiple must-have features listed" },
+            dealbreakers: { points: 5, description: "Clear dealbreakers mentioned" },
+            inputQuality: {
+              detailedInput: { points: 10, description: "50+ words in description" },
+              moderateInput: { points: 5, description: "20-50 words in description" },
+              budgetMentioned: { points: 5, description: "Budget mentioned with $ symbol" },
+              specificBedrooms: { points: 5, description: "Specific bedroom count" },
+              specificBathrooms: { points: 5, description: "Specific bathroom count" }
+            }
+          }
+        },
+        
+        behavioralTags: {
+          description: "AI-generated tags categorizing buyer behavior and preferences",
+          categories: {
+            demographic: {
+              confidence: "80-95%",
+              examples: ["first-time-buyer", "family-oriented", "empty-nester", "investor"],
+              description: "Age, family status, buyer experience level"
+            },
+            behavioral: {
+              confidence: "70-90%", 
+              examples: ["research-heavy", "quick-decision", "collaborative", "cautious"],
+              description: "Decision-making patterns and communication style"
+            },
+            preference: {
+              confidence: "75-90%",
+              examples: ["modern-style", "urban-living", "suburban-preference"],
+              description: "Style and location preferences"
+            },
+            financial: {
+              confidence: "70-85%",
+              examples: ["budget-conscious", "premium-focused", "investment-minded"],
+              description: "Price orientation and financial approach"
+            },
+            urgency: {
+              confidence: "80-95%",
+              examples: ["immediate-need", "flexible-timing", "seasonal-buyer"],
+              description: "Timeline pressure and urgency level"
+            }
+          }
+        },
+
+        personaAnalysis: {
+          description: "Deep psychological profiling with behavioral insights",
+          components: {
+            communicationStyle: {
+              options: ["direct", "collaborative", "detail-oriented", "visual"],
+              description: "How the buyer prefers to communicate and receive information"
+            },
+            decisionMakingStyle: {
+              options: ["quick", "research-heavy", "committee-based", "intuitive"],
+              description: "How the buyer approaches major decisions"
+            },
+            urgencyLevel: {
+              range: "0-100",
+              description: "Timeline pressure and immediacy of need",
+              calculation: "Base 50 + timeline factors + life events + current situation"
+            },
+            priceOrientation: {
+              options: ["budget-driven", "value-conscious", "premium-focused", "investment-minded"],
+              description: "Primary financial motivation and price sensitivity"
+            }
+          }
+        },
+
+        flexibilityScoring: {
+          description: "How flexible the buyer is in different aspects (0-100)",
+          types: {
+            budget: {
+              low: "0-30: Fixed maximum, can't go higher",
+              medium: "40-70: Some wiggle room, approximate range", 
+              high: "70-100: Flexible depending on features"
+            },
+            location: {
+              low: "0-30: Specific neighborhood required",
+              medium: "40-70: Preferred areas with alternatives",
+              high: "70-100: Open to suggestions"
+            },
+            timing: {
+              low: "0-30: Hard deadlines, immediate need",
+              medium: "40-70: Preferred timeline with flexibility",
+              high: "70-100: When the right place is found"
+            }
+          }
+        },
+
+        inputMethodAccuracy: {
+          description: "How input method affects analysis accuracy",
+          methods: {
+            form: { accuracy: "95-100%", description: "Structured data with validation" },
+            text: { accuracy: "80-95%", description: "Well-written descriptions" },
+            voice: { accuracy: "70-90%", description: "Speech-to-text with interpretation" }
+          }
+        },
+
+        priorityScore: {
+          description: "Overall urgency and importance of the search (0-100)",
+          factors: {
+            emotionalTone: { weight: "20%", description: "Intensity of emotional language" },
+            timelinePressure: { weight: "25%", description: "Deadline urgency" },
+            lifeEvents: { weight: "20%", description: "Major life change triggers" },
+            currentSituation: { weight: "20%", description: "Current housing problems" },
+            decisionReadiness: { weight: "15%", description: "Preparedness to act" }
+          }
+        },
+
+        continuousLearning: {
+          description: "How the system improves over time",
+          methods: [
+            "Version tracking of buyer preference evolution",
+            "Confidence validation against actual outcomes", 
+            "Agent feedback and manual corrections",
+            "Pattern analysis from successful matches"
+          ]
+        }
+      };
+
+      res.json(explanation);
+    } catch (error) {
+      console.error("Error in /api/insights/explanation:", error);
+      res.status(500).json({ 
+        error: "Failed to get insights explanation",
+        message: (error as Error).message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
