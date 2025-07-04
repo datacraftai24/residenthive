@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Edit, 
   ArrowLeft, 
@@ -17,7 +18,9 @@ import {
   Target,
   Brain,
   BarChart3,
-  Clock
+  Clock,
+  Search,
+  User
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -26,6 +29,7 @@ import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
+import ListingSearch from "./listing-search";
 
 interface ProfileViewerProps {
   profileId: number;
@@ -132,8 +136,22 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         </div>
       </div>
 
-      {/* Basic Information */}
-      <Card>
+      {/* Tabs Navigation */}
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="profile" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Profile Details
+          </TabsTrigger>
+          <TabsTrigger value="listings" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Smart Search
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile" className="space-y-6 mt-6">
+          {/* Basic Information */}
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5" />
@@ -331,19 +349,25 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         </Card>
       )}
 
-      {/* Raw Input (if available) */}
-      {profile.rawInput && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Original Input</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm whitespace-pre-wrap">{profile.rawInput}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* Raw Input (if available) */}
+          {profile.rawInput && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Original Input</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm whitespace-pre-wrap">{profile.rawInput}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="listings" className="mt-6">
+          <ListingSearch profileId={profileId} profileName={profile.name} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

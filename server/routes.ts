@@ -604,6 +604,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Intelligent Listing Search API
+  app.post("/api/listings/search", async (req, res) => {
+    try {
+      const { profileId } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      // Get buyer profile
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Buyer profile not found" });
+      }
+
+      // Get profile with tags for enhanced scoring
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Import the services
+      const { listingScorer } = await import('./listing-scorer');
+
+      // Check if Repliers API is available, otherwise use demo data
+      let listings;
+      const hasApiKey = !!process.env.REPLIERS_API_KEY;
+      
+      if (hasApiKey) {
+        try {
+          const { repliersAPI } = await import('./repliers-api');
+          listings = await repliersAPI.searchListings(profile);
+        } catch (apiError) {
+          console.log('Repliers API error, falling back to demo data:', apiError.message);
+          const { getDemoListingsForProfile } = await import('./demo-listings');
+          listings = getDemoListingsForProfile(profile);
+        }
+      } else {
+        console.log('Using demo data for intelligent search demonstration');
+        const { getDemoListingsForProfile } = await import('./demo-listings');
+        listings = getDemoListingsForProfile(profile);
+      }
+      
+      if (!listings || listings.length === 0) {
+        return res.json({
+          top_picks: [],
+          other_matches: [],
+          chat_blocks: ["No listings found matching your criteria. Try adjusting your search parameters."],
+          search_summary: {
+            total_found: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          }
+        });
+      }
+
+      // Score each listing
+      const scoredListings = listings.map(listing => 
+        listingScorer.scoreListing(listing, profile, tags)
+      );
+
+      // Categorize listings
+      const categorizedResults = listingScorer.categorizeListings(scoredListings);
+
+      // Add search summary
+      const response = {
+        ...categorizedResults,
+        search_summary: {
+          total_found: listings.length,
+          top_picks_count: categorizedResults.top_picks.length,
+          other_matches_count: categorizedResults.other_matches.length,
+          search_criteria: {
+            budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+            bedrooms: profile.bedrooms,
+            property_type: profile.homeType,
+            location: profile.preferredAreas
+          }
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error searching listings:", error);
+      res.status(500).json({ 
+        error: "Failed to search listings",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

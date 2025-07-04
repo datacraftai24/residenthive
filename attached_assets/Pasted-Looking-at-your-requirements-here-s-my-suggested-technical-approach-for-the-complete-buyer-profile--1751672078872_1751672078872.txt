@@ -1,0 +1,40 @@
+Looking at your requirements, here's my suggested technical approach for the complete buyer profile → listing search → scoring flow:
+
+Suggested Implementation Strategy
+1. API Integration Layer (server/repliers-api.ts)
+Create a dedicated service to handle Repliers API calls:
+
+Map buyer profile fields to Repliers search parameters
+Handle authentication with stored REPLIERS_API_KEY
+Transform profile data: budgetMin/Max → price_min/max, preferredAreas[0] → location, etc.
+Include error handling and rate limiting
+2. Intelligent Scoring Engine (server/listing-scorer.ts)
+Build a sophisticated matching algorithm that:
+
+Feature Matching: Check listing amenities against mustHaveFeatures (weighted +0.3 per match)
+Dealbreaker Detection: Scan descriptions for dealbreakers (automatic -0.5 penalty)
+Tag-Based Scoring: Use inferredTags for contextual matches (lifestyle, personality fit)
+Budget Alignment: Score price positioning within buyer's range
+Location Preference: Distance/area matching with buyer's preferredAreas
+3. API Endpoint (/api/listings/search)
+New route that orchestrates the entire flow:
+
+POST /api/listings/search
+Body: { profileId: number }
+Response: { top_picks: [...], other_matches: [...], chat_blocks: [...] }
+4. Scoring Categories & Labels
+Top Picks (≥0.85): "Perfect Match" / "Excellent Fit"
+Other Matches (0.65-0.84): "Worth Considering" / "Good Potential"
+Below 0.65: Filtered out
+5. Chat-Ready Output Format
+Generate buyer-friendly summaries with:
+
+Property highlights and matched features
+AI reasoning for selection
+Action buttons for viewing/saving
+Emoji indicators for quick scanning
+6. Data Flow Architecture
+Profile Data → Repliers API → Raw Listings → Scoring Engine → Categorized Results → Chat Blocks
+This approach ensures authentic market data while providing intelligent, personalized recommendations that real estate agents can immediately use with buyers. The scoring system will be transparent and explainable, showing exactly why each property was recommended.
+
+Would you like me to proceed with implementing this complete listing search and scoring system?
