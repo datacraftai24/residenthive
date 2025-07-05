@@ -670,7 +670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Categorize listings
       const categorizedResults = listingScorer.categorizeListings(scoredListings);
 
-      // Add search summary
+      // Add search summary with debug info
       const response = {
         ...categorizedResults,
         search_summary: {
@@ -683,6 +683,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             property_type: profile.homeType,
             location: profile.preferredAreas
           }
+        },
+        debug_info: {
+          sample_listings: listings.slice(0, 3).map(l => ({
+            price: l.price,
+            bedrooms: l.bedrooms,
+            city: l.city,
+            property_type: l.property_type
+          })),
+          profile_budget: { min: profile.budgetMin, max: profile.budgetMax },
+          sample_scores: scoredListings.slice(0, 3).map(s => ({
+            price: s.listing.price,
+            city: s.listing.city,
+            score: s.match_score,
+            breakdown: s.score_breakdown
+          }))
         }
       };
 

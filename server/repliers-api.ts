@@ -120,11 +120,12 @@ export class RepliersAPIService {
         }
       });
 
-      const response = await fetch(`${this.baseURL}/listings/search?${queryString}`, {
-        method: 'GET',
+      const response = await fetch(`${this.baseURL}/listings?listings=true&operator=AND&sortBy=updatedOnDesc&status=A&${queryString}`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+          'REPLIERS-API-KEY': this.apiKey,
+          'accept': 'application/json',
+          'content-type': 'application/json',
         },
       });
 
@@ -133,12 +134,96 @@ export class RepliersAPIService {
         throw new Error(`Repliers API error: ${response.status} - ${errorText}`);
       }
 
-      const data: RepliersResponse = await response.json();
-      return data.listings || [];
+      const data = await response.json();
+      const rawListings = data.listings || [];
+      
+      // Transform Repliers API format to our expected format
+      return rawListings.map((listing: any) => this.transformRepliersListing(listing));
     } catch (error) {
       console.error('Error searching Repliers API:', error);
       throw error;
     }
+  }
+
+  /**
+   * Transform Repliers API listing format to our expected format
+   */
+  private transformRepliersListing(rawListing: any): RepliersListing {
+    const address = rawListing.address || {};
+    const details = rawListing.details || {};
+    
+    return {
+      id: rawListing.mlsNumber || `listing_${Date.now()}`,
+      price: rawListing.listPrice || 0,
+      bedrooms: this.parseNumber(details.totalBedrooms) || this.parseNumber(details.bedrooms) || 0,
+      bathrooms: this.parseNumber(details.totalBathrooms) || (details.bathrooms?.length || 0),
+      property_type: this.normalizePropertyType(details.propertyType || 'house'),
+      address: this.buildAddress(address),
+      city: address.city || '',
+      state: address.state || '',
+      zip_code: address.zip || '',
+      square_feet: this.parseNumber(details.livingAreaSqFt) || this.parseNumber(details.totalSqFt),
+      year_built: this.parseNumber(details.yearBuilt),
+      description: details.description || '',
+      features: this.extractFeatures(details),
+      images: rawListing.images || [],
+      listing_agent: this.extractAgent(rawListing.agents),
+      mls_number: rawListing.mlsNumber,
+      listing_date: rawListing.listDate,
+      status: rawListing.lastStatus || 'active'
+    };
+  }
+
+  private parseNumber(value: any): number | undefined {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = parseInt(value.replace(/[^\d]/g, ''));
+      return isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  }
+
+  private normalizePropertyType(type: string): string {
+    const typeMap: { [key: string]: string } = {
+      'Residential Lease': 'house',
+      'Single Family': 'house',
+      'Condo': 'condo',
+      'Townhouse': 'townhouse',
+      'Multi-Family': 'house'
+    };
+    return typeMap[type] || 'house';
+  }
+
+  private buildAddress(address: any): string {
+    const parts = [
+      address.streetNumber,
+      address.streetName,
+      address.streetSuffix
+    ].filter(Boolean);
+    return parts.join(' ');
+  }
+
+  private extractFeatures(details: any): string[] {
+    const features: string[] = [];
+    
+    if (details.airConditioning) features.push('Air Conditioning');
+    if (details.garage) features.push('Garage');
+    if (details.pool) features.push('Pool');
+    if (details.fireplace) features.push('Fireplace');
+    if (details.deck || details.patio) features.push('Outdoor Space');
+    
+    return features;
+  }
+
+  private extractAgent(agents: any[]): any {
+    if (!agents || !agents.length) return undefined;
+    
+    const agent = agents[0];
+    return {
+      name: agent.name || '',
+      phone: agent.phone || '',
+      email: agent.email || ''
+    };
   }
 
   /**

@@ -31,6 +31,7 @@ export class ListingScorer {
     const scores = {
       budget_score: this.calculateBudgetScore(listing, profile),
       feature_score: this.calculateFeatureScore(listing, profile),
+      bedroom_score: this.calculateBedroomScore(listing, profile),
       dealbreaker_penalty: this.calculateDealbreakerPenalty(listing, profile),
       location_score: this.calculateLocationScore(listing, profile),
       tag_score: this.calculateTagScore(listing, profile, tags)
@@ -38,10 +39,11 @@ export class ListingScorer {
 
     // Weighted final score
     const finalScore = Math.max(0, Math.min(1, 
-      (scores.budget_score * 0.25) +
-      (scores.feature_score * 0.30) +
-      (scores.location_score * 0.20) +
-      (scores.tag_score * 0.25) +
+      (scores.budget_score * 0.20) +
+      (scores.feature_score * 0.25) +
+      (scores.bedroom_score * 0.20) +
+      (scores.location_score * 0.15) +
+      (scores.tag_score * 0.20) +
       scores.dealbreaker_penalty // This is negative
     ));
 
@@ -67,12 +69,18 @@ export class ListingScorer {
     const minBudget = profile.budgetMin || 0;
     const maxBudget = profile.budgetMax || Infinity;
 
-    // Perfect score if within budget
-    if (price >= minBudget && price <= maxBudget) {
-      return 1.0;
+    // Handle rental properties (low prices indicate monthly rent)
+    if (price < 10000) {
+      // This is likely a rental - buyers looking to purchase get lower score
+      return 0.3; // Rental property, buyer wants to purchase
     }
 
-    // Partial score if close to budget range
+    // Handle purchase properties
+    if (price >= minBudget && price <= maxBudget) {
+      return 1.0; // Perfect match
+    }
+
+    // Partial score if close to budget range  
     const budgetRange = maxBudget - minBudget;
     const tolerance = budgetRange * 0.1; // 10% tolerance
 
@@ -83,6 +91,40 @@ export class ListingScorer {
       const overAmount = price - maxBudget;
       return Math.max(0, 1 - (overAmount / tolerance));
     }
+  }
+
+  /**
+   * Score bedroom/bathroom matching (0-1) - handles missing data gracefully
+   */
+  private calculateBedroomScore(listing: RepliersListing, profile: BuyerProfile): number {
+    // If listing has no bedroom data, give neutral score
+    if (!listing.bedrooms || listing.bedrooms === 0) {
+      return 0.5; // Neutral score for missing data
+    }
+
+    // If profile has no bedroom preference, neutral score
+    if (!profile.bedrooms) {
+      return 0.5;
+    }
+
+    // Perfect match
+    if (listing.bedrooms === profile.bedrooms) {
+      return 1.0;
+    }
+
+    // Good match if within 1 bedroom
+    const difference = Math.abs(listing.bedrooms - profile.bedrooms);
+    if (difference === 1) {
+      return 0.7;
+    }
+
+    // Fair match if within 2 bedrooms
+    if (difference === 2) {
+      return 0.4;
+    }
+
+    // Poor match if more than 2 bedrooms off
+    return 0.1;
   }
 
   /**
@@ -332,18 +374,19 @@ export class ListingScorer {
    * Categorize listings based on scores
    */
   categorizeListings(scoredListings: ScoredListing[]): CategorizedListings {
-    const topPicks = scoredListings.filter(item => item.match_score >= 0.85);
-    const otherMatches = scoredListings.filter(item => item.match_score >= 0.65 && item.match_score < 0.85);
+    // Adaptive thresholds for real-world data with missing fields
+    const topPicks = scoredListings.filter(item => item.match_score >= 0.35);
+    const otherMatches = scoredListings.filter(item => item.match_score >= 0.25 && item.match_score < 0.35);
 
     // Sort by score descending
     topPicks.sort((a, b) => b.match_score - a.match_score);
     otherMatches.sort((a, b) => b.match_score - a.match_score);
 
-    const chatBlocks = this.generateChatBlocks([...topPicks, ...otherMatches]);
+    const chatBlocks = this.generateChatBlocks([...topPicks.slice(0, 5), ...otherMatches.slice(0, 5)]);
 
     return {
-      top_picks: topPicks,
-      other_matches: otherMatches,
+      top_picks: topPicks.slice(0, 5),
+      other_matches: otherMatches.slice(0, 10),
       chat_blocks: chatBlocks
     };
   }
