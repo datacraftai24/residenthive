@@ -107,52 +107,90 @@ export class RepliersAPIService {
   }
 
   /**
-   * Search for listings using the Repliers API
+   * Search for listings using the Repliers API with intelligent fallback
    */
   async searchListings(profile: any): Promise<RepliersListing[]> {
     try {
       const searchParams = this.mapProfileToSearchParams(profile);
       
-      // Build query parameters for Repliers API
-      const baseParams = new URLSearchParams({
-        listings: 'true',
-        operator: 'AND',
-        sortBy: 'updatedOnDesc',
-        status: 'A',
-        limit: searchParams.limit?.toString() || '100'
-      });
-
-      // Add search filters
-      if (searchParams.price_min) baseParams.append('minPrice', searchParams.price_min.toString());
-      if (searchParams.price_max) baseParams.append('maxPrice', searchParams.price_max.toString());
-      if (searchParams.bedrooms) baseParams.append('bedrooms', searchParams.bedrooms.toString());
-      if (searchParams.bathrooms) baseParams.append('bathrooms', searchParams.bathrooms.toString());
-      if (searchParams.location) baseParams.append('city', searchParams.location);
-      if (searchParams.property_type) baseParams.append('propertyType', searchParams.property_type);
-
-      const response = await fetch(`${this.baseURL}/listings?${baseParams}`, {
-        method: 'POST',
-        headers: {
-          'REPLIERS-API-KEY': this.apiKey,
-          'accept': 'application/json',
-          'content-type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Repliers API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      const rawListings = data.listings || [];
+      // First try exact match search
+      let listings = await this.performSearch(searchParams, false);
       
-      // Transform Repliers API format to our expected format
-      return rawListings.map((listing: any) => this.transformRepliersListing(listing));
+      // If no exact matches, try location-only fallback with expanded search
+      if (!listings || listings.length === 0) {
+        console.log('No exact matches found, searching all listings in location for intelligent scoring...');
+        listings = await this.performLocationFallbackSearch(searchParams);
+      }
+      
+      return listings;
     } catch (error) {
       console.error('Error searching Repliers API:', error);
       throw error;
     }
+  }
+
+  /**
+   * Perform exact search with all criteria
+   */
+  private async performSearch(searchParams: RepliersSearchParams, isLocationOnly: boolean = false): Promise<RepliersListing[]> {
+    const baseParams = new URLSearchParams({
+      listings: 'true',
+      operator: 'AND',
+      sortBy: 'updatedOnDesc',
+      status: 'A',
+      limit: (searchParams.limit?.toString() || '100')
+    });
+
+    // Add search filters (skip non-location filters for fallback)
+    if (!isLocationOnly) {
+      if (searchParams.price_min) baseParams.append('minPrice', searchParams.price_min.toString());
+      if (searchParams.price_max) baseParams.append('maxPrice', searchParams.price_max.toString());
+      if (searchParams.bedrooms) baseParams.append('bedrooms', searchParams.bedrooms.toString());
+      if (searchParams.bathrooms) baseParams.append('bathrooms', searchParams.bathrooms.toString());
+      if (searchParams.property_type) baseParams.append('propertyType', searchParams.property_type);
+    }
+    
+    // Always include location
+    if (searchParams.location) baseParams.append('city', searchParams.location);
+
+    const response = await fetch(`${this.baseURL}/listings?${baseParams}`, {
+      method: 'POST',
+      headers: {
+        'REPLIERS-API-KEY': this.apiKey,
+        'accept': 'application/json',
+        'content-type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Repliers API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const rawListings = data.listings || [];
+    
+    return rawListings.map((listing: any) => this.transformRepliersListing(listing));
+  }
+
+  /**
+   * Fallback search: find all listings in the location for intelligent scoring
+   */
+  private async performLocationFallbackSearch(searchParams: RepliersSearchParams): Promise<RepliersListing[]> {
+    // Try each preferred location if available
+    if (searchParams.location) {
+      const locationListings = await this.performSearch(searchParams, true);
+      if (locationListings && locationListings.length > 0) {
+        return locationListings;
+      }
+    }
+    
+    // If no location-specific results, expand to broader search
+    const broadParams = { ...searchParams };
+    delete broadParams.location; // Remove location restriction
+    broadParams.limit = 50; // Limit results for processing
+    
+    return await this.performSearch(broadParams, true);
   }
 
   /**

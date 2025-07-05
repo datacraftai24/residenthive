@@ -163,6 +163,9 @@ Changelog:
   - Created comprehensive visual intelligence database caching system
   - Enhanced listing search now analyzes property photos for better buyer matching
   - Removed all demo data fallbacks - system now requires and uses only authentic Repliers API data
+  - Implemented intelligent fallback search: finds all listings in location when exact matches unavailable
+  - Enhanced scoring system shows specific differences between client requirements and available properties
+  - Transparent trade-off analysis helps agents discuss alternatives with clients based on real market data
 ```
 
 ## User Preferences

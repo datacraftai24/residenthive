@@ -309,31 +309,81 @@ export class ListingScorer {
    * Generate human-readable reason for selection
    */
   private generateReason(listing: RepliersListing, profile: BuyerProfile, matchedFeatures: string[], score: number): string {
-    const reasons: string[] = [];
-
-    // Budget alignment
-    if (listing.price <= (profile.budgetMax || Infinity)) {
-      reasons.push('within budget');
+    const matches: string[] = [];
+    const gaps: string[] = [];
+    
+    // Budget analysis with specific differences
+    if (listing.price >= (profile.budgetMin || 0) && listing.price <= (profile.budgetMax || Infinity)) {
+      matches.push('within budget');
+    } else if (listing.price > (profile.budgetMax || Infinity)) {
+      const overBudget = listing.price - (profile.budgetMax || 0);
+      gaps.push(`$${overBudget.toLocaleString()} over budget`);
+    } else if (listing.price < (profile.budgetMin || 0)) {
+      gaps.push('below minimum budget');
     }
 
-    // Feature matches
-    if (matchedFeatures.length > 0) {
-      reasons.push(`has ${matchedFeatures.slice(0, 2).join(' and ')}`);
+    // Bedroom analysis with specific differences
+    if (listing.bedrooms >= (profile.bedrooms || 0)) {
+      if (listing.bedrooms === (profile.bedrooms || 0)) {
+        matches.push('exact bedroom count');
+      } else {
+        matches.push(`${listing.bedrooms - (profile.bedrooms || 0)} extra bedroom(s)`);
+      }
+    } else {
+      const shortage = (profile.bedrooms || 0) - listing.bedrooms;
+      gaps.push(`${shortage} bedroom(s) short`);
     }
 
-    // Location
+    // Property type analysis
+    if (profile.homeType && listing.property_type !== profile.homeType) {
+      gaps.push(`${listing.property_type} instead of ${profile.homeType}`);
+    }
+
+    // Location analysis
     const preferredAreas = this.parseJsonArray(profile.preferredAreas);
     if (preferredAreas.some(area => listing.city?.toLowerCase().includes(area.toLowerCase()))) {
-      reasons.push('in preferred area');
+      matches.push('in preferred area');
+    } else if (preferredAreas.length > 0) {
+      gaps.push(`in ${listing.city} (prefer ${preferredAreas.slice(0, 2).join('/')})`);
     }
 
-    // Property characteristics
-    if (listing.bedrooms >= (profile.bedrooms || 0)) {
-      reasons.push('meets bedroom requirements');
+    // Feature matches and gaps
+    if (matchedFeatures.length > 0) {
+      matches.push(`has ${matchedFeatures.slice(0, 2).join(' and ')}`);
     }
 
-    const reasonText = reasons.length > 0 ? reasons.join(', ') : 'matches basic criteria';
-    return `${reasonText.charAt(0).toUpperCase()}${reasonText.slice(1)}.`;
+    // Missing must-have features
+    const missingFeatures = this.findMissingMustHaveFeatures(listing, profile);
+    if (missingFeatures.length > 0) {
+      gaps.push(`missing ${missingFeatures.slice(0, 2).join(', ')}`);
+    }
+
+    // Construct explanation showing both matches and gaps
+    let explanation = '';
+    if (matches.length > 0) {
+      explanation += matches.join(', ');
+    }
+    if (gaps.length > 0) {
+      if (explanation) explanation += '; ';
+      explanation += `but ${gaps.join(', ')}`;
+    }
+    
+    return explanation ? `${explanation.charAt(0).toUpperCase()}${explanation.slice(1)}.` : 'Available property with trade-offs.';
+  }
+
+  /**
+   * Find missing must-have features for transparency
+   */
+  private findMissingMustHaveFeatures(listing: RepliersListing, profile: BuyerProfile): string[] {
+    const mustHaveFeatures = this.parseJsonArray(profile.mustHaveFeatures);
+    const listingFeatures = this.parseJsonArray(listing.features || []);
+    const listingText = `${listing.description || ''} ${listingFeatures.join(' ')}`.toLowerCase();
+    
+    return mustHaveFeatures.filter(feature => {
+      const featureLower = feature.toLowerCase();
+      return !listingText.includes(featureLower) && 
+             !listingFeatures.some(lf => lf.toLowerCase().includes(featureLower));
+    });
   }
 
   /**
@@ -343,7 +393,8 @@ export class ListingScorer {
     if (score >= 0.85) return 'Perfect Match';
     if (score >= 0.75) return 'Excellent Fit';
     if (score >= 0.65) return 'Worth Considering';
-    return 'Good Potential';
+    if (score >= 0.45) return 'Consider with Trade-offs';
+    return 'Available Option';
   }
 
   /**
