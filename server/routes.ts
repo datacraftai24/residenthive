@@ -769,7 +769,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create Shareable Listing Link
+  // Create Shareable Profile Link (One per client like Zillow)
+  app.post("/api/profiles/share", async (req, res) => {
+    try {
+      const { 
+        profileId, 
+        agentName, 
+        agentEmail, 
+        agentPhone,
+        customMessage, 
+        brandingColors,
+        showVisualAnalysis,
+        expiresInDays 
+      } = req.body;
+
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      const { profileShareableService } = await import('./profile-share');
+      const shareableProfile = await profileShareableService.createShareableProfile({
+        profileId,
+        agentName,
+        agentEmail,
+        agentPhone,
+        customMessage,
+        brandingColors,
+        showVisualAnalysis,
+        expiresInDays
+      });
+
+      res.json(shareableProfile);
+    } catch (error) {
+      console.error("Error creating shareable profile:", error);
+      res.status(500).json({ 
+        error: "Failed to create shareable profile link",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Get Shareable Profile Info
+  app.get("/api/profiles/share/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const { profileShareableService } = await import('./profile-share');
+      const shareableProfile = await profileShareableService.getActiveShareableProfile(profileId);
+
+      if (!shareableProfile) {
+        return res.status(404).json({ error: "No active shareable link found for this profile" });
+      }
+
+      res.json(shareableProfile);
+    } catch (error) {
+      console.error("Error fetching shareable profile:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch shareable profile",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Create Shareable Listing Link (Individual)
   app.post("/api/listings/share", async (req, res) => {
     try {
       const { 
@@ -858,7 +923,320 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve Shareable Listing Page
+  // Serve Shareable Profile Page (like Zillow client dashboard)
+  app.get("/client/:shareId", async (req, res) => {
+    try {
+      const { shareId } = req.params;
+      
+      const { profileShareableService } = await import('./profile-share');
+      const shareableProfile = await profileShareableService.getShareableProfile(shareId);
+      
+      if (!shareableProfile) {
+        return res.status(404).send(`
+          <html>
+            <head><title>Client Dashboard Not Found</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1>Client Dashboard Not Found</h1>
+              <p>This client dashboard link may have expired or been removed.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Get the buyer profile details
+      const profile = await storage.getBuyerProfile(shareableProfile.profileId);
+      if (!profile) {
+        return res.status(404).send(`
+          <html>
+            <head><title>Profile Not Found</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1>Profile Not Found</h1>
+              <p>The buyer profile associated with this link could not be found.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Get enhanced search results for this profile
+      const profileWithTags = await storage.getProfileWithTags(shareableProfile.profileId);
+      const tags = profileWithTags?.tags || [];
+
+      let listings = [];
+      let searchResults = null;
+
+      try {
+        const { repliersAPI } = await import('./repliers-api');
+        listings = await repliersAPI.searchListings(profile);
+        
+        if (shareableProfile.showVisualAnalysis) {
+          const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
+          searchResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(listings, profile, tags);
+        } else {
+          const { listingScorer } = await import('./listing-scorer');
+          const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+          searchResults = listingScorer.categorizeListings(scoredListings);
+        }
+      } catch (error) {
+        console.error("Error fetching listings for shareable profile:", error);
+        searchResults = {
+          top_picks: [],
+          other_matches: [],
+          chat_blocks: ["Unable to load property listings at this time."]
+        };
+      }
+
+      // Generate beautiful client dashboard page
+      res.send(`
+        <html>
+          <head>
+            <title>${profile.name}'s Property Matches</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta property="og:title" content="Your Personalized Property Matches">
+            <meta property="og:description" content="Curated properties selected specifically for ${profile.name}">
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+              }
+              .container { max-width: 1200px; margin: 0 auto; }
+              .header { 
+                background: white; 
+                border-radius: 16px; 
+                padding: 40px; 
+                margin-bottom: 30px; 
+                box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
+              }
+              .client-name { font-size: 2.5em; font-weight: bold; color: #333; margin-bottom: 10px; }
+              .subtitle { font-size: 1.2em; color: #666; margin-bottom: 20px; }
+              .agent-message { 
+                background: #f8f9fa; 
+                padding: 20px; 
+                border-radius: 12px; 
+                border-left: 4px solid #667eea; 
+                margin: 20px 0;
+              }
+              .stats { 
+                display: grid; 
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+                gap: 20px; 
+                margin: 30px 0; 
+              }
+              .stat-card { 
+                background: white; 
+                padding: 25px; 
+                border-radius: 12px; 
+                text-align: center; 
+                box-shadow: 0 4px 16px rgba(0,0,0,0.1); 
+              }
+              .stat-number { font-size: 2.5em; font-weight: bold; color: #667eea; }
+              .stat-label { color: #666; margin-top: 5px; }
+              .listings-section { 
+                background: white; 
+                border-radius: 16px; 
+                padding: 40px; 
+                box-shadow: 0 8px 32px rgba(0,0,0,0.1); 
+              }
+              .listing-card { 
+                border: 2px solid #f0f0f0; 
+                border-radius: 12px; 
+                padding: 25px; 
+                margin-bottom: 25px; 
+                transition: all 0.3s ease;
+              }
+              .listing-card:hover { 
+                border-color: #667eea; 
+                box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15); 
+              }
+              .listing-header { 
+                display: flex; 
+                justify-content: between; 
+                align-items: flex-start; 
+                margin-bottom: 20px; 
+              }
+              .listing-price { font-size: 1.8em; font-weight: bold; color: #333; }
+              .listing-address { color: #666; margin: 5px 0; }
+              .listing-details { color: #888; }
+              .match-score { 
+                background: linear-gradient(135deg, #667eea, #764ba2); 
+                color: white; 
+                padding: 8px 16px; 
+                border-radius: 20px; 
+                font-weight: bold; 
+                margin-left: auto;
+              }
+              .listing-reason { 
+                background: #f8f9fa; 
+                padding: 15px; 
+                border-radius: 8px; 
+                margin: 15px 0; 
+                font-style: italic; 
+              }
+              .features { 
+                display: flex; 
+                flex-wrap: wrap; 
+                gap: 8px; 
+                margin: 15px 0; 
+              }
+              .feature { 
+                background: #e3f2fd; 
+                color: #1976d2; 
+                padding: 4px 12px; 
+                border-radius: 16px; 
+                font-size: 0.9em; 
+              }
+              .agent-footer { 
+                background: #2c3e50; 
+                color: white; 
+                padding: 40px; 
+                border-radius: 16px; 
+                margin-top: 30px; 
+                text-align: center; 
+              }
+              .agent-footer h3 { margin-bottom: 15px; }
+              .contact-info { margin: 10px 0; }
+              @media (max-width: 768px) {
+                .header { padding: 30px 20px; }
+                .client-name { font-size: 2em; }
+                .stats { grid-template-columns: repeat(2, 1fr); }
+                .listing-header { flex-direction: column; gap: 15px; }
+                .match-score { margin-left: 0; align-self: flex-start; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <!-- Header -->
+              <div class="header">
+                <div class="client-name">Hello ${profile.name}! 👋</div>
+                <div class="subtitle">Your Personalized Property Matches</div>
+                
+                ${shareableProfile.customMessage ? `
+                  <div class="agent-message">
+                    <strong>Message from ${shareableProfile.agentName || 'Your Agent'}:</strong><br>
+                    ${shareableProfile.customMessage}
+                  </div>
+                ` : ''}
+
+                <!-- Search Criteria -->
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-top: 20px;">
+                  <h4 style="margin-bottom: 15px; color: #333;">Your Search Criteria</h4>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div><strong>Budget:</strong> $${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}</div>
+                    <div><strong>Bedrooms:</strong> ${profile.bedrooms}</div>
+                    <div><strong>Bathrooms:</strong> ${profile.bathrooms}</div>
+                    <div><strong>Property Type:</strong> ${profile.homeType}</div>
+                    <div><strong>Location:</strong> ${profile.preferredAreas?.join(', ')}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Stats -->
+              <div class="stats">
+                <div class="stat-card">
+                  <div class="stat-number">${searchResults?.top_picks?.length || 0}</div>
+                  <div class="stat-label">Top Matches</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${searchResults?.other_matches?.length || 0}</div>
+                  <div class="stat-label">Other Options</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${(searchResults?.top_picks?.length || 0) + (searchResults?.other_matches?.length || 0)}</div>
+                  <div class="stat-label">Total Properties</div>
+                </div>
+                ${shareableProfile.showVisualAnalysis ? `
+                  <div class="stat-card">
+                    <div class="stat-number">AI</div>
+                    <div class="stat-label">Visual Analysis</div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Listings -->
+              <div class="listings-section">
+                <h2 style="margin-bottom: 30px; color: #333;">🏆 Your Top Property Matches</h2>
+                
+                ${searchResults?.top_picks?.length > 0 ? searchResults.top_picks.map(listing => `
+                  <div class="listing-card">
+                    <div class="listing-header">
+                      <div>
+                        <div class="listing-price">$${listing.listing.price.toLocaleString()}</div>
+                        <div class="listing-address">${listing.listing.address}</div>
+                        <div class="listing-details">
+                          ${listing.listing.bedrooms}BR • ${listing.listing.bathrooms}BA • ${listing.listing.property_type}
+                          ${listing.listing.square_feet ? ` • ${listing.listing.square_feet.toLocaleString()} sqft` : ''}
+                        </div>
+                      </div>
+                      <div class="match-score">${Math.round(listing.match_score * 100)}% Match</div>
+                    </div>
+                    
+                    <div class="listing-reason">
+                      💡 ${listing.enhancedReason || listing.reason}
+                    </div>
+
+                    ${listing.matched_features?.length > 0 ? `
+                      <div class="features">
+                        ${listing.matched_features.map(feature => `<span class="feature">✅ ${feature}</span>`).join('')}
+                      </div>
+                    ` : ''}
+
+                    ${listing.visualTagMatches?.length > 0 ? `
+                      <div class="features">
+                        ${listing.visualTagMatches.map(tag => `<span class="feature" style="background: #e8f5e8;">👁️ ${tag}</span>`).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('') : '<p style="text-align: center; color: #666; padding: 40px;">No properties currently match your exact criteria. Your agent will contact you with alternatives.</p>'}
+
+                ${searchResults?.other_matches?.length > 0 ? `
+                  <h3 style="margin: 40px 0 20px 0; color: #333;">🔍 Other Properties to Consider</h3>
+                  ${searchResults.other_matches.slice(0, 3).map(listing => `
+                    <div class="listing-card" style="border-color: #ffc107; background: #fffbf0;">
+                      <div class="listing-header">
+                        <div>
+                          <div class="listing-price">$${listing.listing.price.toLocaleString()}</div>
+                          <div class="listing-address">${listing.listing.address}</div>
+                          <div class="listing-details">
+                            ${listing.listing.bedrooms}BR • ${listing.listing.bathrooms}BA • ${listing.listing.property_type}
+                          </div>
+                        </div>
+                        <div class="match-score" style="background: #ffc107; color: #333;">${Math.round(listing.match_score * 100)}% Match</div>
+                      </div>
+                      <div class="listing-reason">
+                        💡 ${listing.enhancedReason || listing.reason}
+                      </div>
+                    </div>
+                  `).join('')}
+                ` : ''}
+              </div>
+
+              <!-- Agent Footer -->
+              ${shareableProfile.agentName ? `
+                <div class="agent-footer">
+                  <h3>Ready to Schedule Viewings?</h3>
+                  <p>Contact your agent to discuss these properties and schedule tours.</p>
+                  
+                  <div style="margin-top: 20px;">
+                    <div style="font-size: 1.2em; font-weight: bold;">${shareableProfile.agentName}</div>
+                    ${shareableProfile.agentEmail ? `<div class="contact-info">📧 ${shareableProfile.agentEmail}</div>` : ''}
+                    ${shareableProfile.agentPhone ? `<div class="contact-info">📞 ${shareableProfile.agentPhone}</div>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error serving shareable profile:", error);
+      res.status(500).send("Error loading client dashboard");
+    }
+  });
+
+  // Serve Shareable Listing Page (Individual listings)
   app.get("/share/:shareId", async (req, res) => {
     try {
       const { shareId } = req.params;

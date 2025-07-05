@@ -31,6 +31,7 @@ import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
 import ListingSearch from "./listing-search";
 import EnhancedListingSearch from "./enhanced-listing-search";
+import ProfileShareButton from "./profile-share-button";
 
 interface ProfileViewerProps {
   profileId: number;
@@ -129,6 +130,10 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             confidence={profile.nlpConfidence || 0} 
             inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
             className="ml-2"
+          />
+          <ProfileShareButton 
+            profileId={profile.id} 
+            profileName={profile.name} 
           />
           <Button onClick={() => setIsEditing(true)} size="sm">
             <Edit className="h-4 w-4 mr-2" />

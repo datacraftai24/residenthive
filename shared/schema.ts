@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, json, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, numeric, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -128,6 +128,24 @@ export const listingShareableLinks = pgTable("listing_shareable_links", {
   createdAt: text("created_at").notNull(),
 });
 
+// Profile Shareable Links - One comprehensive link per client (like Zillow)
+export const profileShareableLinks = pgTable("profile_shareable_links", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id),
+  shareId: text("share_id").notNull().unique(), // UUID for shareable URL
+  agentName: text("agent_name"),
+  agentEmail: text("agent_email"),
+  agentPhone: text("agent_phone"),
+  customMessage: text("custom_message"),
+  brandingColors: text("branding_colors"), // JSON for custom colors
+  showVisualAnalysis: boolean("show_visual_analysis").notNull().default(true),
+  viewCount: integer("view_count").notNull().default(0),
+  lastViewed: text("last_viewed"),
+  expiresAt: text("expires_at"), // optional expiration
+  createdAt: text("created_at").notNull(),
+  isActive: boolean("is_active").notNull().default(true)
+});
+
 export const insertBuyerProfileSchema = createInsertSchema(buyerProfiles).omit({
   id: true,
   createdAt: true
@@ -173,6 +191,13 @@ export const insertListingShareableLinksSchema = createInsertSchema(listingShare
   lastViewed: true
 });
 
+export const insertProfileShareableLinksSchema = createInsertSchema(profileShareableLinks).omit({
+  id: true,
+  viewCount: true,
+  lastViewed: true,
+  createdAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
@@ -191,6 +216,8 @@ export type InsertListingVisualAnalysis = z.infer<typeof insertListingVisualAnal
 export type ListingVisualAnalysis = typeof listingVisualAnalysis.$inferSelect;
 export type InsertListingShareableLinks = z.infer<typeof insertListingShareableLinksSchema>;
 export type ListingShareableLinks = typeof listingShareableLinks.$inferSelect;
+export type InsertProfileShareableLinks = z.infer<typeof insertProfileShareableLinksSchema>;
+export type ProfileShareableLinks = typeof profileShareableLinks.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({
