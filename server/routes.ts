@@ -626,24 +626,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import the services
       const { listingScorer } = await import('./listing-scorer');
 
-      // Check if Repliers API is available, otherwise use demo data
+      // Search using authentic Repliers API data only
       let listings;
       const hasApiKey = !!process.env.REPLIERS_API_KEY;
       
-      if (hasApiKey) {
-        try {
-          const { repliersAPI } = await import('./repliers-api');
-          listings = await repliersAPI.searchListings(profile);
-        } catch (apiError) {
-          console.log('Repliers API error, falling back to demo data:', apiError.message);
-          const { getDemoListingsForProfile } = await import('./demo-listings');
-          listings = getDemoListingsForProfile(profile);
-        }
-      } else {
-        console.log('Using demo data for intelligent search demonstration');
-        const { getDemoListingsForProfile } = await import('./demo-listings');
-        listings = getDemoListingsForProfile(profile);
+      if (!hasApiKey) {
+        throw new Error('Repliers API key is required for listing search');
       }
+      
+      const { repliersAPI } = await import('./repliers-api');
+      listings = await repliersAPI.searchListings(profile);
       
       if (!listings || listings.length === 0) {
         return res.json({
@@ -728,24 +720,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const profileWithTags = await storage.getProfileWithTags(profileId);
       const tags = profileWithTags?.tags || [];
 
-      // Check if Repliers API is available, otherwise use demo data
+      // Search using authentic Repliers API data only
       let listings;
       const hasApiKey = !!process.env.REPLIERS_API_KEY;
       
-      if (hasApiKey) {
-        try {
-          const { repliersAPI } = await import('./repliers-api');
-          listings = await repliersAPI.searchListings(profile);
-        } catch (apiError) {
-          console.log('Repliers API error, falling back to demo data:', (apiError as Error).message);
-          const { getDemoListingsForProfile } = await import('./demo-listings');
-          listings = getDemoListingsForProfile(profile);
-        }
-      } else {
-        console.log('Using demo data for enhanced visual search demonstration');
-        const { getDemoListingsForProfile } = await import('./demo-listings');
-        listings = getDemoListingsForProfile(profile);
+      if (!hasApiKey) {
+        throw new Error('Repliers API key is required for listing search');
       }
+      
+      const { repliersAPI } = await import('./repliers-api');
+      listings = await repliersAPI.searchListings(profile);
 
       if (!listings || listings.length === 0) {
         return res.json({

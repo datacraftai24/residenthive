@@ -162,6 +162,7 @@ Changelog:
   - Added agent copy-paste text generation for WhatsApp, email, and social sharing
   - Created comprehensive visual intelligence database caching system
   - Enhanced listing search now analyzes property photos for better buyer matching
+  - Removed all demo data fallbacks - system now requires and uses only authentic Repliers API data
 ```
 
 ## User Preferences
