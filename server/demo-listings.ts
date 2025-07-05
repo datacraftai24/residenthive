@@ -15,6 +15,11 @@ export const demoListings = [
     year_built: 2018,
     description: "Modern condo in downtown Austin with updated kitchen, granite counters, and high-speed fiber internet. Walking distance to tech companies and nightlife. Balcony with city views.",
     features: ["Modern Kitchen", "High-speed Internet", "Granite Counters", "Balcony", "Garage Parking", "Fiber Internet", "Downtown Location"],
+    images: [
+      "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800",
+      "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800",
+      "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800"
+    ],
     mls_number: "ATX001234",
     status: "active"
   },
@@ -52,6 +57,11 @@ export const demoListings = [
     year_built: 2015,
     description: "Beautiful family home in quiet neighborhood with large backyard, excellent Georgetown ISD schools, and family room. Safe cul-de-sac location perfect for kids.",
     features: ["Large Yard", "Family Room", "Excellent Schools", "Quiet Street", "Storage Space", "Two-Car Garage"],
+    images: [
+      "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800",
+      "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800",
+      "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800"
+    ],
     mls_number: "GTX003890", 
     status: "active"
   },
