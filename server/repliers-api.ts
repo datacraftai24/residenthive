@@ -113,14 +113,24 @@ export class RepliersAPIService {
     try {
       const searchParams = this.mapProfileToSearchParams(profile);
       
-      const queryString = new URLSearchParams();
-      Object.entries(searchParams).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryString.append(key, value.toString());
-        }
+      // Build query parameters for Repliers API
+      const baseParams = new URLSearchParams({
+        listings: 'true',
+        operator: 'AND',
+        sortBy: 'updatedOnDesc',
+        status: 'A',
+        limit: searchParams.limit?.toString() || '100'
       });
 
-      const response = await fetch(`${this.baseURL}/listings?listings=true&operator=AND&sortBy=updatedOnDesc&status=A&${queryString}`, {
+      // Add search filters
+      if (searchParams.price_min) baseParams.append('minPrice', searchParams.price_min.toString());
+      if (searchParams.price_max) baseParams.append('maxPrice', searchParams.price_max.toString());
+      if (searchParams.bedrooms) baseParams.append('bedrooms', searchParams.bedrooms.toString());
+      if (searchParams.bathrooms) baseParams.append('bathrooms', searchParams.bathrooms.toString());
+      if (searchParams.location) baseParams.append('city', searchParams.location);
+      if (searchParams.property_type) baseParams.append('propertyType', searchParams.property_type);
+
+      const response = await fetch(`${this.baseURL}/listings?${baseParams}`, {
         method: 'POST',
         headers: {
           'REPLIERS-API-KEY': this.apiKey,
