@@ -878,34 +878,168 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
-      // Serve basic listing view page (will enhance with React component later)
+      // Get full listing details from Repliers API
+      const { repliersAPI } = await import('./repliers-api');
+      const listing = await repliersAPI.getListingDetails(shareableListing.listingId);
+      
+      if (!listing) {
+        return res.status(404).send(`
+          <html>
+            <head><title>Listing Unavailable</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1>Listing Unavailable</h1>
+              <p>This property listing is no longer available or has been removed.</p>
+              ${shareableListing.agentName ? `
+                <div style="margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                  <h3>Contact Your Agent</h3>
+                  <p><strong>${shareableListing.agentName}</strong></p>
+                  ${shareableListing.agentEmail ? `<p>Email: ${shareableListing.agentEmail}</p>` : ''}
+                </div>
+              ` : ''}
+            </body>
+          </html>
+        `);
+      }
+
+      const priceFormatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+      }).format(listing.price);
+
+      // Enhanced listing view with full property details
       res.send(`
         <html>
           <head>
-            <title>Property Listing - ${shareableListing.listingId}</title>
+            <title>${listing.address} - ${priceFormatted}</title>
             <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta property="og:title" content="${listing.address} - ${priceFormatted}">
+            <meta property="og:description" content="${listing.bedrooms}BR/${listing.bathrooms}BA ${listing.property_type} in ${listing.city}, ${listing.state}">
+            ${listing.images && listing.images[0] ? `<meta property="og:image" content="${listing.images[0]}">` : ''}
             <style>
-              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-              .listing-header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
-              .agent-info { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top: 20px; }
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background: #f8f9fa; }
+              .container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+              .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+              .price { font-size: 2.5em; font-weight: bold; margin: 0; }
+              .address { font-size: 1.2em; margin: 10px 0 0 0; opacity: 0.9; }
+              .details { display: flex; gap: 20px; margin: 20px 0; }
+              .detail-item { text-align: center; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; flex: 1; }
+              .detail-number { font-size: 1.8em; font-weight: bold; }
+              .detail-label { font-size: 0.9em; opacity: 0.8; margin-top: 5px; }
+              .content { padding: 30px; }
+              .section { margin-bottom: 30px; }
+              .section h3 { color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; margin-bottom: 15px; }
+              .images { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 30px; }
+              .image { border-radius: 8px; overflow: hidden; }
+              .image img { width: 100%; height: 200px; object-fit: cover; }
+              .features { display: flex; flex-wrap: wrap; gap: 8px; }
+              .feature { background: #e3f2fd; color: #1976d2; padding: 6px 12px; border-radius: 20px; font-size: 0.9em; }
+              .agent-card { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 25px; border-radius: 8px; margin-top: 30px; }
+              .agent-card h3 { margin: 0 0 15px 0; }
+              .agent-contact { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 6px; margin-top: 15px; }
+              .message-box { background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin: 20px 0; }
+              .message-box h4 { margin: 0 0 10px 0; color: #856404; }
+              @media (max-width: 768px) {
+                body { padding: 10px; }
+                .details { flex-direction: column; }
+                .images { grid-template-columns: 1fr; }
+              }
             </style>
           </head>
           <body>
-            <div class="listing-header">
-              <h1>Property Listing</h1>
-              <p><strong>Listing ID:</strong> ${shareableListing.listingId}</p>
-              ${shareableListing.customMessage ? `<p><em>${shareableListing.customMessage}</em></p>` : ''}
-            </div>
-            
-            ${shareableListing.agentName ? `
-              <div class="agent-info">
-                <h3>Your Real Estate Agent</h3>
-                <p><strong>${shareableListing.agentName}</strong></p>
-                ${shareableListing.agentEmail ? `<p>Email: ${shareableListing.agentEmail}</p>` : ''}
+            <div class="container">
+              <div class="header">
+                <div class="price">${priceFormatted}</div>
+                <div class="address">${listing.address}</div>
+                <div class="address">${listing.city}, ${listing.state} ${listing.zip_code}</div>
+                
+                <div class="details">
+                  <div class="detail-item">
+                    <div class="detail-number">${listing.bedrooms}</div>
+                    <div class="detail-label">Bedrooms</div>
+                  </div>
+                  <div class="detail-item">
+                    <div class="detail-number">${listing.bathrooms}</div>
+                    <div class="detail-label">Bathrooms</div>
+                  </div>
+                  ${listing.square_feet ? `
+                    <div class="detail-item">
+                      <div class="detail-number">${listing.square_feet.toLocaleString()}</div>
+                      <div class="detail-label">Sq Ft</div>
+                    </div>
+                  ` : ''}
+                  <div class="detail-item">
+                    <div class="detail-number">${listing.property_type}</div>
+                    <div class="detail-label">Type</div>
+                  </div>
+                </div>
               </div>
-            ` : ''}
-            
-            <p><em>Full listing details and photos will be available soon.</em></p>
+
+              <div class="content">
+                ${shareableListing.customMessage ? `
+                  <div class="message-box">
+                    <h4>Message from Your Agent</h4>
+                    <p>${shareableListing.customMessage}</p>
+                  </div>
+                ` : ''}
+
+                ${listing.images && listing.images.length > 0 ? `
+                  <div class="section">
+                    <h3>Photos (${listing.images.length})</h3>
+                    <div class="images">
+                      ${listing.images.slice(0, 6).map(img => `
+                        <div class="image">
+                          <img src="${img}" alt="Property photo" onerror="this.parentElement.style.display='none'">
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${listing.description ? `
+                  <div class="section">
+                    <h3>Description</h3>
+                    <p>${listing.description}</p>
+                  </div>
+                ` : ''}
+
+                ${listing.features && listing.features.length > 0 ? `
+                  <div class="section">
+                    <h3>Features & Amenities</h3>
+                    <div class="features">
+                      ${listing.features.map(feature => `<span class="feature">${feature}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div class="section">
+                  <h3>Property Details</h3>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    ${listing.year_built ? `<p><strong>Year Built:</strong> ${listing.year_built}</p>` : ''}
+                    ${listing.lot_size ? `<p><strong>Lot Size:</strong> ${listing.lot_size}</p>` : ''}
+                    ${listing.mls_number ? `<p><strong>MLS #:</strong> ${listing.mls_number}</p>` : ''}
+                    <p><strong>Status:</strong> ${listing.status}</p>
+                  </div>
+                </div>
+
+                ${shareableListing.agentName ? `
+                  <div class="agent-card">
+                    <h3>👤 Your Real Estate Agent</h3>
+                    <div class="agent-contact">
+                      <p style="margin: 0; font-size: 1.1em;"><strong>${shareableListing.agentName}</strong></p>
+                      ${shareableListing.agentEmail ? `
+                        <p style="margin: 10px 0 0 0;">
+                          📧 <a href="mailto:${shareableListing.agentEmail}" style="color: white;">${shareableListing.agentEmail}</a>
+                        </p>
+                      ` : ''}
+                      <p style="margin: 15px 0 0 0; font-size: 0.9em; opacity: 0.9;">
+                        Ready to schedule a viewing or discuss this property? Get in touch!
+                      </p>
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
           </body>
         </html>
       `);
