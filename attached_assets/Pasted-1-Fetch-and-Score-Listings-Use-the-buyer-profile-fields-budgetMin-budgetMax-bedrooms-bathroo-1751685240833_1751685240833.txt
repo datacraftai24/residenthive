@@ -1,0 +1,86 @@
+1. Fetch and Score Listings:
+
+Use the buyer profile fields:
+
+budgetMin, budgetMax, bedrooms, bathrooms, homeType, first preferredArea
+
+Query the Repliers API using those fields as filters.
+
+Score each listing using the following factors:
+
+Factor	Weight
+Budget Alignment	20%
+Feature Matching	25%
+Bedroom Match	20%
+Location Preference	15%
+Behavioral Tags	20%
+
+For feature matching, use both mustHaveFeatures and inferredTags from the profile.
+
+2. Analyze Listing Images (Vision Intelligence):
+
+For each listing, download up to 5 key images (kitchen, living room, bathroom, exterior, etc.).
+
+Use OpenAI Vision (GPT-4o or other) to:
+
+Extract visualTags[] (e.g., “white_kitchen”, “vaulted_ceiling”, “dated_bathroom”)
+
+Generate a 1-sentence summary of what the image shows
+
+Identify flags[] (e.g., “cluttered”, “poor_lighting”, “dated_finishes”)
+
+Store the results in structured JSON per image, linked to the listing.
+
+Example:
+
+json
+Copy
+Edit
+{
+  "image_url": "...",
+  "visualTags": ["white_kitchen", "quartz_countertops"],
+  "summary": "Bright white kitchen with quartz countertops and modern lighting.",
+  "flags": ["none"]
+}
+3. Integrate Visual Tags into Match Scoring:
+
+Use extracted visualTags as part of feature matching.
+
+Boost match score if visualTags match buyer’s mustHaveFeatures or inferredTags.
+
+Penalize score if flags[] contradict buyer preferences (e.g., “carpeted_floors” if buyer expects modern).
+
+4. Output: Curated Listings
+
+Return a JSON object with two sections:
+
+top_picks: Listings with score ≥ 85%, labeled “Perfect Match” or “Good Fit”
+
+other_matches: Listings with score between 65–84%, labeled “Worth a Look”
+
+Each listing should include:
+
+match_score
+
+matched_features
+
+matched_visualTags
+
+flags
+
+summary (from image analysis or generated)
+
+A formatted chat_message block to use in chatbot or email, like:
+
+pgsql
+Copy
+Edit
+🏡 2BR Condo – $899,000  
+✅ Features: White Kitchen, Balcony, Natural Light  
+🤖 Why we picked this: Budget-aligned, updated kitchen, and walkable neighborhood.  
+[🔗 View Listing]
+5. Optimization & Storage
+
+Analyze images only once per listing and cache/store results in DB or file system.
+
+Design it so the full flow runs right after a buyer profile is created or updated.
