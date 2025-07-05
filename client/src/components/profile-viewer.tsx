@@ -366,7 +366,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         </TabsContent>
 
         <TabsContent value="listings" className="mt-6">
-          <ListingSearch profileId={profileId} profileName={profile.name} />
+          <EnhancedListingSearch profileId={profileId} />
         </TabsContent>
       </Tabs>
     </div>
