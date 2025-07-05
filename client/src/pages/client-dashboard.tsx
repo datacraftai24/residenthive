@@ -300,7 +300,17 @@ function PropertyCard({
   isTopPick: boolean;
 }) {
   const { listing } = scored;
-  const images = Array.isArray(listing.images) ? listing.images : [];
+  // Handle MLS images from Repliers API - can be array or string
+  let images: string[] = [];
+  if (Array.isArray(listing.images)) {
+    images = listing.images;
+  } else if (typeof listing.images === 'string') {
+    try {
+      images = JSON.parse(listing.images);
+    } catch {
+      images = [listing.images];
+    }
+  }
   
   const formatPrice = (price: number) => {
     if (price >= 1000000) {
@@ -315,11 +325,26 @@ function PropertyCard({
     <Card className={`overflow-hidden hover:shadow-lg transition-shadow ${isTopPick ? 'ring-2 ring-yellow-200' : ''}`}>
       {/* Image */}
       <div className="relative">
-        <img
-          src={images[0] || '/placeholder-property.jpg'}
-          alt={listing.title || 'Property'}
-          className="w-full h-48 object-cover"
-        />
+        {images.length > 0 ? (
+          <img
+            src={images[0]}
+            alt={listing.address || 'Property'}
+            className="w-full h-48 object-cover"
+            onError={(e) => {
+              // If image fails to load, try next image or show placeholder
+              const target = e.target as HTMLImageElement;
+              if (images.length > 1 && target.src === images[0]) {
+                target.src = images[1];
+              } else {
+                target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlIEF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';
+              }
+            }}
+          />
+        ) : (
+          <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+            <span className="text-gray-500 text-sm">No Image Available</span>
+          </div>
+        )}
         <div className="absolute top-3 left-3 flex gap-2">
           {isTopPick && (
             <Badge className="bg-yellow-500 text-white">
@@ -346,15 +371,18 @@ function PropertyCard({
           {/* Price and Basic Info */}
           <div>
             <h3 className="font-semibold text-lg">
-              {listing.price ? formatPrice(listing.price) : 'Price on request'}
+              {listing.listPrice ? formatPrice(listing.listPrice) : (listing.price ? formatPrice(listing.price) : 'Price on request')}
             </h3>
             <p className="text-sm text-gray-600">
               {listing.bedrooms || '?'} bed • {listing.bathrooms || '?'} bath
-              {listing.sqft && ` • ${listing.sqft.toLocaleString()} sqft`}
+              {listing.square_feet && ` • ${listing.square_feet.toLocaleString()} sqft`}
+              {!listing.square_feet && listing.sqft && ` • ${listing.sqft.toLocaleString()} sqft`}
             </p>
             <p className="text-sm text-gray-500 flex items-center gap-1">
               <MapPin className="w-3 h-3" />
-              {listing.city || listing.address || 'Location available'}
+              {listing.address?.streetNumber && listing.address?.streetName ? 
+                `${listing.address.streetNumber} ${listing.address.streetName} ${listing.address.streetSuffix || ''}, ${listing.address.city}, ${listing.address.state}` :
+                listing.city || listing.address || 'Location available'}
             </p>
           </div>
 

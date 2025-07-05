@@ -769,6 +769,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get shareable profile data (for client dashboard API)
+  app.get("/api/profiles/share/:shareId", async (req, res) => {
+    try {
+      const { shareId } = req.params;
+      
+      const { profileShareableService } = await import('./profile-share');
+      const shareableProfile = await profileShareableService.getShareableProfile(shareId);
+      
+      if (!shareableProfile) {
+        return res.status(404).json({ error: "Shareable profile not found" });
+      }
+
+      res.json(shareableProfile);
+    } catch (error) {
+      console.error("Error getting shareable profile:", error);
+      res.status(500).json({ 
+        error: "Failed to get shareable profile",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get listings for shareable profile (with authentic MLS data and images)
+  app.get("/api/listings/search", async (req, res) => {
+    try {
+      const { profileId } = req.query;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      const profile = await storage.getBuyerProfile(parseInt(profileId as string));
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      // Get profile with tags for enhanced scoring
+      const profileWithTags = await storage.getProfileWithTags(parseInt(profileId as string));
+      const tags = profileWithTags?.tags || [];
+
+      // Use enhanced listing scorer with visual intelligence
+      const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
+
+      // Search using authentic Repliers API data with images
+      const hasApiKey = !!process.env.REPLIERS_API_KEY;
+      
+      if (!hasApiKey) {
+        throw new Error('Repliers API key is required for listing search');
+      }
+      
+      const { repliersAPI } = await import('./repliers-api');
+      const listings = await repliersAPI.searchListings(profile);
+      
+      if (!listings || listings.length === 0) {
+        return res.json({
+          top_picks: [],
+          other_matches: [],
+          chat_blocks: ["No listings found matching your criteria. Try adjusting your search parameters."],
+          search_summary: {
+            total_found: 0,
+            top_picks_count: 0,
+            other_matches_count: 0,
+            visual_analysis_count: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              bathrooms: profile.bathrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          }
+        });
+      }
+
+      // Score listings with enhanced visual intelligence and authentic MLS images
+      const response = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
+        listings, 
+        profile, 
+        tags
+      );
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error searching listings:", error);
+      res.status(500).json({ 
+        error: "Failed to search listings",
+        message: (error as Error).message 
+      });
+    }
+  });
+
   // Create Shareable Profile Link (One per client like Zillow)
   app.post("/api/profiles/share", async (req, res) => {
     try {
