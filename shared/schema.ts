@@ -100,6 +100,34 @@ export const profileInsightsLock = pgTable("profile_insights_lock", {
   createdAt: text("created_at").notNull()
 });
 
+// Visual Intelligence Tables
+export const listingVisualAnalysis = pgTable("listing_visual_analysis", {
+  id: serial("id").primaryKey(),
+  listingId: text("listing_id").notNull(), // Repliers listing ID
+  imageUrl: text("image_url").notNull(),
+  imageType: text("image_type").notNull(), // kitchen, living_room, bathroom, exterior, etc.
+  visualTags: text("visual_tags").notNull(), // JSON array as text: ["modern_kitchen", "quartz_countertops"]
+  summary: text("summary").notNull(), // AI-generated 1-sentence description
+  flags: text("flags").notNull(), // JSON array as text: ["cluttered", "dated_finishes"]
+  confidence: integer("confidence").notNull().default(85), // 0-100 confidence in analysis
+  analyzedAt: text("analyzed_at").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const listingShareableLinks = pgTable("listing_shareable_links", {
+  id: serial("id").primaryKey(),
+  listingId: text("listing_id").notNull(),
+  shareId: text("share_id").notNull().unique(), // UUID for shareable URL
+  profileId: integer("profile_id").references(() => buyerProfiles.id),
+  agentName: text("agent_name"),
+  agentEmail: text("agent_email"),
+  customMessage: text("custom_message"),
+  viewCount: integer("view_count").notNull().default(0),
+  lastViewed: text("last_viewed"),
+  expiresAt: text("expires_at"), // optional expiration
+  createdAt: text("created_at").notNull(),
+});
+
 export const insertBuyerProfileSchema = createInsertSchema(buyerProfiles).omit({
   id: true,
   createdAt: true
@@ -135,6 +163,16 @@ export const insertProfileInsightsLockSchema = createInsertSchema(profileInsight
   createdAt: true
 });
 
+export const insertListingVisualAnalysisSchema = createInsertSchema(listingVisualAnalysis).omit({
+  id: true
+});
+
+export const insertListingShareableLinksSchema = createInsertSchema(listingShareableLinks).omit({
+  id: true,
+  viewCount: true,
+  lastViewed: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
@@ -149,6 +187,10 @@ export type InsertAgentNotes = z.infer<typeof insertAgentNotesSchema>;
 export type AgentNotes = typeof agentNotes.$inferSelect;
 export type InsertProfileInsightsLock = z.infer<typeof insertProfileInsightsLockSchema>;
 export type ProfileInsightsLock = typeof profileInsightsLock.$inferSelect;
+export type InsertListingVisualAnalysis = z.infer<typeof insertListingVisualAnalysisSchema>;
+export type ListingVisualAnalysis = typeof listingVisualAnalysis.$inferSelect;
+export type InsertListingShareableLinks = z.infer<typeof insertListingShareableLinksSchema>;
+export type ListingShareableLinks = typeof listingShareableLinks.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

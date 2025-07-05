@@ -30,6 +30,7 @@ import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
 import ListingSearch from "./listing-search";
+import EnhancedListingSearch from "./enhanced-listing-search";
 
 interface ProfileViewerProps {
   profileId: number;

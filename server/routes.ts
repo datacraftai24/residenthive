@@ -711,6 +711,248 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Visual Intelligence Listing Search
+  app.post("/api/listings/search-enhanced", async (req, res) => {
+    try {
+      const { profileId } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Check if Repliers API is available, otherwise use demo data
+      let listings;
+      const hasApiKey = !!process.env.REPLIERS_API_KEY;
+      
+      if (hasApiKey) {
+        try {
+          const { repliersAPI } = await import('./repliers-api');
+          listings = await repliersAPI.searchListings(profile);
+        } catch (apiError) {
+          console.log('Repliers API error, falling back to demo data:', (apiError as Error).message);
+          const { getDemoListingsForProfile } = await import('./demo-listings');
+          listings = getDemoListingsForProfile(profile);
+        }
+      } else {
+        console.log('Using demo data for enhanced visual search demonstration');
+        const { getDemoListingsForProfile } = await import('./demo-listings');
+        listings = getDemoListingsForProfile(profile);
+      }
+
+      if (!listings || listings.length === 0) {
+        return res.json({
+          top_picks: [],
+          other_matches: [],
+          chat_blocks: ["No listings found matching your criteria. Try adjusting your search parameters."],
+          search_summary: {
+            total_found: 0,
+            top_picks_count: 0,
+            other_matches_count: 0,
+            visual_analysis_count: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          }
+        });
+      }
+
+      // Enhanced scoring with visual intelligence
+      const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
+      const enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
+        listings, 
+        profile, 
+        tags
+      );
+
+      res.json(enhancedResults);
+    } catch (error) {
+      console.error("Error in enhanced listing search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform enhanced search",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Create Shareable Listing Link
+  app.post("/api/listings/share", async (req, res) => {
+    try {
+      const { 
+        listingId, 
+        profileId, 
+        agentName, 
+        agentEmail, 
+        customMessage, 
+        expiresInDays 
+      } = req.body;
+
+      if (!listingId) {
+        return res.status(400).json({ error: "Listing ID is required" });
+      }
+
+      const { shareableListingService } = await import('./shareable-listing');
+      const shareableListing = await shareableListingService.createShareableLink({
+        listingId,
+        profileId,
+        agentName,
+        agentEmail,
+        customMessage,
+        expiresInDays
+      });
+
+      res.json(shareableListing);
+    } catch (error) {
+      console.error("Error creating shareable link:", error);
+      res.status(500).json({ 
+        error: "Failed to create shareable link",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Generate Agent Copy Text for Sharing
+  app.post("/api/listings/copy-text", async (req, res) => {
+    try {
+      const { listingId, shareId, format = 'text' } = req.body;
+
+      if (!listingId || !shareId) {
+        return res.status(400).json({ error: "Listing ID and Share ID are required" });
+      }
+
+      const { shareableListingService } = await import('./shareable-listing');
+      const shareableListing = await shareableListingService.getShareableListing(shareId);
+      
+      if (!shareableListing) {
+        return res.status(404).json({ error: "Shareable listing not found" });
+      }
+
+      // Get listing details (mock for now, would normally fetch from Repliers API)
+      const mockListing = {
+        id: listingId,
+        address: "123 Main St, Austin, TX",
+        price: 450000,
+        bedrooms: 3,
+        bathrooms: 2,
+        square_feet: 1800,
+        features: ["Modern Kitchen", "Hardwood Floors"]
+      };
+
+      let response;
+      switch (format) {
+        case 'whatsapp':
+          response = { 
+            whatsappUrl: shareableListingService.generateWhatsAppText(mockListing, shareableListing)
+          };
+          break;
+        case 'email':
+          response = shareableListingService.generateEmailText(mockListing, shareableListing);
+          break;
+        default:
+          response = { 
+            copyText: shareableListingService.generateAgentCopyText(mockListing, shareableListing)
+          };
+      }
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error generating copy text:", error);
+      res.status(500).json({ 
+        error: "Failed to generate copy text",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Serve Shareable Listing Page
+  app.get("/share/:shareId", async (req, res) => {
+    try {
+      const { shareId } = req.params;
+      
+      const { shareableListingService } = await import('./shareable-listing');
+      const shareableListing = await shareableListingService.getShareableListing(shareId);
+      
+      if (!shareableListing) {
+        return res.status(404).send(`
+          <html>
+            <head><title>Listing Not Found</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1>Listing Not Found</h1>
+              <p>This listing link may have expired or been removed.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Serve basic listing view page (will enhance with React component later)
+      res.send(`
+        <html>
+          <head>
+            <title>Property Listing - ${shareableListing.listingId}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              .listing-header { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+              .agent-info { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="listing-header">
+              <h1>Property Listing</h1>
+              <p><strong>Listing ID:</strong> ${shareableListing.listingId}</p>
+              ${shareableListing.customMessage ? `<p><em>${shareableListing.customMessage}</em></p>` : ''}
+            </div>
+            
+            ${shareableListing.agentName ? `
+              <div class="agent-info">
+                <h3>Your Real Estate Agent</h3>
+                <p><strong>${shareableListing.agentName}</strong></p>
+                ${shareableListing.agentEmail ? `<p>Email: ${shareableListing.agentEmail}</p>` : ''}
+              </div>
+            ` : ''}
+            
+            <p><em>Full listing details and photos will be available soon.</em></p>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error serving shareable listing:", error);
+      res.status(500).send("Error loading listing");
+    }
+  });
+
+  // Visual Analysis API
+  app.post("/api/listings/analyze-images", async (req, res) => {
+    try {
+      const { listingId, images } = req.body;
+
+      if (!listingId || !images || !Array.isArray(images)) {
+        return res.status(400).json({ error: "Listing ID and images array are required" });
+      }
+
+      const { visionIntelligence } = await import('./vision-intelligence');
+      const analysis = await visionIntelligence.analyzeListingImages(listingId, images);
+      
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error analyzing images:", error);
+      res.status(500).json({ 
+        error: "Failed to analyze images",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
