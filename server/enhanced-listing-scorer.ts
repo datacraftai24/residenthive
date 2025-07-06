@@ -44,10 +44,23 @@ export class EnhancedListingScorer {
       listingScorer.scoreListing(listing, profile, tags)
     );
 
-    // Sort and take top 1 candidate for visual analysis (ultra-conservative rate limiting)
-    const topCandidates = basicScoredListings
-      .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, 1); // Analyze only top 1 property to avoid rate limiting
+    // Prioritize properties with images for visual analysis
+    const propertiesWithImages = basicScoredListings.filter(listing => 
+      listing.listing.images && listing.listing.images.length > 0
+    );
+    const propertiesWithoutImages = basicScoredListings.filter(listing => 
+      !listing.listing.images || listing.listing.images.length === 0
+    );
+    
+    // Sort both groups by score and take top candidates with images first
+    const sortedWithImages = propertiesWithImages.sort((a, b) => b.match_score - a.match_score);
+    const sortedWithoutImages = propertiesWithoutImages.sort((a, b) => b.match_score - a.match_score);
+    
+    // Take top 3 properties with images for visual analysis
+    const topCandidates = sortedWithImages.slice(0, 3);
+    
+    console.log(`Found ${propertiesWithImages.length} properties with images, ${propertiesWithoutImages.length} without`);
+    console.log(`Selected ${topCandidates.length} properties with images for visual analysis`);
 
     const enhancedListings: EnhancedScoredListing[] = [];
 
@@ -69,12 +82,17 @@ export class EnhancedListingScorer {
       }
     }
 
-    // Add remaining listings without visual analysis
-    const remainingListings = basicScoredListings
-      .filter(scored => !topCandidates.find(tc => tc.listing.id === scored.listing.id))
+    // Add remaining properties with images that weren't analyzed (due to rate limiting)
+    const remainingWithImages = sortedWithImages
+      .slice(topCandidates.length) // Skip the analyzed ones
       .map(scored => this.convertToEnhanced(scored));
-
-    const allEnhanced = [...enhancedListings, ...remainingListings]
+    
+    // Add all properties without images
+    const propertiesWithoutImagesEnhanced = sortedWithoutImages
+      .map(scored => this.convertToEnhanced(scored));
+    
+    // Combine all enhanced listings and sort by score
+    const allEnhanced = [...enhancedListings, ...remainingWithImages, ...propertiesWithoutImagesEnhanced]
       .sort((a, b) => b.match_score - a.match_score);
 
     return this.categorizeEnhancedListings(allEnhanced, profile);
@@ -132,10 +150,22 @@ export class EnhancedListingScorer {
       visualBoost
     );
 
-    // Generate lightweight personalized analysis without heavy OpenAI calls
+    // Add personalized message with buyer's name if visual analysis exists
+    console.log(`Visual analysis exists for listing ${scored.listing.id}:`, !!visualAnalysis);
     if (visualAnalysis) {
+      console.log(`Visual tags found:`, visualAnalysis.overallTags);
       try {
-        // Use rule-based personalized insights to avoid rate limiting
+        console.log(`Generating personalized message for ${profile.name}...`);
+        const personalizedMessage = await visionIntelligence.generatePersonalizedSummary(
+          visualAnalysis, 
+          profile
+        );
+        console.log(`Personalized message generated:`, personalizedMessage);
+        enhancedReason = `${enhancedReason}\n\n${personalizedMessage}`;
+      } catch (error) {
+        console.error("Failed to generate personalized message:", error);
+        
+        // Fallback to rule-based insights if OpenAI fails
         const insights = await visionIntelligence.generateBuyerSpecificInsights(
           visualAnalysis, 
           profile
@@ -155,8 +185,6 @@ export class EnhancedListingScorer {
         if (personalizedText) {
           enhancedReason = `${enhancedReason}\n\nPersonalized for You: ${personalizedText}`;
         }
-      } catch (error) {
-        console.error("Failed to generate personalized insights:", error);
       }
     }
 

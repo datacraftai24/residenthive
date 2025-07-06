@@ -118,8 +118,8 @@ Respond in JSON format:
     const allFlags = new Set<string>();
 
     // Process images one by one with rate limiting delays
-    const selectedImages = images.slice(0, 2); // Limit to 2 images for ultra-conservative rate limiting
-    console.log(`Processing ${selectedImages.length} images for listing ${listingId} (ultra-conservative mini-batch)`);
+    const selectedImages = images.slice(0, 5); // Limit to 5 images for comprehensive analysis with rate control
+    console.log(`Processing ${selectedImages.length} images for listing ${listingId} (mini-batch with rate control)`);
     
     for (let i = 0; i < selectedImages.length; i++) {
       const image = selectedImages[i];
@@ -208,26 +208,26 @@ Respond in JSON format:
   }
 
   /**
-   * Generate personalized image analysis summary based on buyer profile
+   * Generate personalized message for buyer about specific property
    */
   async generatePersonalizedSummary(
     listingAnalysis: ListingImageAnalysis, 
     buyerProfile: any
   ): Promise<string> {
     try {
-      const prompt = `As a real estate AI assistant, analyze these property images for a specific buyer and create a personalized summary.
+      const buyerName = buyerProfile.name || 'there';
+      const prompt = `Create a personal message for a buyer about this property. Write it as if you're speaking directly to them.
 
-BUYER PROFILE:
-- Name: ${buyerProfile.name || 'Buyer'}
+BUYER: ${buyerName}
+BUYER PREFERENCES:
 - Budget: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
-- Bedrooms needed: ${buyerProfile.bedrooms || 'flexible'}
-- Bathrooms needed: ${buyerProfile.bathrooms || 'flexible'}
+- Looking for: ${buyerProfile.bedrooms || 'flexible'} bedrooms, ${buyerProfile.bathrooms || 'flexible'} bathrooms
 - Must-have features: ${buyerProfile.mustHaveFeatures?.join(', ') || 'none specified'}
-- Dealbreakers: ${buyerProfile.dealbreakers?.join(', ') || 'none specified'}
-- Location preference: ${buyerProfile.location || buyerProfile.preferredAreas?.[0] || 'flexible'}
+- Wants to avoid: ${buyerProfile.dealbreakers?.join(', ') || 'none specified'}
+- Preferred location: ${buyerProfile.location || buyerProfile.preferredAreas?.[0] || 'flexible'}
 
-PROPERTY VISUAL ANALYSIS:
-- Overall visual tags: ${listingAnalysis.overallTags.join(', ')}
+WHAT WE SEE IN THE PROPERTY PHOTOS:
+- Visual features: ${listingAnalysis.overallTags.join(', ')}
 - Quality flags: ${listingAnalysis.overallFlags.join(', ')}
 - Number of images analyzed: ${listingAnalysis.analyses.length}
 
