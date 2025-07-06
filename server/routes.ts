@@ -843,12 +843,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Score listings with enhanced visual intelligence and authentic MLS images
-      const response = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
-        listings, 
-        profile, 
-        tags
-      );
+      // Score listings with basic scoring (temporarily disable visual analysis)
+      const { listingScorer } = await import('./listing-scorer');
+      const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+      const response = listingScorer.categorizeListings(scoredListings);
 
       res.json(response);
     } catch (error) {
@@ -1059,14 +1057,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { repliersAPI } = await import('./repliers-api');
         listings = await repliersAPI.searchListings(profile);
         
-        if (shareableProfile.showVisualAnalysis) {
-          const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
-          searchResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(listings, profile, tags);
-        } else {
-          const { listingScorer } = await import('./listing-scorer');
-          const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
-          searchResults = listingScorer.categorizeListings(scoredListings);
-        }
+        // Temporarily use basic scoring to avoid OpenAI rate limits
+        const { listingScorer } = await import('./listing-scorer');
+        const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+        searchResults = listingScorer.categorizeListings(scoredListings);
       } catch (error) {
         console.error("Error fetching listings for shareable profile:", error);
         searchResults = {

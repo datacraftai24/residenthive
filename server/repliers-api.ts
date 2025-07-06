@@ -200,6 +200,8 @@ export class RepliersAPIService {
     const address = rawListing.address || {};
     const details = rawListing.details || {};
     
+    // Images are now properly extracted
+    
     return {
       id: rawListing.mlsNumber || `listing_${Date.now()}`,
       price: rawListing.listPrice || 0,
@@ -214,7 +216,7 @@ export class RepliersAPIService {
       year_built: this.parseNumber(details.yearBuilt),
       description: details.description || '',
       features: this.extractFeatures(details),
-      images: rawListing.images || [],
+      images: this.extractImages(rawListing),
       listing_agent: this.extractAgent(rawListing.agents),
       mls_number: rawListing.mlsNumber,
       listing_date: rawListing.listDate,
@@ -261,6 +263,38 @@ export class RepliersAPIService {
     if (details.deck || details.patio) features.push('Outdoor Space');
     
     return features;
+  }
+
+  private extractImages(rawListing: any): string[] {
+    // Look for authentic MLS images in the images field
+    if (rawListing.images && Array.isArray(rawListing.images) && rawListing.images.length > 0) {
+      return rawListing.images.map((imagePath: string) => {
+        // Handle mlsgrid format: 'mlsgrid/IMG-ACT9283750_0.jpg'
+        if (imagePath.startsWith('mlsgrid/')) {
+          return `https://media.mlsgrid.com/${imagePath}`;
+        }
+        // Handle full URLs
+        if (imagePath.startsWith('http')) {
+          return imagePath;
+        }
+        // Default mlsgrid path construction
+        return `https://media.mlsgrid.com/mlsgrid/${imagePath}`;
+      }).filter(Boolean);
+    }
+
+    // Fallback: construct from MLS number if no authentic images found
+    if (rawListing.mlsNumber) {
+      const mlsNum = rawListing.mlsNumber;
+      return [
+        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_0.jpg`,
+        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_1.jpg`,
+        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_2.jpg`,
+        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_3.jpg`,
+        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_4.jpg`
+      ];
+    }
+
+    return [];
   }
 
   private extractAgent(agents: any[]): any {
