@@ -177,6 +177,113 @@ Respond in JSON format:
   }
 
   /**
+   * Generate personalized image analysis summary based on buyer profile
+   */
+  async generatePersonalizedSummary(
+    listingAnalysis: ListingImageAnalysis, 
+    buyerProfile: any
+  ): Promise<string> {
+    try {
+      const prompt = `As a real estate AI assistant, analyze these property images for a specific buyer and create a personalized summary.
+
+BUYER PROFILE:
+- Name: ${buyerProfile.name || 'Buyer'}
+- Budget: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
+- Bedrooms needed: ${buyerProfile.bedrooms || 'flexible'}
+- Bathrooms needed: ${buyerProfile.bathrooms || 'flexible'}
+- Must-have features: ${buyerProfile.mustHaveFeatures?.join(', ') || 'none specified'}
+- Dealbreakers: ${buyerProfile.dealbreakers?.join(', ') || 'none specified'}
+- Location preference: ${buyerProfile.location || buyerProfile.preferredAreas?.[0] || 'flexible'}
+
+PROPERTY VISUAL ANALYSIS:
+- Overall visual tags: ${listingAnalysis.overallTags.join(', ')}
+- Quality flags: ${listingAnalysis.overallFlags.join(', ')}
+- Number of images analyzed: ${listingAnalysis.analyses.length}
+
+Create a 2-3 sentence personalized summary that:
+1. Highlights visual features that match the buyer's preferences
+2. Notes any concerns based on their dealbreakers
+3. Uses a warm, consultative tone as if speaking directly to the buyer
+4. Focuses on what matters most to THIS specific buyer
+
+Example format: "Based on your interest in modern kitchens, you'll love the granite countertops and stainless appliances visible in the photos. The hardwood floors throughout align perfectly with your must-have list. However, the dated bathroom fixtures might need updating to meet your standards."`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 200,
+        temperature: 0.7
+      });
+
+      return response.choices[0].message.content || "Visual analysis completed.";
+    } catch (error) {
+      console.error("Error generating personalized summary:", error);
+      return "Unable to generate personalized visual analysis at this time.";
+    }
+  }
+
+  /**
+   * Generate buyer-specific image insights highlighting matches and concerns
+   */
+  async generateBuyerSpecificInsights(
+    listingAnalysis: ListingImageAnalysis, 
+    buyerProfile: any
+  ): Promise<{ matches: string[]; concerns: string[]; highlights: string[] }> {
+    const matches: string[] = [];
+    const concerns: string[] = [];
+    const highlights: string[] = [];
+
+    // Analyze visual tags against buyer preferences
+    const mustHaveFeatures = buyerProfile.mustHaveFeatures || [];
+    const dealbreakers = buyerProfile.dealbreakers || [];
+
+    // Check for visual matches with must-have features
+    for (const feature of mustHaveFeatures) {
+      const visualMatch = listingAnalysis.overallTags.find(tag => 
+        this.isVisualFeatureMatch(feature.toLowerCase(), tag.toLowerCase())
+      );
+      if (visualMatch) {
+        matches.push(`Visual confirmation: ${visualMatch.replace('_', ' ')}`);
+      }
+    }
+
+    // Check for visual concerns based on dealbreakers
+    for (const dealbreaker of dealbreakers) {
+      const visualConcern = listingAnalysis.overallTags.find(tag => 
+        this.isVisualFeatureMatch(dealbreaker.toLowerCase(), tag.toLowerCase())
+      );
+      if (visualConcern) {
+        concerns.push(`Potential concern: ${visualConcern.replace('_', ' ')}`);
+      }
+    }
+
+    // Highlight quality and style features
+    const qualityTags = listingAnalysis.overallTags.filter(tag => 
+      tag.includes('updated') || tag.includes('renovated') || tag.includes('modern') || tag.includes('luxury')
+    );
+    highlights.push(...qualityTags.map(tag => tag.replace('_', ' ')));
+
+    // Add quality flags as concerns if needed
+    if (listingAnalysis.overallFlags.length > 0) {
+      concerns.push(...listingAnalysis.overallFlags.map(flag => flag.replace('_', ' ')));
+    }
+
+    return { matches, concerns, highlights };
+  }
+
+  /**
+   * Check if a visual tag matches a buyer preference
+   */
+  private isVisualFeatureMatch(preference: string, visualTag: string): boolean {
+    const preferenceWords = preference.split(' ');
+    const tagWords = visualTag.split('_');
+    
+    return preferenceWords.some(word => 
+      tagWords.some(tagWord => tagWord.includes(word) || word.includes(tagWord))
+    );
+  }
+
+  /**
    * Get cached analysis for a listing
    */
   async getCachedAnalysis(listingId: string): Promise<ListingImageAnalysis | null> {

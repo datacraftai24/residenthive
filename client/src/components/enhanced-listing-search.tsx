@@ -195,11 +195,23 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       
       <CardContent>
         <div className="space-y-4">
-          {/* Enhanced Reason */}
+          {/* Enhanced Reason with Personalized Analysis */}
           <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
             <div className="flex items-start gap-2">
               <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-blue-800 dark:text-blue-200">{listing.enhancedReason}</p>
+              <div className="text-sm text-blue-800 dark:text-blue-200">
+                {listing.enhancedReason?.split('\n\nPersonalized Visual Analysis:').map((part, index) => (
+                  <div key={index} className={index === 0 ? 'mb-2' : 'pt-2 border-t border-blue-200 dark:border-blue-800'}>
+                    {index === 1 && (
+                      <div className="flex items-center gap-1 mb-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                        <Eye className="w-3 h-3" />
+                        Personalized for You:
+                      </div>
+                    )}
+                    <div className={index === 1 ? 'italic' : ''}>{part}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

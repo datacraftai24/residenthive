@@ -111,13 +111,26 @@ export class EnhancedListingScorer {
     // Apply visual boost to score
     const enhancedScore = Math.min(scored.match_score + visualBoost, 1.0);
 
-    // Generate enhanced reason
-    const enhancedReason = this.generateEnhancedReason(
+    // Generate enhanced reason with personalized analysis
+    let enhancedReason = this.generateEnhancedReason(
       scored, 
       visualTagMatches, 
       visualFlags, 
       visualBoost
     );
+
+    // Add personalized image analysis summary if visual analysis exists
+    if (visualAnalysis) {
+      try {
+        const personalizedSummary = await visionIntelligence.generatePersonalizedSummary(
+          visualAnalysis, 
+          profile
+        );
+        enhancedReason = `${enhancedReason}\n\nPersonalized Visual Analysis: ${personalizedSummary}`;
+      } catch (error) {
+        console.error("Failed to generate personalized summary:", error);
+      }
+    }
 
     return {
       ...scored,
