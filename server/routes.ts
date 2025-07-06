@@ -751,15 +751,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Enhanced scoring with visual intelligence
-      const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
-      const enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
-        listings, 
-        profile, 
-        tags
-      );
+      // Use basic scoring for immediate results (hybrid approach)
+      const { listingScorer } = await import('./listing-scorer');
+      const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+      const results = listingScorer.categorizeListings(scoredListings);
 
-      res.json(enhancedResults);
+      res.json(results);
     } catch (error) {
       console.error("Error in enhanced listing search:", error);
       res.status(500).json({ 
@@ -809,8 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const profileWithTags = await storage.getProfileWithTags(parseInt(profileId as string));
       const tags = profileWithTags?.tags || [];
 
-      // Use enhanced listing scorer with visual intelligence
-      const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
+      // Use basic scoring for immediate display (hybrid approach)
 
       // Search using authentic Repliers API data with images
       const hasApiKey = !!process.env.REPLIERS_API_KEY;
@@ -843,10 +839,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Score listings with basic scoring (temporarily disable visual analysis)
-      const { listingScorer } = await import('./listing-scorer');
-      const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
-      const response = listingScorer.categorizeListings(scoredListings);
+      // Use hybrid approach: immediate display + top 3 visual analysis
+      const { hybridListingScorer } = await import('./hybrid-listing-scorer');
+      const response = await hybridListingScorer.scoreListingsHybrid(listings, profile, tags);
 
       res.json(response);
     } catch (error) {
