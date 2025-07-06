@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera } from "lucide-react";
+import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface EnhancedScoredListing {
@@ -280,6 +280,72 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               </div>
             </div>
           )}
+
+          {/* Score Breakdown Analysis */}
+          <div className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium">Why This Score?</span>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span>Budget Match:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                    <div 
+                      className="bg-green-500 h-1.5 rounded-full" 
+                      style={{width: `${listing.score_breakdown.budget_score * 100}%`}}
+                    />
+                  </div>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_score * 100)}%</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Features Match:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                    <div 
+                      className="bg-blue-500 h-1.5 rounded-full" 
+                      style={{width: `${listing.score_breakdown.feature_score * 100}%`}}
+                    />
+                  </div>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_score * 100)}%</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Location Match:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                    <div 
+                      className="bg-purple-500 h-1.5 rounded-full" 
+                      style={{width: `${listing.score_breakdown.location_score * 100}%`}}
+                    />
+                  </div>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.location_score * 100)}%</span>
+                </div>
+              </div>
+              {listing.score_breakdown.tag_score > 0 && (
+                <div className="flex justify-between items-center">
+                  <span>Behavioral Match:</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="bg-yellow-500 h-1.5 rounded-full" 
+                        style={{width: `${listing.score_breakdown.tag_score * 100}%`}}
+                      />
+                    </div>
+                    <span className="font-medium">{Math.round(listing.score_breakdown.tag_score * 100)}%</span>
+                  </div>
+                </div>
+              )}
+              {listing.score_breakdown.dealbreaker_penalty < 0 && (
+                <div className="flex justify-between items-center text-red-600">
+                  <span>Dealbreaker Penalty:</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.dealbreaker_penalty * 100)}%</span>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-2">
