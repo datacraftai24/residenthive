@@ -240,6 +240,7 @@ export default function ClientDashboard() {
                 onToggleSaved={() => toggleSaved(scored.listing.id)}
                 showVisualAnalysis={shareableProfile.showVisualAnalysis}
                 isTopPick={true}
+                profile={profile}
               />
             ))}
           </div>
@@ -262,6 +263,7 @@ export default function ClientDashboard() {
                 onToggleSaved={() => toggleSaved(scored.listing.id)}
                 showVisualAnalysis={shareableProfile.showVisualAnalysis}
                 isTopPick={false}
+                profile={profile}
               />
             ))}
           </div>
@@ -291,27 +293,51 @@ function PropertyCard({
   isSaved, 
   onToggleSaved, 
   showVisualAnalysis, 
-  isTopPick 
+  isTopPick,
+  profile 
 }: { 
   scored: ScoredListing;
   isSaved: boolean;
   onToggleSaved: () => void;
   showVisualAnalysis?: boolean;
   isTopPick: boolean;
+  profile?: any;
 }) {
   const { listing } = scored;
-  // Handle MLS images from Repliers API - can be array or string
-  let images: string[] = [];
-  if (Array.isArray(listing.images)) {
-    images = listing.images;
-  } else if (typeof listing.images === 'string') {
-    try {
-      images = JSON.parse(listing.images);
-    } catch {
-      images = [listing.images];
-    }
-  }
   
+  // Handle MLS images from Repliers API
+  const getPropertyImages = () => {
+    let images: string[] = [];
+    
+    // Handle different image formats from Repliers API
+    if (Array.isArray(listing.images)) {
+      images = listing.images;
+    } else if (typeof listing.images === 'string') {
+      try {
+        images = JSON.parse(listing.images);
+      } catch {
+        images = listing.images ? [listing.images] : [];
+      }
+    }
+    
+    // Convert relative paths to full URLs
+    return images.map(imagePath => {
+      if (imagePath.startsWith('mlsgrid/')) {
+        return `https://media.mlsgrid.com/${imagePath}`;
+      }
+      if (imagePath.startsWith('http')) {
+        return imagePath;
+      }
+      // Fallback for other formats
+      return `https://media.mlsgrid.com/${imagePath}`;
+    }).filter(Boolean);
+  };
+
+  const getPropertyImage = () => {
+    const images = getPropertyImages();
+    return images.length > 0 ? images[0] : null;
+  };
+
   const formatPrice = (price: number) => {
     if (price >= 1000000) {
       return `$${(price / 1000000).toFixed(1)}M`;
@@ -321,111 +347,157 @@ function PropertyCard({
     return `$${price.toLocaleString()}`;
   };
 
+  const getMatchPercentage = () => Math.round(scored.match_score * 100);
+  
+  const getMatchColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 bg-green-100';
+    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
+
+  // Generate smart match reasoning like the example
+  const generateMatchReasoning = () => {
+    const positives = [];
+    const negatives = [];
+    
+    // Add positive matches
+    if (scored.matched_features.includes('budget')) positives.push('within budget');
+    if (scored.matched_features.includes('location')) positives.push('in preferred area');
+    if (scored.matched_features.includes('garage')) positives.push('has garage');
+    if (scored.matched_features.includes('pool')) positives.push('has pool');
+    if (scored.matched_features.includes('parking')) positives.push('has parking');
+    
+    // Add negatives based on dealbreakers and missing features
+    if (scored.dealbreaker_flags.includes('budget')) negatives.push('over budget');
+    if (scored.dealbreaker_flags.includes('location')) negatives.push('outside preferred area');
+    
+    // Check bedroom/bathroom shortfall
+    if (listing.bedrooms && profile.bedrooms && listing.bedrooms < profile.bedrooms) {
+      const shortage = profile.bedrooms - listing.bedrooms;
+      negatives.push(`${shortage} bedroom(s) short`);
+    }
+    if (listing.bathrooms && profile.bathrooms && listing.bathrooms < profile.bathrooms) {
+      const shortage = profile.bathrooms - listing.bathrooms;
+      negatives.push(`${shortage} bathroom(s) short`);
+    }
+
+    const reasoning = [];
+    if (positives.length > 0) reasoning.push(positives.join(', '));
+    if (negatives.length > 0) reasoning.push(`but ${negatives.join(', ')}`);
+    
+    return reasoning.length > 0 ? `💡 ${reasoning.join('; ')}` : scored.reason;
+  };
+
+  const propertyImage = getPropertyImage();
+  const matchPercent = getMatchPercentage();
+
   return (
-    <Card className={`overflow-hidden hover:shadow-lg transition-shadow ${isTopPick ? 'ring-2 ring-yellow-200' : ''}`}>
+    <Card className={`overflow-hidden hover:shadow-xl transition-all duration-300 ${isTopPick ? 'ring-2 ring-blue-400 shadow-lg' : ''}`}>
       {/* Image */}
       <div className="relative">
-        {images.length > 0 ? (
+        {propertyImage ? (
           <img
-            src={images[0]}
+            src={propertyImage}
             alt={listing.address || 'Property'}
-            className="w-full h-48 object-cover"
+            className="w-full h-56 object-cover"
             onError={(e) => {
-              // If image fails to load, try next image or show placeholder
               const target = e.target as HTMLImageElement;
-              if (images.length > 1 && target.src === images[0]) {
-                target.src = images[1];
-              } else {
-                target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlIEF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';
-              }
+              target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1NiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmOWZhZmIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNlNWU3ZWIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyYWQpIi8+PGNpcmNsZSBjeD0iMjAwIiBjeT0iMTI4IiByPSI0MCIgZmlsbD0iI2Q1ZDdkYiIvPjx0ZXh0IHg9IjIwMCIgeT0iMTM1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
             }}
           />
         ) : (
-          <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-            <span className="text-gray-500 text-sm">No Image Available</span>
+          <div className="w-full h-56 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-gray-300 rounded-full mx-auto mb-2 flex items-center justify-center">
+                <span className="text-gray-500 text-xl">🏠</span>
+              </div>
+              <span className="text-gray-500 text-sm">No Image Available</span>
+            </div>
           </div>
         )}
+        
+        {/* Badges */}
         <div className="absolute top-3 left-3 flex gap-2">
           {isTopPick && (
-            <Badge className="bg-yellow-500 text-white">
-              <Star className="w-3 h-3 mr-1" />
-              Top Pick
-            </Badge>
+            <Badge className="bg-blue-600 text-white font-medium">⭐ Top Pick</Badge>
           )}
-          <Badge variant={scored.match_score >= 8 ? 'default' : 'secondary'}>
-            {Math.round(scored.match_score * 10)}% Match
+          <Badge className={`font-medium ${getMatchColor(matchPercent)}`}>
+            {matchPercent}% Match
           </Badge>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-3 right-3 bg-white/80 hover:bg-white"
+
+        {/* Save button */}
+        <button
           onClick={onToggleSaved}
+          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
         >
-          <Heart className={`w-4 h-4 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
-        </Button>
+          <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+        </button>
       </div>
 
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          {/* Price and Basic Info */}
+      {/* Content */}
+      <div className="p-5">
+        {/* Price and basic info */}
+        <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-lg">
-              {listing.listPrice ? formatPrice(listing.listPrice) : (listing.price ? formatPrice(listing.price) : 'Price on request')}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {listing.bedrooms || '?'} bed • {listing.bathrooms || '?'} bath
-              {listing.square_feet && ` • ${listing.square_feet.toLocaleString()} sqft`}
-              {!listing.square_feet && listing.sqft && ` • ${listing.sqft.toLocaleString()} sqft`}
-            </p>
-            <p className="text-sm text-gray-500 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {listing.address?.streetNumber && listing.address?.streetName ? 
-                `${listing.address.streetNumber} ${listing.address.streetName} ${listing.address.streetSuffix || ''}, ${listing.address.city}, ${listing.address.state}` :
-                listing.city || listing.address || 'Location available'}
-            </p>
-          </div>
-
-          {/* AI Reason */}
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs text-gray-600 font-medium mb-1">Why this matches you:</p>
-            <p className="text-sm text-gray-700">{scored.reason}</p>
-          </div>
-
-          {/* Matched Features */}
-          {scored.matched_features.length > 0 && (
-            <div>
-              <p className="text-xs text-green-600 font-medium mb-1">Matches your preferences:</p>
-              <div className="flex flex-wrap gap-1">
-                {scored.matched_features.slice(0, 3).map((feature, idx) => (
-                  <Badge key={idx} variant="outline" className="text-xs">
-                    {feature}
-                  </Badge>
-                ))}
-                {scored.matched_features.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{scored.matched_features.length - 3} more
-                  </Badge>
-                )}
-              </div>
+            <div className="text-2xl font-bold text-gray-900 mb-1">
+              {formatPrice(listing.price)}
             </div>
-          )}
-
-          {/* Visual Analysis (if enabled) */}
-          {showVisualAnalysis && (scored as any).visualTagMatches?.length > 0 && (
-            <div>
-              <p className="text-xs text-blue-600 font-medium mb-1">Visual style match:</p>
-              <div className="flex flex-wrap gap-1">
-                {(scored as any).visualTagMatches.slice(0, 2).map((tag: string, idx: number) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">
-                    {tag.replace(/_/g, ' ')}
-                  </Badge>
-                ))}
-              </div>
+            <div className="text-sm text-gray-600 flex items-center gap-3">
+              <span>{listing.bedrooms || 0} bds</span>
+              <span>•</span>
+              <span>{listing.bathrooms || 0} ba</span>
+              <span>•</span>
+              <span className="text-green-600 font-medium">Active</span>
             </div>
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="mb-3">
+          <p className="text-gray-700 font-medium text-sm">
+            {listing.address}, {listing.city}, {listing.state} {listing.zip_code}
+          </p>
+          {listing.mls_number && (
+            <p className="text-xs text-gray-500 mt-1">MLS #{listing.mls_number}</p>
           )}
         </div>
-      </CardContent>
+
+        {/* Match reasoning */}
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {generateMatchReasoning()}
+          </p>
+        </div>
+
+        {/* Property features */}
+        {scored.matched_features.length > 0 && (
+          <div className="mb-3">
+            <div className="flex flex-wrap gap-1">
+              {scored.matched_features.slice(0, 3).map((feature, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs bg-green-100 text-green-700">
+                  ✓ {feature}
+                </Badge>
+              ))}
+              {scored.matched_features.length > 3 && (
+                <Badge variant="secondary" className="text-xs">
+                  +{scored.matched_features.length - 3} more
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2 pt-3 border-t border-gray-100">
+          <Button variant="outline" size="sm" className="flex-1">
+            View Details
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1">
+            Schedule Tour
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
