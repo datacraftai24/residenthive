@@ -323,7 +323,7 @@ function PropertyCard({
 }) {
   const { listing } = scored;
   
-  // Handle MLS images from Repliers API
+  // Handle MLS images from Repliers CDN
   const getPropertyImages = () => {
     let images: string[] = [];
     
@@ -338,17 +338,8 @@ function PropertyCard({
       }
     }
     
-    // Convert relative paths to full URLs
-    return images.map(imagePath => {
-      if (imagePath.startsWith('mlsgrid/')) {
-        return `https://media.mlsgrid.com/${imagePath}`;
-      }
-      if (imagePath.startsWith('http')) {
-        return imagePath;
-      }
-      // Fallback for other formats
-      return `https://media.mlsgrid.com/${imagePath}`;
-    }).filter(Boolean);
+    // Images are already converted to Repliers CDN URLs by the backend
+    return images.filter(Boolean);
   };
 
   const getPropertyImage = () => {
