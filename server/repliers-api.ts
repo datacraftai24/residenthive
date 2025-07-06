@@ -170,6 +170,17 @@ export class RepliersAPIService {
     const data = await response.json();
     const rawListings = data.listings || [];
     
+    // Debug: Log first listing's raw image data
+    if (rawListings.length > 0) {
+      console.log('Raw Repliers image data:', {
+        id: rawListings[0].id,
+        images: rawListings[0].images,
+        photos: rawListings[0].photos,
+        media: rawListings[0].media,
+        imageUrls: rawListings[0].imageUrls
+      });
+    }
+    
     return rawListings.map((listing: any) => this.transformRepliersListing(listing));
   }
 
@@ -266,32 +277,33 @@ export class RepliersAPIService {
   }
 
   private extractImages(rawListing: any): string[] {
-    // Look for authentic MLS images in the images field
-    if (rawListing.images && Array.isArray(rawListing.images) && rawListing.images.length > 0) {
-      return rawListing.images.map((imagePath: string) => {
-        // Handle mlsgrid format: 'mlsgrid/IMG-ACT9283750_0.jpg'
-        if (imagePath.startsWith('mlsgrid/')) {
-          return `https://media.mlsgrid.com/${imagePath}`;
-        }
-        // Handle full URLs
-        if (imagePath.startsWith('http')) {
-          return imagePath;
-        }
-        // Default mlsgrid path construction
-        return `https://media.mlsgrid.com/mlsgrid/${imagePath}`;
-      }).filter(Boolean);
+    // First, check if Repliers provides accessible image URLs
+    if (rawListing.accessible_images && Array.isArray(rawListing.accessible_images)) {
+      return rawListing.accessible_images.filter(Boolean);
+    }
+    
+    // Check for direct HTTP URLs
+    if (rawListing.images && Array.isArray(rawListing.images)) {
+      const directUrls = rawListing.images.filter((img: string) => img.startsWith('http'));
+      if (directUrls.length > 0) {
+        return directUrls;
+      }
     }
 
-    // Fallback: construct from MLS number if no authentic images found
-    if (rawListing.mlsNumber) {
-      const mlsNum = rawListing.mlsNumber;
-      return [
-        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_0.jpg`,
-        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_1.jpg`,
-        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_2.jpg`,
-        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_3.jpg`,
-        `https://media.mlsgrid.com/mlsgrid/IMG-${mlsNum}_4.jpg`
-      ];
+    // If only MLS references available, we need to request Repliers to provide accessible URLs
+    // For now, return placeholder that indicates we need proper image hosting
+    console.warn(`Listing ${rawListing.id} has restricted MLS images, need accessible URLs from Repliers`);
+    
+    // Create property-specific placeholder with real estate context
+    if (rawListing.images && rawListing.images.length > 0) {
+      const propertyId = rawListing.id || 'unknown';
+      const imageCount = rawListing.images.length;
+      
+      return rawListing.images.slice(0, 6).map((imagePath: string, index: number) => {
+        const imageTypes = ['Exterior', 'Living Room', 'Kitchen', 'Bedroom', 'Bathroom', 'Interior'];
+        const imageType = imageTypes[index] || 'Interior';
+        return `https://via.placeholder.com/400x300/1f2937/ffffff?text=${encodeURIComponent(`${propertyId} - ${imageType} (${index + 1}/${imageCount} photos)`)}`;
+      });
     }
 
     return [];

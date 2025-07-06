@@ -72,11 +72,19 @@ export class HybridListingScorer {
     }
 
     try {
-      // Analyze first 3 images max for efficiency
-      const imagesToAnalyze = listing.images.slice(0, 3).map(url => ({
-        url,
-        type: 'property_image'
-      }));
+      // Analyze first 3 images max for efficiency  
+      // Convert proxy URLs back to original MLS URLs for vision analysis
+      const imagesToAnalyze = listing.images.slice(0, 3).map(url => {
+        // Extract original URL from proxy URL
+        const originalUrl = url.includes('/api/image-proxy?url=') 
+          ? decodeURIComponent(url.split('url=')[1])
+          : url;
+        
+        return {
+          url: originalUrl,
+          type: 'property_image'
+        };
+      });
       const analysis = await this.visionService.analyzeListingImages(
         listing.id,
         imagesToAnalyze

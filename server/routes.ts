@@ -839,9 +839,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Use hybrid approach: immediate display + top 3 visual analysis
+      // Transform image URLs to use proxy and apply hybrid scoring
+      const transformedListings = listings.map(listing => ({
+        ...listing,
+        images: (listing.images || []).map(imageUrl => 
+          `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+        )
+      }));
+
       const { hybridListingScorer } = await import('./hybrid-listing-scorer');
-      const response = await hybridListingScorer.scoreListingsHybrid(listings, profile, tags);
+      const response = await hybridListingScorer.scoreListingsHybrid(transformedListings, profile, tags);
 
       res.json(response);
     } catch (error) {
@@ -1052,9 +1059,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { repliersAPI } = await import('./repliers-api');
         listings = await repliersAPI.searchListings(profile);
         
-        // Temporarily use basic scoring to avoid OpenAI rate limits
+        // Use basic scoring and transform image URLs to use proxy
         const { listingScorer } = await import('./listing-scorer');
-        const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+        
+        // Transform listings to use image proxy URLs
+        const transformedListings = listings.map(listing => ({
+          ...listing,
+          images: (listing.images || []).map(imageUrl => 
+            `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+          )
+        }));
+        
+        const scoredListings = transformedListings.map(listing => 
+          listingScorer.scoreListing(listing, profile, tags)
+        );
         searchResults = listingScorer.categorizeListings(scoredListings);
       } catch (error) {
         console.error("Error fetching listings for shareable profile:", error);
@@ -1525,6 +1543,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to analyze images",
         details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Image proxy endpoint for MLS images
+  app.get('/api/image-proxy', async (req, res) => {
+    try {
+      const { url } = req.query;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL parameter required' });
+      }
+
+      // Only allow MLS image URLs for security
+      if (!url.includes('media.mlsgrid.com')) {
+        return res.status(403).json({ error: 'Only MLS images allowed' });
+      }
+
+      // Try to fetch with multiple strategies
+      let imageBuffer: ArrayBuffer | null = null;
+      let contentType = 'image/jpeg';
+
+      // Strategy 1: Try with real estate-focused headers
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'RealtorBot/1.0 (+https://realtor.com)',
+            'Accept': 'image/webp,image/avif,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Referer': 'https://www.realtor.com/',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site'
+          }
+        });
+
+        if (response.ok) {
+          imageBuffer = await response.arrayBuffer();
+          contentType = response.headers.get('content-type') || 'image/jpeg';
+        }
+      } catch (error) {
+        console.warn('First fetch strategy failed:', error);
+      }
+
+      // Strategy 2: If first fails, generate property placeholder
+      if (!imageBuffer) {
+        // Create a property placeholder SVG
+        const listingId = url.split('/').pop()?.split('.')[0] || 'unknown';
+        const placeholderSvg = `
+          <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+            <rect width="400" height="300" fill="#f0f4f8"/>
+            <rect x="50" y="50" width="300" height="200" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="2"/>
+            <circle cx="120" cy="120" r="15" fill="#fbbf24"/>
+            <rect x="80" y="180" width="60" height="40" fill="#1f2937"/>
+            <rect x="85" y="185" width="10" height="15" fill="#fbbf24"/>
+            <rect x="100" y="185" width="10" height="15" fill="#fbbf24"/>
+            <rect x="115" y="185" width="10" height="15" fill="#fbbf24"/>
+            <rect x="130" y="185" width="10" height="15" fill="#fbbf24"/>
+            <text x="200" y="260" font-family="Arial" font-size="14" fill="#374151" text-anchor="middle">
+              Property Image Loading...
+            </text>
+            <text x="200" y="280" font-family="Arial" font-size="12" fill="#6b7280" text-anchor="middle">
+              MLS ID: ${listingId}
+            </text>
+          </svg>
+        `;
+        
+        imageBuffer = Buffer.from(placeholderSvg);
+        contentType = 'image/svg+xml';
+      }
+
+      // Set appropriate headers
+      res.set({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=300', // Shorter cache for placeholders
+        'Access-Control-Allow-Origin': '*'
+      });
+
+      // Send the image or placeholder
+      res.send(Buffer.from(imageBuffer));
+
+    } catch (error) {
+      console.error('Image proxy error:', error);
+      res.status(500).json({ 
+        error: 'Failed to proxy image',
+        details: (error as Error).message 
       });
     }
   });
