@@ -59,7 +59,7 @@ export default function ClientDashboard() {
     queryFn: async () => {
       const response = await fetch(`/api/profiles/share/${shareId}`);
       if (!response.ok) throw new Error("Shareable profile not found");
-      return response.json() as ShareableProfile;
+      return response.json();
     },
     enabled: !!shareId
   });
@@ -67,6 +67,12 @@ export default function ClientDashboard() {
   // Fetch buyer profile
   const { data: profile, isLoading: isLoadingBuyer } = useQuery({
     queryKey: ["/api/buyer-profiles", shareableProfile?.profileId],
+    queryFn: async () => {
+      if (!shareableProfile?.profileId) return null;
+      const response = await fetch(`/api/buyer-profiles/${shareableProfile.profileId}`);
+      if (!response.ok) throw new Error("Failed to fetch buyer profile");
+      return response.json();
+    },
     enabled: !!shareableProfile?.profileId
   });
 
@@ -119,14 +125,26 @@ export default function ClientDashboard() {
     );
   }
 
-  if (!shareableProfile || !profile) {
+  if (!shareableProfile || !profile || isLoadingBuyer || isLoadingListings || !profile?.name) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="max-w-md mx-auto">
           <CardContent className="text-center py-12">
-            <h2 className="text-xl font-semibold mb-2">Dashboard Not Found</h2>
-            <p className="text-gray-600 mb-4">This client dashboard may have expired or been removed.</p>
-            <Button variant="outline">Contact Your Agent</Button>
+            {isLoadingBuyer || isLoadingListings ? (
+              <>
+                <h2 className="text-xl font-semibold mb-2">Loading Your Properties</h2>
+                <p className="text-gray-600 mb-4">Finding the perfect matches for you...</p>
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-semibold mb-2">Dashboard Not Found</h2>
+                <p className="text-gray-600 mb-4">This client dashboard may have expired or been removed.</p>
+                <Button variant="outline">Contact Your Agent</Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -145,7 +163,7 @@ export default function ClientDashboard() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Property Matches for {profile.name}
+                Property Matches for {profile?.name || 'Client'}
               </h1>
               <p className="text-gray-600 mt-1">
                 {searchSummary.total_found || 0} properties found • {topPicks.length} top picks
@@ -201,7 +219,7 @@ export default function ClientDashboard() {
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-green-600" />
                 <span>
-                  {profile.budgetMin && profile.budgetMax ? 
+                  {profile?.budgetMin && profile?.budgetMax ? 
                     `${formatPrice(profile.budgetMin)} - ${formatPrice(profile.budgetMax)}` :
                     'Budget flexible'
                   }
@@ -209,15 +227,15 @@ export default function ClientDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <Home className="w-4 h-4 text-blue-600" />
-                <span>{profile.bedrooms || 'Any'} bed, {profile.bathrooms || 'Any'} bath</span>
+                <span>{profile?.bedrooms || 'Any'} bed, {profile?.bathrooms || 'Any'} bath</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-red-600" />
-                <span>{profile.location || 'Location flexible'}</span>
+                <span>{profile?.location || profile?.preferredAreas?.[0] || 'Location flexible'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 text-yellow-600" />
-                <span>{profile.mustHaveFeatures?.length || 0} must-have features</span>
+                <span>{profile?.mustHaveFeatures?.length || 0} must-have features</span>
               </div>
             </div>
           </CardContent>
