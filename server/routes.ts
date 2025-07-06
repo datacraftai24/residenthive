@@ -839,16 +839,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Transform image URLs to use proxy and apply hybrid scoring
-      const transformedListings = listings.map(listing => ({
-        ...listing,
-        images: (listing.images || []).map(imageUrl => 
-          `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
-        )
-      }));
-
+      // Use original listings with Repliers CDN URLs (no proxy needed)
       const { hybridListingScorer } = await import('./hybrid-listing-scorer');
-      const response = await hybridListingScorer.scoreListingsHybrid(transformedListings, profile, tags);
+      const response = await hybridListingScorer.scoreListingsHybrid(listings, profile, tags);
 
       res.json(response);
     } catch (error) {
@@ -1059,20 +1052,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { repliersAPI } = await import('./repliers-api');
         listings = await repliersAPI.searchListings(profile);
         
-        // Use basic scoring and transform image URLs to use proxy
+        // Use basic scoring with Repliers CDN URLs (no proxy needed)
         const { listingScorer } = await import('./listing-scorer');
-        
-        // Transform listings to use image proxy URLs
-        const transformedListings = listings.map(listing => ({
-          ...listing,
-          images: (listing.images || []).map(imageUrl => 
-            `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
-          )
-        }));
-        
-        const scoredListings = transformedListings.map(listing => 
-          listingScorer.scoreListing(listing, profile, tags)
-        );
+        const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
         searchResults = listingScorer.categorizeListings(scoredListings);
       } catch (error) {
         console.error("Error fetching listings for shareable profile:", error);

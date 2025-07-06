@@ -170,17 +170,6 @@ export class RepliersAPIService {
     const data = await response.json();
     const rawListings = data.listings || [];
     
-    // Debug: Log first listing's raw image data
-    if (rawListings.length > 0) {
-      console.log('Raw Repliers image data:', {
-        id: rawListings[0].id,
-        images: rawListings[0].images,
-        photos: rawListings[0].photos,
-        media: rawListings[0].media,
-        imageUrls: rawListings[0].imageUrls
-      });
-    }
-    
     return rawListings.map((listing: any) => this.transformRepliersListing(listing));
   }
 
@@ -277,33 +266,19 @@ export class RepliersAPIService {
   }
 
   private extractImages(rawListing: any): string[] {
-    // First, check if Repliers provides accessible image URLs
-    if (rawListing.accessible_images && Array.isArray(rawListing.accessible_images)) {
-      return rawListing.accessible_images.filter(Boolean);
-    }
-    
-    // Check for direct HTTP URLs
-    if (rawListing.images && Array.isArray(rawListing.images)) {
-      const directUrls = rawListing.images.filter((img: string) => img.startsWith('http'));
-      if (directUrls.length > 0) {
-        return directUrls;
-      }
-    }
-
-    // If only MLS references available, we need to request Repliers to provide accessible URLs
-    // For now, return placeholder that indicates we need proper image hosting
-    console.warn(`Listing ${rawListing.id} has restricted MLS images, need accessible URLs from Repliers`);
-    
-    // Create property-specific placeholder with real estate context
-    if (rawListing.images && rawListing.images.length > 0) {
-      const propertyId = rawListing.id || 'unknown';
-      const imageCount = rawListing.images.length;
-      
-      return rawListing.images.slice(0, 6).map((imagePath: string, index: number) => {
-        const imageTypes = ['Exterior', 'Living Room', 'Kitchen', 'Bedroom', 'Bathroom', 'Interior'];
-        const imageType = imageTypes[index] || 'Interior';
-        return `https://via.placeholder.com/400x300/1f2937/ffffff?text=${encodeURIComponent(`${propertyId} - ${imageType} (${index + 1}/${imageCount} photos)`)}`;
-      });
+    // Use Repliers CDN for accessing property images
+    if (rawListing.images && Array.isArray(rawListing.images) && rawListing.images.length > 0) {
+      return rawListing.images.map((imagePath: string) => {
+        // Handle different image path formats from Repliers
+        if (imagePath.startsWith('http')) {
+          // Already a full URL
+          return imagePath;
+        }
+        
+        // Construct Repliers CDN URL with medium size for optimal performance
+        // Using medium (800px) as default for good quality without excessive bandwidth
+        return `https://cdn.repliers.io/${imagePath}?class=medium`;
+      }).filter(Boolean);
     }
 
     return [];
