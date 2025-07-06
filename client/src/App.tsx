@@ -11,7 +11,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/client/:shareId" component={ClientDashboard} />
+      <Route path="/client-dashboard/:shareId" component={ClientDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
