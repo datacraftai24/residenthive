@@ -20,6 +20,7 @@ export interface ScoredListing {
 export interface CategorizedListings {
   top_picks: ScoredListing[];
   other_matches: ScoredListing[];
+  properties_without_images: ScoredListing[];
   chat_blocks: string[];
 }
 
@@ -47,10 +48,7 @@ export class ListingScorer {
       scores.dealbreaker_penalty // This is negative
     ));
 
-    // Boost score for properties with images for better visual experience
-    if (listing.images && listing.images.length > 0) {
-      finalScore = Math.min(1.0, finalScore + 0.15); // 15% boost for having images
-    }
+    // Remove artificial image scoring boost - handle this in categorization instead
 
     const matchedFeatures = this.findMatchedFeatures(listing, profile);
     const dealbreakerFlags = this.findDealbreakerFlags(listing, profile);
@@ -429,22 +427,32 @@ export class ListingScorer {
   }
 
   /**
-   * Categorize listings based on scores
+   * Categorize listings based on scores and image availability
    */
   categorizeListings(scoredListings: ScoredListing[]): CategorizedListings {
-    // Adaptive thresholds for real-world data with missing fields
-    const topPicks = scoredListings.filter(item => item.match_score >= 0.35);
-    const otherMatches = scoredListings.filter(item => item.match_score >= 0.25 && item.match_score < 0.35);
+    // First separate properties with images from those without
+    const propertiesWithImages = scoredListings.filter(item => 
+      item.listing.images && item.listing.images.length > 0
+    );
+    const propertiesWithoutImages = scoredListings.filter(item => 
+      !item.listing.images || item.listing.images.length === 0
+    );
 
-    // Sort by score descending
+    // Categorize properties WITH images using score thresholds
+    const topPicks = propertiesWithImages.filter(item => item.match_score >= 0.35);
+    const otherMatches = propertiesWithImages.filter(item => item.match_score >= 0.25 && item.match_score < 0.35);
+
+    // Sort all categories by score descending
     topPicks.sort((a, b) => b.match_score - a.match_score);
     otherMatches.sort((a, b) => b.match_score - a.match_score);
+    propertiesWithoutImages.sort((a, b) => b.match_score - a.match_score);
 
     const chatBlocks = this.generateChatBlocks([...topPicks.slice(0, 5), ...otherMatches.slice(0, 5)]);
 
     return {
       top_picks: topPicks.slice(0, 5),
       other_matches: otherMatches.slice(0, 10),
+      properties_without_images: propertiesWithoutImages.slice(0, 10),
       chat_blocks: chatBlocks
     };
   }
