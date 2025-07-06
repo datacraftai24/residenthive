@@ -56,8 +56,9 @@ interface EnhancedScoredListing {
 interface EnhancedSearchResults {
   top_picks: EnhancedScoredListing[];
   other_matches: EnhancedScoredListing[];
+  properties_without_images?: EnhancedScoredListing[];
   chat_blocks: string[];
-  search_summary: {
+  search_summary?: {
     total_found: number;
     top_picks_count: number;
     other_matches_count: number;
@@ -371,10 +372,10 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
             <TabsList>
               <TabsTrigger value="enhanced-search">
                 <Star className="w-4 h-4 mr-1" />
-                Top Picks ({enhancedResults.search_summary.top_picks_count})
+                Top Picks ({enhancedResults.top_picks?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="other-matches">
-                Other Matches ({enhancedResults.search_summary.other_matches_count})
+                Other Matches ({enhancedResults.other_matches?.length || 0})
               </TabsTrigger>
             </TabsList>
 
