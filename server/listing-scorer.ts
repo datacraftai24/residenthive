@@ -37,8 +37,8 @@ export class ListingScorer {
       tag_score: this.calculateTagScore(listing, profile, tags)
     };
 
-    // Weighted final score
-    const finalScore = Math.max(0, Math.min(1, 
+    // Weighted final score with image bonus
+    let finalScore = Math.max(0, Math.min(1, 
       (scores.budget_score * 0.20) +
       (scores.feature_score * 0.25) +
       (scores.bedroom_score * 0.20) +
@@ -47,9 +47,16 @@ export class ListingScorer {
       scores.dealbreaker_penalty // This is negative
     ));
 
+    // Boost score for properties with images for better visual experience
+    if (listing.images && listing.images.length > 0) {
+      finalScore = Math.min(1.0, finalScore + 0.15); // 15% boost for having images
+    }
+
     const matchedFeatures = this.findMatchedFeatures(listing, profile);
     const dealbreakerFlags = this.findDealbreakerFlags(listing, profile);
     
+
+
     return {
       listing,
       match_score: finalScore,

@@ -96,8 +96,13 @@ export class HybridListingScorer {
         : '';
 
       return {
+        listing: scored.listing, // Preserve original listing data including images
         match_score: enhancedScore,
         reason: scored.reason + visualInsights,
+        label: scored.label,
+        matched_features: scored.matched_features,
+        dealbreaker_flags: scored.dealbreaker_flags,
+        score_breakdown: scored.score_breakdown,
         // Add visual metadata for enhanced display
         ...(analysis && { visualAnalysis: analysis })
       };

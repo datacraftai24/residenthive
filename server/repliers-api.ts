@@ -271,12 +271,9 @@ export class RepliersAPIService {
       return rawListing.images.map((imagePath: string) => {
         // Handle different image path formats from Repliers
         if (imagePath.startsWith('http')) {
-          // Already a full URL
           return imagePath;
         }
-        
         // Construct Repliers CDN URL with medium size for optimal performance
-        // Using medium (800px) as default for good quality without excessive bandwidth
         return `https://cdn.repliers.io/${imagePath}?class=medium`;
       }).filter(Boolean);
     }
