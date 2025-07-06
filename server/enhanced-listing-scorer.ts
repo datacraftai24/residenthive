@@ -37,23 +37,36 @@ export class EnhancedListingScorer {
     profile: BuyerProfile, 
     tags: ProfileTag[] = []
   ): Promise<EnhancedCategorizedListings> {
+    console.log(`Starting enhanced scoring for ${listings.length} listings for profile ${profile.id}`);
     
     // First, get basic scores using existing algorithm
     const basicScoredListings = listings.map(listing => 
       listingScorer.scoreListing(listing, profile, tags)
     );
 
-    // Sort and take top candidates for visual analysis (cost optimization)
+    // Sort and take top 1 candidate for visual analysis (ultra-conservative rate limiting)
     const topCandidates = basicScoredListings
       .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, 20); // Analyze only top 20 for cost control
+      .slice(0, 1); // Analyze only top 1 property to avoid rate limiting
 
     const enhancedListings: EnhancedScoredListing[] = [];
 
-    // Process listings with visual intelligence
-    for (const scored of topCandidates) {
-      const enhanced = await this.enhanceWithVisualIntelligence(scored, profile, tags);
-      enhancedListings.push(enhanced);
+    // Process listings with visual intelligence (with rate limiting)
+    for (let i = 0; i < topCandidates.length; i++) {
+      const scored = topCandidates[i];
+      try {
+        const enhanced = await this.enhanceWithVisualIntelligence(scored, profile, tags);
+        enhancedListings.push(enhanced);
+        
+        // Add delay between requests to avoid rate limiting (except for last item)
+        if (i < topCandidates.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+        }
+      } catch (error) {
+        console.error(`Enhanced analysis failed for listing ${scored.listing.id}:`, error);
+        // Add as basic listing if enhancement fails
+        enhancedListings.push(this.convertToEnhanced(scored));
+      }
     }
 
     // Add remaining listings without visual analysis
@@ -119,16 +132,31 @@ export class EnhancedListingScorer {
       visualBoost
     );
 
-    // Add personalized image analysis summary if visual analysis exists
+    // Generate lightweight personalized analysis without heavy OpenAI calls
     if (visualAnalysis) {
       try {
-        const personalizedSummary = await visionIntelligence.generatePersonalizedSummary(
+        // Use rule-based personalized insights to avoid rate limiting
+        const insights = await visionIntelligence.generateBuyerSpecificInsights(
           visualAnalysis, 
           profile
         );
-        enhancedReason = `${enhancedReason}\n\nPersonalized Visual Analysis: ${personalizedSummary}`;
+        
+        let personalizedText = "";
+        if (insights.matches.length > 0) {
+          personalizedText += `Great news: ${insights.matches.join(', ')}. `;
+        }
+        if (insights.highlights.length > 0) {
+          personalizedText += `Quality features: ${insights.highlights.join(', ')}. `;
+        }
+        if (insights.concerns.length > 0) {
+          personalizedText += `Note: ${insights.concerns.join(', ')}.`;
+        }
+        
+        if (personalizedText) {
+          enhancedReason = `${enhancedReason}\n\nPersonalized for You: ${personalizedText}`;
+        }
       } catch (error) {
-        console.error("Failed to generate personalized summary:", error);
+        console.error("Failed to generate personalized insights:", error);
       }
     }
 
@@ -140,8 +168,7 @@ export class EnhancedListingScorer {
       visualFlags,
       enhancedReason,
       score_breakdown: {
-        ...scored.score_breakdown,
-        visual_boost: visualBoost
+        ...scored.score_breakdown
       }
     };
   }

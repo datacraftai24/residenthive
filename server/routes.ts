@@ -751,12 +751,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Use basic scoring for immediate results (hybrid approach)
-      const { listingScorer } = await import('./listing-scorer');
-      const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
-      const results = listingScorer.categorizeListings(scoredListings);
-
-      res.json(results);
+      // Use enhanced scoring with visual intelligence and personalized analysis
+      try {
+        console.log("Loading enhanced listing scorer...");
+        const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
+        console.log("Enhanced listing scorer loaded, starting analysis...");
+        const enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
+          listings, 
+          profile, 
+          tags
+        );
+        console.log("Enhanced analysis complete, sending results...");
+        res.json(enhancedResults);
+      } catch (error) {
+        console.error("Enhanced scoring failed, falling back to basic:", error);
+        // Fallback to basic scoring if enhanced fails
+        const { listingScorer } = await import('./listing-scorer');
+        const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
+        const results = listingScorer.categorizeListings(scoredListings);
+        res.json(results);
+      }
     } catch (error) {
       console.error("Error in enhanced listing search:", error);
       res.status(500).json({ 

@@ -117,7 +117,13 @@ Respond in JSON format:
     const allTags = new Set<string>();
     const allFlags = new Set<string>();
 
-    for (const image of images.slice(0, 5)) { // Limit to 5 images for cost control
+    // Process images one by one with rate limiting delays
+    const selectedImages = images.slice(0, 2); // Limit to 2 images for ultra-conservative rate limiting
+    console.log(`Processing ${selectedImages.length} images for listing ${listingId} (ultra-conservative mini-batch)`);
+    
+    for (let i = 0; i < selectedImages.length; i++) {
+      const image = selectedImages[i];
+      
       // Check if we already analyzed this specific image
       const existing = existingAnalyses.find(a => a.imageUrl === image.url);
       
@@ -134,14 +140,39 @@ Respond in JSON format:
         result.visualTags.forEach(tag => allTags.add(tag));
         result.flags.forEach(flag => allFlags.add(flag));
       } else {
-        // Analyze new image
-        const result = await this.analyzeImage(image.url, image.type);
-        analyses.push(result);
-        result.visualTags.forEach(tag => allTags.add(tag));
-        result.flags.forEach(flag => allFlags.add(flag));
+        try {
+          // Analyze new image with retry logic
+          const result = await this.analyzeImage(image.url, image.type);
+          analyses.push(result);
+          result.visualTags.forEach(tag => allTags.add(tag));
+          result.flags.forEach(flag => allFlags.add(flag));
 
-        // Cache the result
-        await this.saveAnalysisToDatabase(listingId, result);
+          // Cache the result
+          await this.saveAnalysisToDatabase(listingId, result);
+          
+          // Add delay between API calls to avoid rate limiting (except for last image)
+          if (i < selectedImages.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+          }
+        } catch (error: any) {
+          console.error(`Failed to analyze image ${image.url}:`, error);
+          
+          // If rate limited, stop processing more images for this listing
+          if (error.status === 429) {
+            console.warn(`Rate limited on image ${i + 1}/${selectedImages.length}, stopping analysis for this listing`);
+            break;
+          }
+          
+          // For other errors, add a placeholder result
+          analyses.push({
+            imageUrl: image.url,
+            imageType: image.type,
+            visualTags: [],
+            summary: "Analysis failed",
+            flags: ["analysis_failed"],
+            confidence: 0
+          });
+        }
       }
     }
 
