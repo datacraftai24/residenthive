@@ -340,25 +340,25 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-green-600">
-                    {enhancedResults.search_summary.top_picks_count}
+                    {enhancedResults.top_picks?.length || 0}
                   </div>
                   <div className="text-sm text-gray-600">Top Picks</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-yellow-600">
-                    {enhancedResults.search_summary.other_matches_count}
+                    {enhancedResults.other_matches?.length || 0}
                   </div>
                   <div className="text-sm text-gray-600">Other Matches</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-purple-600">
-                    {enhancedResults.search_summary.visual_analysis_count}
+                    {enhancedResults.properties_without_images?.length || 0}
                   </div>
-                  <div className="text-sm text-gray-600">Visually Analyzed</div>
+                  <div className="text-sm text-gray-600">No Images</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-blue-600">
-                    {enhancedResults.search_summary.total_found}
+                    {(enhancedResults.top_picks?.length || 0) + (enhancedResults.other_matches?.length || 0) + (enhancedResults.properties_without_images?.length || 0)}
                   </div>
                   <div className="text-sm text-gray-600">Total Found</div>
                 </div>
