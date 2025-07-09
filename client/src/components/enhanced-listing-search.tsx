@@ -199,13 +199,18 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
           <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
             <div className="flex items-start gap-2">
               <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-800 dark:text-blue-200">
+              <div className="text-sm text-blue-800 dark:text-blue-200 flex-1">
                 {listing.enhancedReason?.split('\n\nPersonalized Visual Analysis:').map((part, index) => (
                   <div key={index} className={index === 0 ? 'mb-2' : 'pt-2 border-t border-blue-200 dark:border-blue-800'}>
                     {index === 1 && (
-                      <div className="flex items-center gap-1 mb-1 text-xs font-medium text-blue-700 dark:text-blue-300">
-                        <Eye className="w-3 h-3" />
-                        Personalized for You:
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                          <Eye className="w-3 h-3" />
+                          Personalized for You:
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300">
+                          AI Generated
+                        </Badge>
                       </div>
                     )}
                     <div className={index === 1 ? 'italic' : ''}>{part}</div>
@@ -218,13 +223,18 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
           {/* Visual Analysis Results */}
           {listing.visualAnalysis && (
             <div className="bg-purple-50 dark:bg-purple-950/20 p-3 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Eye className="w-4 h-4 text-purple-600" />
-                <span className="text-sm font-medium text-purple-800 dark:text-purple-200">
-                  Visual Intelligence
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {listing.visualAnalysis.analyses.length} images analyzed
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                    Visual Intelligence
+                  </span>
+                  <Badge variant="outline" className="text-xs">
+                    {listing.visualAnalysis.analyses.length} images analyzed
+                  </Badge>
+                </div>
+                <Badge variant="outline" className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 border-purple-300">
+                  AI Generated
                 </Badge>
               </div>
               
