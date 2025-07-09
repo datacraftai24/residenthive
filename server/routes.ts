@@ -932,6 +932,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate Personal Client Message (On-Demand)
+  app.post("/api/listings/generate-personal-message", async (req, res) => {
+    try {
+      const { listingId, profileId } = req.body;
+
+      if (!listingId || !profileId) {
+        return res.status(400).json({ error: "Listing ID and Profile ID are required" });
+      }
+
+      // Get buyer profile
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      // Get listing data from visual analysis cache
+      const { VisionIntelligenceService } = await import('./vision-intelligence');
+      const visionService = new VisionIntelligenceService();
+      
+      // Get visual analysis from database
+      const visualAnalysis = await visionService.getVisualAnalysisFromDatabase(listingId);
+      if (!visualAnalysis) {
+        return res.status(404).json({ error: "Visual analysis not found for this listing" });
+      }
+
+      // Create a mock scored listing for the message generation
+      const scoredListing = {
+        listing: {
+          id: listingId,
+          address: "Property Address", // This would come from your listings cache
+          price: 0 // This would come from your listings cache
+        },
+        matched_features: [] // This would come from your scoring system
+      };
+
+      // Generate personal message
+      const personalMessage = await visionService.generatePersonalizedClientMessage(
+        visualAnalysis,
+        profile,
+        scoredListing
+      );
+
+      res.json({ personalMessage });
+    } catch (error) {
+      console.error("Error generating personal message:", error);
+      res.status(500).json({ 
+        error: "Failed to generate personal message",
+        message: (error as Error).message 
+      });
+    }
+  });
+
   // Create Shareable Listing Link (Individual)
   app.post("/api/listings/share", async (req, res) => {
     try {

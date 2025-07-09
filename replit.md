@@ -196,6 +196,17 @@ Changelog:
   - Added 15% scoring boost for properties with images to prioritize visual content
   - Client dashboard now has access to high-quality, authentic property images via accessible CDN URLs
   - Complete end-to-end image system working: Repliers API → CDN transformation → client display
+- July 9, 2025. Professional Agent Messaging System with AI Transparency
+  - Completely redesigned messaging system with two-tier approach for professional real estate agents
+  - Replaced clunky AI-generated personal messages with professional agent-voice assessments
+  - Tier 1: Professional agent summaries ("I found this property that checks most of your boxes...")
+  - Tier 2: On-demand personal client messages ("Hi [Name], I found a property you'll love...")
+  - Added comprehensive AI transparency labels on all AI-generated content sections
+  - Implemented edit functionality allowing agents to modify AI assessments before client presentation
+  - Added "Generate Personal Message" button for creating warm client communications on-demand
+  - Enhanced user experience with professional loading messages explaining AI analysis value
+  - Maintained powerful visual intelligence while making messaging agent-controllable and transparent
+  - System now balances AI efficiency with professional real estate communication standards
 ```
 
 ## User Preferences

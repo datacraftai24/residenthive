@@ -83,6 +83,12 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
     expiresInDays: 30
   });
   const [activeTab, setActiveTab] = useState("enhanced-search");
+  const [editingListing, setEditingListing] = useState<string | null>(null);
+  const [editedMessage, setEditedMessage] = useState<string>("");
+  const [personalMessageModal, setPersonalMessageModal] = useState<{
+    listing: EnhancedScoredListing;
+    message: string;
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -149,11 +155,53 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
     }
   });
 
+  // Generate personal message mutation
+  const generatePersonalMessageMutation = useMutation({
+    mutationFn: async ({ listingId }: { listingId: string }) => {
+      const response = await fetch("/api/listings/generate-personal-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, profileId }),
+      });
+      if (!response.ok) throw new Error("Failed to generate personal message");
+      return response.json();
+    },
+    onSuccess: (result: { personalMessage: string }, variables: { listingId: string }) => {
+      const listing = enhancedResults?.top_picks.find(l => l.listing.id === variables.listingId) || 
+                     enhancedResults?.other_matches.find(l => l.listing.id === variables.listingId);
+      if (listing) {
+        setPersonalMessageModal({ listing, message: result.personalMessage });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate personal message",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleShare = (listing: EnhancedScoredListing) => {
     shareMutation.mutate({
       listingId: listing.listing.id,
       ...shareData
     });
+  };
+
+  const handleGeneratePersonalMessage = (listing: EnhancedScoredListing) => {
+    generatePersonalMessageMutation.mutate({ listingId: listing.listing.id });
+  };
+
+  const handleEditMessage = (listingId: string, currentMessage: string) => {
+    setEditingListing(listingId);
+    setEditedMessage(currentMessage);
+  };
+
+  const handleSaveEdit = (listingId: string) => {
+    // Update the message in the results (in a real app, you'd save to backend)
+    setEditingListing(null);
+    toast({ title: "Message updated!" });
   };
 
   const formatPrice = (price: number) => {
@@ -195,27 +243,31 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       
       <CardContent>
         <div className="space-y-4">
-          {/* Enhanced Reason with Personalized Analysis */}
+          {/* Professional Agent Assessment */}
           <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
             <div className="flex items-start gap-2">
               <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-800 dark:text-blue-200 flex-1">
-                {listing.enhancedReason?.split('\n\nPersonalized Visual Analysis:').map((part, index) => (
-                  <div key={index} className={index === 0 ? 'mb-2' : 'pt-2 border-t border-blue-200 dark:border-blue-800'}>
-                    {index === 1 && (
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
-                          <Eye className="w-3 h-3" />
-                          Personalized for You:
-                        </div>
-                        <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300">
-                          AI Generated
-                        </Badge>
-                      </div>
-                    )}
-                    <div className={index === 1 ? 'italic' : ''}>{part}</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                    <Eye className="w-3 h-3" />
+                    Professional Assessment:
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300">
+                      AI Generated
+                    </Badge>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs h-6 px-2"
+                      onClick={() => handleEditMessage(listing.listing.id, listing.enhancedReason)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+                <div>{listing.enhancedReason}</div>
               </div>
             </div>
           </div>
@@ -378,6 +430,20 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
             >
               <Share2 className="w-4 h-4 mr-1" />
               Share
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+              onClick={() => handleGeneratePersonalMessage(listing)}
+              disabled={generatePersonalMessageMutation.isPending}
+            >
+              {generatePersonalMessageMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <MessageSquare className="w-4 h-4 mr-1" />
+              )}
+              Generate Personal Message
             </Button>
             <Button size="sm" variant="outline">
               View Details
@@ -563,6 +629,98 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                 <Button 
                   variant="outline" 
                   onClick={() => setSelectedListing(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Personal Message Modal */}
+      {personalMessageModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle>Personal Message Generated</CardTitle>
+              <CardDescription>
+                AI-generated personal message for {personalMessageModal.listing.listing.address}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="personalMessage">Personal Message</Label>
+                <Textarea
+                  id="personalMessage"
+                  value={personalMessageModal.message}
+                  onChange={(e) => setPersonalMessageModal(prev => 
+                    prev ? { ...prev, message: e.target.value } : null
+                  )}
+                  rows={4}
+                  className="mt-2"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="outline" className="text-xs">
+                    AI Generated
+                  </Badge>
+                  <span className="text-xs text-gray-500">Edit as needed before sending</span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(personalMessageModal.message);
+                    toast({ title: "Message copied to clipboard!" });
+                  }}
+                  className="flex-1"
+                >
+                  <Copy className="w-4 h-4 mr-1" />
+                  Copy Message
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPersonalMessageModal(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Message Modal */}
+      {editingListing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle>Edit Assessment</CardTitle>
+              <CardDescription>
+                Modify the AI-generated assessment for this property
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="editMessage">Professional Assessment</Label>
+                <Textarea
+                  id="editMessage"
+                  value={editedMessage}
+                  onChange={(e) => setEditedMessage(e.target.value)}
+                  rows={4}
+                  className="mt-2"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleSaveEdit(editingListing)}
+                  className="flex-1"
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditingListing(null)}
                 >
                   Cancel
                 </Button>

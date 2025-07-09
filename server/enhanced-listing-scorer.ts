@@ -150,20 +150,21 @@ export class EnhancedListingScorer {
       visualBoost
     );
 
-    // Add personalized message with buyer's name if visual analysis exists
+    // Add professional agent summary if visual analysis exists
     console.log(`Visual analysis exists for listing ${scored.listing.id}:`, !!visualAnalysis);
     if (visualAnalysis) {
       console.log(`Visual tags found:`, visualAnalysis.overallTags);
       try {
-        console.log(`Generating personalized message for ${profile.name}...`);
-        const personalizedMessage = await visionIntelligence.generatePersonalizedSummary(
+        console.log(`Generating agent summary for ${profile.name}...`);
+        const agentSummary = await visionIntelligence.generateAgentSummary(
           visualAnalysis, 
-          profile
+          profile,
+          scored
         );
-        console.log(`Personalized message generated:`, personalizedMessage);
-        enhancedReason = `${enhancedReason}\n\n${personalizedMessage}`;
+        console.log(`Agent summary generated:`, agentSummary);
+        enhancedReason = agentSummary;
       } catch (error) {
-        console.error("Failed to generate personalized message:", error);
+        console.error("Failed to generate agent summary:", error);
         
         // Fallback to rule-based insights if OpenAI fails
         const insights = await visionIntelligence.generateBuyerSpecificInsights(
@@ -171,20 +172,18 @@ export class EnhancedListingScorer {
           profile
         );
         
-        let personalizedText = "";
+        let agentText = "I found this property with ";
         if (insights.matches.length > 0) {
-          personalizedText += `Great news: ${insights.matches.join(', ')}. `;
+          agentText += `${insights.matches.join(', ')} matching your criteria. `;
         }
         if (insights.highlights.length > 0) {
-          personalizedText += `Quality features: ${insights.highlights.join(', ')}. `;
+          agentText += `Notable features include ${insights.highlights.join(', ')}. `;
         }
         if (insights.concerns.length > 0) {
-          personalizedText += `Note: ${insights.concerns.join(', ')}.`;
+          agentText += `However, note: ${insights.concerns.join(', ')}.`;
         }
         
-        if (personalizedText) {
-          enhancedReason = `${enhancedReason}\n\nPersonalized for You: ${personalizedText}`;
-        }
+        enhancedReason = agentText || enhancedReason;
       }
     }
 

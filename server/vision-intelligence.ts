@@ -208,48 +208,99 @@ Respond in JSON format:
   }
 
   /**
-   * Generate personalized message for buyer about specific property
+   * Generate professional agent-voice summary for property assessment
    */
-  async generatePersonalizedSummary(
+  async generateAgentSummary(
     listingAnalysis: ListingImageAnalysis, 
-    buyerProfile: any
+    buyerProfile: any,
+    scoredListing: any
   ): Promise<string> {
     try {
-      const buyerName = buyerProfile.name || 'there';
-      const prompt = `Create a personal message for a buyer about this property. Write it as if you're speaking directly to them.
+      const prompt = `You are a professional real estate agent analyzing a property for your client. Create a professional assessment that shows you've done your due diligence.
 
-BUYER: ${buyerName}
-BUYER PREFERENCES:
+CLIENT PROFILE:
 - Budget: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
 - Looking for: ${buyerProfile.bedrooms || 'flexible'} bedrooms, ${buyerProfile.bathrooms || 'flexible'} bathrooms
 - Must-have features: ${buyerProfile.mustHaveFeatures?.join(', ') || 'none specified'}
 - Wants to avoid: ${buyerProfile.dealbreakers?.join(', ') || 'none specified'}
 - Preferred location: ${buyerProfile.location || buyerProfile.preferredAreas?.[0] || 'flexible'}
 
-WHAT WE SEE IN THE PROPERTY PHOTOS:
-- Visual features: ${listingAnalysis.overallTags.join(', ')}
-- Quality flags: ${listingAnalysis.overallFlags.join(', ')}
-- Number of images analyzed: ${listingAnalysis.analyses.length}
+PROPERTY ANALYSIS:
+- Price: $${scoredListing.listing.price?.toLocaleString()}
+- Bedrooms: ${scoredListing.listing.bedrooms}
+- Bathrooms: ${scoredListing.listing.bathrooms}
+- Visual features from photos: ${listingAnalysis.overallTags.join(', ')}
+- Quality observations: ${listingAnalysis.overallFlags.join(', ')}
+- Matched features: ${scoredListing.matched_features?.join(', ') || 'none'}
+- Dealbreaker flags: ${scoredListing.dealbreaker_flags?.join(', ') || 'none'}
 
-Create a 2-3 sentence personalized summary that:
-1. Highlights visual features that match the buyer's preferences
-2. Notes any concerns based on their dealbreakers
-3. Uses a warm, consultative tone as if speaking directly to the buyer
-4. Focuses on what matters most to THIS specific buyer
+Create a professional 2-3 sentence agent assessment that:
+1. Starts with "I found this property that..." or "This property caught my attention because..."
+2. Highlights what matches their requirements (be specific)
+3. Transparently notes what's missing or different from their requests
+4. Shows professional expertise and honesty
 
-Example format: "Based on your interest in modern kitchens, you'll love the granite countertops and stainless appliances visible in the photos. The hardwood floors throughout align perfectly with your must-have list. However, the dated bathroom fixtures might need updating to meet your standards."`;
+Example: "I found this property that checks most of your boxes - it's within your budget at $450K, has the granite counters and hardwood floors you wanted based on the photos, and includes that 2-car garage. However, it's only 2 bedrooms instead of your requested 3, and the kitchen style is more traditional than the modern look you prefer."`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 200,
+        max_tokens: 150,
+        temperature: 0.6
+      });
+
+      return response.choices[0].message.content || "Professional assessment unavailable.";
+    } catch (error) {
+      console.error("Error generating agent summary:", error);
+      return "Assessment pending - property meets several of your criteria with some trade-offs to discuss.";
+    }
+  }
+
+  /**
+   * Generate personalized client message for sharing (on-demand)
+   */
+  async generatePersonalizedClientMessage(
+    listingAnalysis: ListingImageAnalysis, 
+    buyerProfile: any,
+    scoredListing: any
+  ): Promise<string> {
+    try {
+      const buyerName = buyerProfile.name || 'there';
+      const prompt = `Create a warm, personal message from a real estate agent to their client about this property.
+
+CLIENT: ${buyerName}
+CLIENT PREFERENCES:
+- Budget: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
+- Looking for: ${buyerProfile.bedrooms || 'flexible'} bedrooms, ${buyerProfile.bathrooms || 'flexible'} bathrooms
+- Must-have features: ${buyerProfile.mustHaveFeatures?.join(', ') || 'none specified'}
+- Wants to avoid: ${buyerProfile.dealbreakers?.join(', ') || 'none specified'}
+
+PROPERTY DETAILS:
+- Address: ${scoredListing.listing.address}
+- Price: $${scoredListing.listing.price?.toLocaleString()}
+- Visual features from photos: ${listingAnalysis.overallTags.join(', ')}
+- What matches: ${scoredListing.matched_features?.join(', ') || 'several features'}
+
+Create a warm, personal message that:
+1. Starts with "Hi ${buyerName},"
+2. Shows excitement about finding this property for them
+3. Mentions 2-3 specific visual features they'll love
+4. Suggests next steps (viewing, discussing, etc.)
+5. Keeps it conversational and personal
+
+Example: "Hi Sarah, I found a property that I think you're going to love! The photos show exactly the kind of modern kitchen with granite counters you've been wanting, plus those beautiful hardwood floors throughout. The location in Lincoln Park is perfect, and it's right in your budget. Let's schedule a showing this weekend!"`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 120,
         temperature: 0.7
       });
 
-      return response.choices[0].message.content || "Visual analysis completed.";
+      return response.choices[0].message.content || `Hi ${buyerName}, I found a property that matches several of your criteria. Let's discuss the details!`;
     } catch (error) {
-      console.error("Error generating personalized summary:", error);
-      return "Unable to generate personalized visual analysis at this time.";
+      console.error("Error generating personal message:", error);
+      return `Hi ${buyerName}, I found a property that might interest you. Let's review it together.`;
     }
   }
 
