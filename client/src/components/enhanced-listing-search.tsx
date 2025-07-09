@@ -383,7 +383,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p>Analyzing listings with AI vision...</p>
+          <p>Hi folks! While we are working on generating a list of properties for your matches, come back in 5 min and I will have the listing ready.</p>
         </div>
       </div>
     );
