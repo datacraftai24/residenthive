@@ -208,6 +208,60 @@ Respond in JSON format:
   }
 
   /**
+   * Generate personal client message for property
+   */
+  async generatePersonalMessage(
+    listingAnalysis: ListingImageAnalysis, 
+    buyerProfile: any,
+    scoredListing: any
+  ): Promise<string> {
+    try {
+      const clientName = buyerProfile.name?.split(' ')[0] || 'there';
+      
+      const prompt = `Create a warm, personal message from a real estate agent to their client about a specific property. Make it conversational and engaging.
+
+CLIENT: ${clientName}
+BUDGET: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
+LOOKING FOR: ${buyerProfile.bedrooms || 'flexible'} bedrooms, ${buyerProfile.bathrooms || 'flexible'} bathrooms
+MUST-HAVES: ${buyerProfile.mustHaveFeatures?.join(', ') || 'none specified'}
+
+PROPERTY:
+- Price: $${scoredListing.listing.price?.toLocaleString()}
+- Bedrooms: ${scoredListing.listing.bedrooms}
+- Bathrooms: ${scoredListing.listing.bathrooms}
+- Address: ${scoredListing.listing.address}
+- Visual features: ${listingAnalysis.overallTags.join(', ')}
+- What matches: ${scoredListing.matched_features?.join(', ') || 'none'}
+
+Create a personal message using one of these styles:
+
+EXCITED STYLE:
+"Hi ${clientName}! 😊 I found something I think you'll love at [address]. It has that [specific feature] you mentioned wanting, plus [bonus features]. The photos show [visual details]. Want to see it this weekend?"
+
+THOUGHTFUL STYLE:
+"Hey ${clientName}, came across this property at [address] that caught my eye for you. It's got [key matches] and the [visual feature] really stands out in the photos. [One consideration]. Thoughts?"
+
+URGENT STYLE:
+"${clientName} - just found this gem at [address]! Has your [must-have features] and it's priced at [price]. The [visual highlight] in the photos is exactly what you described. Should we schedule a showing ASAP?"
+
+Keep it under 60 words, warm but professional, and include specific details about why it matches their needs.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 100,
+        temperature: 0.9
+      });
+
+      return response.choices[0].message.content || `Hi ${clientName}! Found a property that matches several of your criteria. Would love to show you the details!`;
+    } catch (error) {
+      console.error("Error generating personal message:", error);
+      const clientName = buyerProfile.name?.split(' ')[0] || 'there';
+      return `Hi ${clientName}! Found an interesting property that might work for you. Let me know if you'd like to take a look!`;
+    }
+  }
+
+  /**
    * Generate professional agent-voice summary for property assessment
    */
   async generateAgentSummary(
@@ -216,7 +270,7 @@ Respond in JSON format:
     scoredListing: any
   ): Promise<string> {
     try {
-      const prompt = `You are a professional real estate agent analyzing a property for your client. Create a professional assessment that shows you've done your due diligence.
+      const prompt = `You are a professional real estate agent creating an engaging, scannable property assessment. Use emojis and varied messaging styles that buyers will actually read.
 
 CLIENT PROFILE:
 - Budget: $${buyerProfile.budgetMin?.toLocaleString()} - $${buyerProfile.budgetMax?.toLocaleString()}
@@ -234,25 +288,47 @@ PROPERTY ANALYSIS:
 - Matched features: ${scoredListing.matched_features?.join(', ') || 'none'}
 - Dealbreaker flags: ${scoredListing.dealbreaker_flags?.join(', ') || 'none'}
 
-Create a professional 2-3 sentence agent assessment that:
-1. Starts with "I found this property that..." or "This property caught my attention because..."
-2. Highlights what matches their requirements (be specific)
-3. Transparently notes what's missing or different from their requests
-4. Shows professional expertise and honesty
+Create an engaging, scannable assessment using this format:
 
-Example: "I found this property that checks most of your boxes - it's within your budget at $450K, has the granite counters and hardwood floors you wanted based on the photos, and includes that 2-car garage. However, it's only 2 bedrooms instead of your requested 3, and the kitchen style is more traditional than the modern look you prefer."`;
+🏠 OPENING HOOK (choose one style):
+- "This one has serious potential."
+- "This one hits the mark."
+- "Looks great — but doesn't work."
+- "This could be interesting."
+- "Mixed bag on this one."
+- "Perfect match alert."
+- "Close, but not quite."
+
+BRIEF ANALYSIS (2-3 short sentences):
+Include what matches and what doesn't, using specific details.
+
+VERDICT (choose appropriate emoji and tone):
+✅ "Worth a second look?" / "This is the kind of listing we don't want to miss."
+🚫 "Not a fit right now." / "We'll skip it."
+🤔 "Could work if you're flexible on [specific thing]."
+
+EXAMPLES:
+🏠 This one hits the mark.
+It has the garage and modern kitchen you wanted, plus the two bedrooms and baths you need. The lake view and open layout make it a strong lifestyle fit.
+✅ This is the kind of listing we don't want to miss.
+
+🏠 This one has serious potential.  
+It includes two of your must-haves — modern kitchen with granite countertops and a garage — plus an open floor plan that gives it a spacious feel.
+🚫 But it only has one bedroom, which doesn't meet your minimum of two. That's a dealbreaker unless you're open to renovating.
+
+Keep it conversational, decisive, and under 50 words total.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 150,
-        temperature: 0.6
+        max_tokens: 120,
+        temperature: 0.8
       });
 
-      return response.choices[0].message.content || "Professional assessment unavailable.";
+      return response.choices[0].message.content || "🏠 Assessment pending - reviewing property details.";
     } catch (error) {
       console.error("Error generating agent summary:", error);
-      return "Assessment pending - property meets several of your criteria with some trade-offs to discuss.";
+      return "🤔 Still analyzing this one - will have insights shortly.";
     }
   }
 

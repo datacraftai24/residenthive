@@ -172,18 +172,31 @@ export class EnhancedListingScorer {
           profile
         );
         
-        let agentText = "I found this property with ";
+        // Generate engaging fallback message with varied openings
+        const openings = [
+          "🏠 Quick take on this one.",
+          "🏠 Here's what I'm seeing.",
+          "🏠 Initial thoughts:",
+          "🏠 This could work.",
+          "🏠 Mixed signals here."
+        ];
+        
+        const randomOpening = openings[Math.floor(Math.random() * openings.length)];
+        let agentText = randomOpening + "\n";
+        
         if (insights.matches.length > 0) {
-          agentText += `${insights.matches.join(', ')} matching your criteria. `;
+          agentText += `Has ${insights.matches.slice(0, 2).join(' and ')} that you wanted. `;
         }
         if (insights.highlights.length > 0) {
-          agentText += `Notable features include ${insights.highlights.join(', ')}. `;
+          agentText += `Plus ${insights.highlights.slice(0, 2).join(' and ')}. `;
         }
         if (insights.concerns.length > 0) {
-          agentText += `However, note: ${insights.concerns.join(', ')}.`;
+          agentText += `\n🚫 ${insights.concerns.slice(0, 1).join('')}.`;
+        } else if (insights.matches.length > 0) {
+          agentText += `\n✅ Worth a look.`;
         }
         
-        enhancedReason = agentText || enhancedReason;
+        enhancedReason = agentText || "🤔 Still analyzing this property.";
       }
     }
 

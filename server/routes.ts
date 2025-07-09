@@ -968,7 +968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Generate personal message
-      const personalMessage = await visionService.generatePersonalizedClientMessage(
+      const personalMessage = await visionService.generatePersonalMessage(
         visualAnalysis,
         profile,
         scoredListing
