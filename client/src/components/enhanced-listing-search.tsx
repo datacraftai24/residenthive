@@ -383,15 +383,16 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p className="text-lg font-medium mb-2">🏠 AI-Powered Property Analysis in Progress</p>
+          <p className="text-lg font-medium mb-2">Your Secret Weapon is Loading...</p>
           <p className="text-sm text-gray-600 mb-4">
-            Our smart search is analyzing property photos with computer vision to find visual matches based on your client's preferences. 
-            This takes 15-30 seconds to deliver personalized insights you can't get anywhere else.
+            We're doing what no other platform can: analyzing actual property photos to match your client's visual preferences. 
+            In 20-30 seconds, you'll have personalized talking points that will blow your clients away.
           </p>
           <div className="text-xs text-gray-500 space-y-1">
-            <div>✓ Scanning MLS database for matches</div>
-            <div>✓ Analyzing property photos with AI</div>
-            <div>✓ Generating personalized buyer insights</div>
+            <div>• Scanning 100+ properties in target area</div>
+            <div>• AI analyzing kitchen styles, flooring, lighting</div>
+            <div>• Creating buyer-specific property insights</div>
+            <div>• Generating "Hi [Client Name]" personalized messages</div>
           </div>
         </div>
       </div>
