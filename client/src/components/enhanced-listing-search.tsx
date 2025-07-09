@@ -383,16 +383,19 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p className="text-lg font-medium mb-2">Your Secret Weapon is Loading...</p>
+          <p className="text-lg font-medium mb-2">🎯 Preparing Your Client's Dream Property Report</p>
           <p className="text-sm text-gray-600 mb-4">
-            We're doing what no other platform can: analyzing actual property photos to match your client's visual preferences. 
-            In 20-30 seconds, you'll have personalized talking points that will blow your clients away.
+            We're analyzing property interiors with AI vision to find homes that match their visual style. 
+            Your clients will think you read their minds when you show them these personalized matches.
+          </p>
+          <p className="text-sm text-blue-600 font-medium mb-4">
+            ⏱️ Premium analysis in progress - the comprehensive insights will be worth the wait. Please allow 2-3 minutes for complete visual intelligence processing.
           </p>
           <div className="text-xs text-gray-500 space-y-1">
-            <div>• Scanning 100+ properties in target area</div>
-            <div>• AI analyzing kitchen styles, flooring, lighting</div>
-            <div>• Creating buyer-specific property insights</div>
-            <div>• Generating "Hi [Client Name]" personalized messages</div>
+            <div>• Scanning MLS database for matching properties</div>
+            <div>• Analyzing interior photos for style preferences</div>
+            <div>• Generating personalized buyer recommendations</div>
+            <div>• Creating ready-to-send client communications</div>
           </div>
         </div>
       </div>
