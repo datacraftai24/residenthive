@@ -147,6 +147,34 @@ export const profileShareableLinks = pgTable("profile_shareable_links", {
 });
 
 // Core Transaction Logging Tables - Phase 1 Implementation
+// Cached search results table
+export const cachedSearchResults = pgTable("cached_search_results", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  
+  // Cache Key (profile fingerprint for invalidation)
+  profileFingerprint: text("profile_fingerprint").notNull(), // Hash of relevant profile fields
+  searchMethod: text("search_method").notNull(), // 'enhanced', 'basic', 'hybrid'
+  
+  // Cached Results Data
+  topPicks: json("top_picks").notNull(), // Complete top picks array
+  otherMatches: json("other_matches").notNull(), // Complete other matches array
+  propertiesWithoutImages: json("properties_without_images").notNull().default([]),
+  chatBlocks: json("chat_blocks").notNull().default([]),
+  searchSummary: json("search_summary").notNull(), // Summary stats
+  
+  // Cache Metadata
+  totalListingsProcessed: integer("total_listings_processed").notNull(),
+  visualAnalysisCount: integer("visual_analysis_count").notNull().default(0),
+  executionTimeMs: integer("execution_time_ms").notNull(),
+  
+  // Cache Management
+  cacheVersion: integer("cache_version").notNull().default(1),
+  expiresAt: text("expires_at").notNull(), // When cache expires
+  createdAt: text("created_at").notNull(),
+  lastAccessedAt: text("last_accessed_at").notNull()
+});
+
 export const searchTransactions = pgTable("search_transactions", {
   id: serial("id").primaryKey(),
   transactionId: text("transaction_id").notNull().unique(), // UUID for this search transaction
@@ -323,6 +351,12 @@ export const insertSearchOutcomeSchema = createInsertSchema(searchOutcomes).omit
   updatedAt: true
 });
 
+export const insertCachedSearchResultsSchema = createInsertSchema(cachedSearchResults).omit({
+  id: true,
+  createdAt: true,
+  lastAccessedAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
@@ -353,6 +387,8 @@ export type InsertAgentInteraction = z.infer<typeof insertAgentInteractionSchema
 export type AgentInteraction = typeof agentInteractions.$inferSelect;
 export type InsertSearchOutcome = z.infer<typeof insertSearchOutcomeSchema>;
 export type SearchOutcome = typeof searchOutcomes.$inferSelect;
+export type InsertCachedSearchResults = z.infer<typeof insertCachedSearchResultsSchema>;
+export type CachedSearchResults = typeof cachedSearchResults.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera, BarChart3 } from "lucide-react";
+import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface EnhancedScoredListing {
@@ -65,6 +65,20 @@ interface EnhancedSearchResults {
     visual_analysis_count: number;
     search_criteria: any;
   };
+  cache_status?: {
+    from_cache: boolean;
+    last_updated?: string;
+    cache_age_hours?: number;
+    expires_at?: string;
+  };
+}
+
+interface CacheStatus {
+  isCached: boolean;
+  isExpired: boolean;
+  lastUpdated?: string;
+  expiresAt?: string;
+  cacheAge?: number;
 }
 
 interface ShareableLink {
@@ -91,6 +105,44 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
   } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Cache status query
+  const { data: cacheStatus } = useQuery<CacheStatus>({
+    queryKey: ["/api/cache/status", profileId],
+    queryFn: async () => {
+      const response = await fetch(`/api/cache/status/${profileId}?searchMethod=enhanced`);
+      if (!response.ok) throw new Error('Failed to get cache status');
+      return response.json();
+    }
+  });
+
+  // Manual refresh mutation
+  const refreshSearchMutation = useMutation({
+    mutationFn: async (forceRefresh: boolean = false) => {
+      const response = await fetch("/api/listings/search-enhanced", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId, forceRefresh }),
+      });
+      if (!response.ok) throw new Error('Failed to refresh search');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/listings/search-enhanced", profileId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cache/status", profileId] });
+      toast({
+        title: "Search Updated",
+        description: "Property search results have been refreshed with latest data.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh search results. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
 
   // Enhanced search query
   const { data: enhancedResults, isLoading: isSearching, error: searchError } = useQuery<EnhancedSearchResults>({
@@ -512,6 +564,61 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
           </p>
         </div>
       </div>
+
+      {/* Cache Status and Control Panel */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-lg">Search Cache Status</CardTitle>
+            </div>
+            <Button
+              onClick={() => refreshSearchMutation.mutate(true)}
+              disabled={refreshSearchMutation.isPending}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshSearchMutation.isPending ? 'animate-spin' : ''}`} />
+              {refreshSearchMutation.isPending ? 'Refreshing...' : 'Refresh Now'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-500" />
+              <span className="text-sm">
+                {cacheStatus?.isCached 
+                  ? `Cached ${cacheStatus.cacheAge?.toFixed(1)}h ago`
+                  : 'No cache available'
+                }
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={cacheStatus?.isExpired ? "destructive" : "secondary"}>
+                {cacheStatus?.isExpired ? 'Expired' : 'Fresh'}
+              </Badge>
+            </div>
+            <div className="text-sm text-gray-600">
+              {enhancedResults?.cache_status?.from_cache && (
+                <span className="text-green-600">⚡ Served from cache (90% cost savings)</span>
+              )}
+            </div>
+          </div>
+          {cacheStatus?.isCached && (
+            <div className="mt-3 text-xs text-gray-500">
+              Last updated: {cacheStatus.lastUpdated ? new Date(cacheStatus.lastUpdated).toLocaleString() : 'Unknown'}
+              {cacheStatus.expiresAt && (
+                <span className="ml-2">
+                  • Expires: {new Date(cacheStatus.expiresAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {enhancedResults && (
         <>

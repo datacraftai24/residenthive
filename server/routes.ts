@@ -761,14 +761,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Visual Intelligence Listing Search with Transaction Logging
+  // Enhanced Visual Intelligence Listing Search with Caching and Manual Refresh
   app.post("/api/listings/search-enhanced", async (req, res) => {
     const startTime = Date.now();
     let transactionId: string;
-    let visualAnalysisStartTime: number;
     
     try {
-      const { profileId } = req.body;
+      const { profileId, forceRefresh = false } = req.body;
       
       if (!profileId) {
         return res.status(400).json({ error: "Profile ID is required" });
@@ -779,7 +778,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Profile not found" });
       }
 
-      // Start transaction logging for enhanced search
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Use cached search service for intelligent caching
+      const { cachedSearchService } = await import('./cached-search-service');
+      const { results, cacheStatus, fromCache } = await cachedSearchService.getSearchResults(
+        profile,
+        tags,
+        'enhanced',
+        forceRefresh
+      );
+
+      // Start transaction logging
       transactionId = await transactionLogger.startSearchTransaction({
         profileId,
         profile,
@@ -791,153 +802,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
           location: profile.preferredAreas
         },
         searchMethod: 'enhanced',
-        searchTrigger: 'agent_initiated'
+        searchTrigger: forceRefresh ? 'manual_refresh' : (fromCache ? 'cache_hit' : 'agent_initiated')
       });
 
-      const profileWithTags = await storage.getProfileWithTags(profileId);
-      const tags = profileWithTags?.tags || [];
-
-      // Search using authentic Repliers API data only
-      let listings;
-      const hasApiKey = !!process.env.REPLIERS_API_KEY;
-      
-      if (!hasApiKey) {
-        throw new Error('Repliers API key is required for listing search');
-      }
-      
-      const { repliersAPI } = await import('./repliers-api');
-      listings = await repliersAPI.searchListings(profile);
-
-      if (!listings || listings.length === 0) {
-        // Save empty results transaction
+      // Log search transaction results (cached or fresh)
+      if (fromCache) {
+        console.log(`📋 Using cached results for profile ${profileId}, cache age: ${cacheStatus.cacheAge}h`);
+        
+        // Log cache hit transaction
         await transactionLogger.saveSearchResults(transactionId, {
           rawListings: [],
-          scoredListings: [],
-          categorizedResults: { top_picks: [], other_matches: [] },
-          searchSummary: {
-            total_found: 0,
-            top_picks_count: 0,
-            other_matches_count: 0,
-            visual_analysis_count: 0,
-            search_criteria: {
-              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
-              bedrooms: profile.bedrooms,
-              property_type: profile.homeType,
-              location: profile.preferredAreas
-            }
-          },
-          executionMetrics: {
-            totalTime: Date.now() - startTime,
-            apiCalls: 1
-          }
-        });
-
-        return res.json({
-          top_picks: [],
-          other_matches: [],
-          chat_blocks: ["No listings found matching your criteria. Try adjusting your search parameters."],
-          search_summary: {
-            total_found: 0,
-            top_picks_count: 0,
-            other_matches_count: 0,
-            visual_analysis_count: 0,
-            search_criteria: {
-              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
-              bedrooms: profile.bedrooms,
-              property_type: profile.homeType,
-              location: profile.preferredAreas
-            }
-          }
-        });
-      }
-
-      // Use enhanced scoring with visual intelligence and personalized analysis
-      let enhancedResults;
-      try {
-        console.log("Loading enhanced listing scorer...");
-        visualAnalysisStartTime = Date.now();
-        
-        const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
-        console.log("Enhanced listing scorer loaded, starting analysis...");
-        
-        enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
-          listings, 
-          profile, 
-          tags
-        );
-        
-        console.log("Enhanced analysis complete, sending results...");
-        
-        // Save complete enhanced search results transaction
-        await transactionLogger.saveSearchResults(transactionId, {
-          rawListings: listings,
-          scoredListings: enhancedResults.top_picks.concat(enhancedResults.other_matches),
+          scoredListings: results.top_picks.concat(results.other_matches),
           categorizedResults: {
-            top_picks: enhancedResults.top_picks,
-            other_matches: enhancedResults.other_matches
+            top_picks: results.top_picks,
+            other_matches: results.other_matches
           },
-          visualAnalysisData: enhancedResults.top_picks
-            .filter(listing => listing.visualAnalysis)
-            .map(listing => listing.visualAnalysis),
-          searchSummary: enhancedResults.search_summary,
-          chatBlocks: enhancedResults.chat_blocks,
-          executionMetrics: {
-            totalTime: Date.now() - startTime,
-            apiCalls: 1,
-            visualAnalysisTime: Date.now() - visualAnalysisStartTime
-          }
-        });
-
-        // Save initial outcomes for enhanced search
-        await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
-          searchQualityRating: 8, // Higher default for enhanced search
-          totalSessionTime: Date.now() - startTime
-        });
-
-        res.json(enhancedResults);
-      } catch (error) {
-        console.error("Enhanced scoring failed, falling back to basic:", error);
-        
-        // Log the fallback event
-        await transactionLogger.logAgentInteraction(transactionId, profileId, {
-          interactionType: 'search_refined',
-          interactionData: {
-            event: 'fallback_to_basic',
-            reason: error instanceof Error ? error.message : 'Unknown error',
-            fallback_applied: true
-          }
-        });
-
-        // Fallback to basic scoring if enhanced fails
-        const { listingScorer } = await import('./listing-scorer');
-        const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
-        const results = listingScorer.categorizeListings(scoredListings);
-        
-        // Save fallback results
-        await transactionLogger.saveSearchResults(transactionId, {
-          rawListings: listings,
-          scoredListings: scoredListings,
-          categorizedResults: results,
-          searchSummary: {
-            total_found: listings.length,
+          searchSummary: 'search_summary' in results ? results.search_summary : {
+            total_found: results.top_picks.length + results.other_matches.length,
             top_picks_count: results.top_picks.length,
             other_matches_count: results.other_matches.length,
             visual_analysis_count: 0,
-            search_criteria: {
-              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
-              bedrooms: profile.bedrooms,
-              property_type: profile.homeType,
-              location: profile.preferredAreas
-            }
+            search_criteria: profile
           },
+          chatBlocks: results.chat_blocks,
           executionMetrics: {
             totalTime: Date.now() - startTime,
-            apiCalls: 1
+            apiCalls: 0, // No API calls for cached results
+            cached: true,
+            cacheAge: cacheStatus.cacheAge
           }
         });
-
-        res.json(results);
       }
+
+      // Save search outcomes
+      await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
+        searchQualityRating: fromCache ? 7 : 8, // Slightly lower for cached to encourage feedback
+        totalSessionTime: Date.now() - startTime,
+        cacheHit: fromCache,
+        cacheAge: cacheStatus.cacheAge
+      });
+
+      // Add cache metadata to response
+      const responseWithCache = {
+        ...results,
+        cache_status: {
+          from_cache: fromCache,
+          last_updated: cacheStatus.lastUpdated,
+          cache_age_hours: cacheStatus.cacheAge,
+          expires_at: cacheStatus.expiresAt
+        }
+      };
+
+      res.json(responseWithCache);
     } catch (error) {
       console.error("Error in enhanced listing search:", error);
       res.status(500).json({ 
@@ -1048,6 +964,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error getting profile transactions:", error);
       res.status(500).json({ 
         error: "Failed to get profile transactions",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Cache Management APIs
+
+  // Get cache status for a profile
+  app.get("/api/cache/status/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      const searchMethod = req.query.searchMethod as string || 'enhanced';
+      
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      const { cachedSearchService } = await import('./cached-search-service');
+      const cacheStatus = await cachedSearchService.getCacheStatus(profile, tags, searchMethod);
+
+      res.json(cacheStatus);
+    } catch (error) {
+      console.error("Error getting cache status:", error);
+      res.status(500).json({ 
+        error: "Failed to get cache status",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Invalidate cache for a profile (when profile changes)
+  app.delete("/api/cache/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const { cachedSearchService } = await import('./cached-search-service');
+      await cachedSearchService.invalidateCache(profileId);
+
+      res.json({ success: true, message: "Cache invalidated successfully" });
+    } catch (error) {
+      console.error("Error invalidating cache:", error);
+      res.status(500).json({ 
+        error: "Failed to invalidate cache",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Clean up expired cache entries (maintenance endpoint)
+  app.post("/api/cache/cleanup", async (req, res) => {
+    try {
+      const { cachedSearchService } = await import('./cached-search-service');
+      const deletedCount = await cachedSearchService.cleanupExpiredCache();
+
+      res.json({ 
+        success: true, 
+        message: `Cleaned up ${deletedCount} expired cache entries` 
+      });
+    } catch (error) {
+      console.error("Error cleaning up cache:", error);
+      res.status(500).json({ 
+        error: "Failed to clean up cache",
         message: (error as Error).message 
       });
     }
