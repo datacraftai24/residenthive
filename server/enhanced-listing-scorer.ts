@@ -160,22 +160,54 @@ export class EnhancedListingScorer {
       visualBoost
     );
 
-    // Generate score-based conversational message
+    // Add professional agent summary if visual analysis exists
     console.log(`Visual analysis exists for listing ${scored.listing.id}:`, !!visualAnalysis);
     if (visualAnalysis) {
       console.log(`Visual tags found:`, visualAnalysis.overallTags);
-      console.log(`Generating conversational message for ${profile.name} (Score: ${enhancedScore})...`);
-      
-      enhancedReason = this.generateConversationalMessage(
-        enhancedScore, 
-        scored, 
-        profile, 
-        visualAnalysis, 
-        visualTagMatches, 
-        visualFlags
-      );
-      
-      console.log(`Conversational message generated:`, enhancedReason);
+      try {
+        console.log(`Generating agent summary for ${profile.name}...`);
+        const agentSummary = await visionIntelligence.generateAgentSummary(
+          visualAnalysis, 
+          profile,
+          scored
+        );
+        console.log(`Agent summary generated:`, agentSummary);
+        enhancedReason = agentSummary;
+      } catch (error) {
+        console.error("Failed to generate agent summary:", error);
+        
+        // Fallback to rule-based insights if OpenAI fails
+        const insights = await visionIntelligence.generateBuyerSpecificInsights(
+          visualAnalysis, 
+          profile
+        );
+        
+        // Generate engaging fallback message with varied openings
+        const openings = [
+          "🏠 Quick take on this one.",
+          "🏠 Here's what I'm seeing.",
+          "🏠 Initial thoughts:",
+          "🏠 This could work.",
+          "🏠 Mixed signals here."
+        ];
+        
+        const randomOpening = openings[Math.floor(Math.random() * openings.length)];
+        let agentText = randomOpening + "\n";
+        
+        if (insights.matches.length > 0) {
+          agentText += `Has ${insights.matches.slice(0, 2).join(' and ')} that you wanted. `;
+        }
+        if (insights.highlights.length > 0) {
+          agentText += `Plus ${insights.highlights.slice(0, 2).join(' and ')}. `;
+        }
+        if (insights.concerns.length > 0) {
+          agentText += `\n🚫 ${insights.concerns.slice(0, 1).join('')}.`;
+        } else if (insights.matches.length > 0) {
+          agentText += `\n✅ Worth a look.`;
+        }
+        
+        enhancedReason = agentText || "🤔 Still analyzing this property.";
+      }
     }
 
     return {
@@ -303,197 +335,7 @@ export class EnhancedListingScorer {
   }
 
   /**
-   * Generate score-based conversational message using tiered approach
-   */
-  private generateConversationalMessage(
-    score: number,
-    scored: ScoredListing,
-    profile: BuyerProfile,
-    visualAnalysis: any,
-    visualMatches: string[],
-    visualFlags: string[]
-  ): string {
-    // Convert score to 0-100 scale if needed
-    const normalizedScore = score > 1 ? score : score * 100;
-    
-    // Extract key features for messaging
-    const matchedFeatures = scored.matched_features || [];
-    const dealbreakers = scored.dealbreaker_flags || [];
-    const visualTags = visualAnalysis?.overallTags || [];
-    
-    // Get key matches and concerns
-    const keyMatches = this.getKeyMatches(matchedFeatures, visualTags, profile);
-    const keyConcerns = this.getKeyConcerns(dealbreakers, scored.listing, profile);
-    
-    // Generate message based on score tier
-    if (normalizedScore >= 85) {
-      // 85-100: Confident, warm
-      return this.generateTier1Message(keyMatches, keyConcerns);
-    } else if (normalizedScore >= 70) {
-      // 70-84: Encouraging, realistic  
-      return this.generateTier2Message(keyMatches, keyConcerns);
-    } else if (normalizedScore >= 55) {
-      // 55-69: Cautiously optimistic
-      return this.generateTier3Message(keyMatches, keyConcerns);
-    } else if (normalizedScore >= 40) {
-      // 40-54: Polite but skeptical
-      return this.generateTier4Message(keyMatches, keyConcerns);
-    } else {
-      // <40: Firm and clear
-      return this.generateTier5Message(keyMatches, keyConcerns);
-    }
-  }
-
-  private getKeyMatches(matchedFeatures: string[], visualTags: string[], profile: BuyerProfile): string[] {
-    const matches: string[] = [];
-    
-    // Add matched features
-    matches.push(...matchedFeatures.slice(0, 2));
-    
-    // Add key visual features
-    const keyVisualFeatures = visualTags.filter(tag => 
-      ['modern', 'updated', 'hardwood_floors', 'granite_countertops', 'stainless_appliances', 'parking'].some(key => tag.includes(key))
-    );
-    matches.push(...keyVisualFeatures.slice(0, 2).map(tag => tag.replace('_', ' ')));
-    
-    return matches.slice(0, 3); // Max 3 key matches
-  }
-
-  private getKeyConcerns(dealbreakers: string[], listing: any, profile: BuyerProfile): string[] {
-    const concerns: string[] = [];
-    
-    // Add dealbreakers
-    concerns.push(...dealbreakers);
-    
-    // Check for major mismatches
-    if (profile.bedrooms && listing.bedrooms < profile.bedrooms) {
-      concerns.push(`missing ${profile.bedrooms - listing.bedrooms} bedroom${profile.bedrooms - listing.bedrooms > 1 ? 's' : ''}`);
-    }
-    
-    if (profile.bathrooms && listing.bathrooms < profile.bathrooms) {
-      concerns.push(`missing bathrooms`);
-    }
-    
-    // Budget concerns
-    const budget = profile.budgetMax || 0;
-    if (budget > 0 && listing.price > budget * 1.1) {
-      concerns.push('over budget');
-    }
-    
-    return concerns.slice(0, 2); // Max 2 key concerns
-  }
-
-  // Tier 1: 85-100 (Confident, warm)
-  private generateTier1Message(matches: string[], concerns: string[]): string {
-    const openings = [
-      "🤖 This one's a winner!",
-      "🤖 Perfect match alert!", 
-      "🤖 Found your dream property!"
-    ];
-    
-    const opening = openings[Math.floor(Math.random() * openings.length)];
-    let message = opening;
-    
-    if (matches.length > 0) {
-      message += ` Has ${matches.slice(0, 2).join(', ')}.`;
-    }
-    
-    if (concerns.length > 0) {
-      message += ` Only minor concern: ${concerns[0]}.`;
-    }
-    
-    message += " Should we flag this as a top option?";
-    return message;
-  }
-
-  // Tier 2: 70-84 (Encouraging, realistic)
-  private generateTier2Message(matches: string[], concerns: string[]): string {
-    const openings = [
-      "🤖 Strong contender —",
-      "🤖 This one checks most boxes —",
-      "🤖 Really solid option —"
-    ];
-    
-    const opening = openings[Math.floor(Math.random() * openings.length)];
-    let message = opening;
-    
-    if (matches.length > 0) {
-      message += ` has ${matches.slice(0, 2).join(' and ')}`;
-    }
-    
-    if (concerns.length > 0) {
-      message += ` but ${concerns[0]}`;
-    }
-    
-    message += ". Feels like a strong fit — want to dig deeper?";
-    return message;
-  }
-
-  // Tier 3: 55-69 (Cautiously optimistic)
-  private generateTier3Message(matches: string[], concerns: string[]): string {
-    const openings = [
-      "🤖 Mixed bag here.",
-      "🤖 This one's interesting.",
-      "🤖 Could be worth a look."
-    ];
-    
-    const opening = openings[Math.floor(Math.random() * openings.length)];
-    let message = opening;
-    
-    if (matches.length > 0) {
-      message += ` Has ${matches[0]}`;
-      if (matches.length > 1) {
-        message += ` and ${matches[1]}`;
-      }
-    }
-    
-    if (concerns.length > 0) {
-      message += ` though ${concerns[0]}`;
-    }
-    
-    message += ". Worth exploring anyway?";
-    return message;
-  }
-
-  // Tier 4: 40-54 (Polite but skeptical)
-  private generateTier4Message(matches: string[], concerns: string[]): string {
-    const openings = [
-      "🤖 This one misses on",
-      "🤖 Not quite right —",
-      "🤖 Close but not quite —"
-    ];
-    
-    const opening = openings[Math.floor(Math.random() * openings.length)];
-    let message = opening;
-    
-    if (concerns.length > 0) {
-      message += ` ${concerns.slice(0, 2).join(' and ')}`;
-    }
-    
-    if (matches.length > 0) {
-      message += ` despite ${matches[0]}`;
-    }
-    
-    message += ". Not quite right — want to skip this one?";
-    return message;
-  }
-
-  // Tier 5: <40 (Firm and clear)
-  private generateTier5Message(matches: string[], concerns: string[]): string {
-    let message = "🤖 ";
-    
-    if (concerns.length > 0) {
-      message += `Major issue: ${concerns[0]}.`;
-    } else {
-      message += "Significant mismatch with your criteria.";
-    }
-    
-    message += " This one likely isn't a fit. Want better-aligned options?";
-    return message;
-  }
-
-  /**
-   * Generate enhanced reasoning with visual insights (legacy fallback)
+   * Generate enhanced reasoning with visual insights
    */
   private generateEnhancedReason(
     scored: ScoredListing,
