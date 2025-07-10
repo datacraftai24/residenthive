@@ -165,15 +165,34 @@ export default function ListingSearch({ profileId, profileName }: ListingSearchP
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer hover:text-gray-700">Score Breakdown</summary>
             <div className="mt-2 space-y-1">
-              <div>Budget: {(score_breakdown.budget_score * 100).toFixed(0)}%</div>
-              <div>Features: {(score_breakdown.feature_score * 100).toFixed(0)}%</div>
-              <div>Location: {(score_breakdown.location_score * 100).toFixed(0)}%</div>
-              <div>Tags: {(score_breakdown.tag_score * 100).toFixed(0)}%</div>
-              {score_breakdown.dealbreaker_penalty < 0 && (
+              <div>Budget: {Math.round(score_breakdown.budget_match || 0)}pts</div>
+              <div>Features: {Math.round(score_breakdown.feature_match || 0)}pts</div>
+              <div>Location: {Math.round(score_breakdown.location_match || 0)}pts</div>
+              <div>Behavioral: {Math.round(score_breakdown.behavioral_tag_match || 0)}pts</div>
+              {(score_breakdown.visual_tag_match || 0) > 0 && (
+                <div>Visual: {Math.round(score_breakdown.visual_tag_match)}pts</div>
+              )}
+              {(score_breakdown.listing_quality_score || 0) > 0 && (
+                <div>Quality: {Math.round(score_breakdown.listing_quality_score)}pts</div>
+              )}
+              {(score_breakdown.dealbreaker_penalty || 0) < 0 && (
                 <div className="text-red-600">
-                  Dealbreaker Penalty: {(score_breakdown.dealbreaker_penalty * 100).toFixed(0)}%
+                  Dealbreakers: {Math.round(score_breakdown.dealbreaker_penalty)}pts
                 </div>
               )}
+              {(score_breakdown.missing_data_penalty || 0) < 0 && (
+                <div className="text-orange-600">
+                  Missing Data: {Math.round(score_breakdown.missing_data_penalty)}pts
+                </div>
+              )}
+              {(score_breakdown.visual_boost || 0) > 0 && (
+                <div className="text-green-600">
+                  Visual Boost: +{Math.round(score_breakdown.visual_boost)}pts
+                </div>
+              )}
+              <div className="font-medium border-t pt-1">
+                Final Score: {Math.round(score_breakdown.final_score || 0)}/100
+              </div>
             </div>
           </details>
           

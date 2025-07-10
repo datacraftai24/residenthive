@@ -379,10 +379,10 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-green-500 h-1.5 rounded-full" 
-                      style={{width: `${listing.score_breakdown.budget_score * 100}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.budget_match)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_match || 0)}%</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -391,10 +391,10 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-blue-500 h-1.5 rounded-full" 
-                      style={{width: `${listing.score_breakdown.feature_score * 100}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.feature_match)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_match || 0)}%</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -403,30 +403,30 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-purple-500 h-1.5 rounded-full" 
-                      style={{width: `${listing.score_breakdown.location_score * 100}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.location_match)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.location_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.location_match || 0)}%</span>
                 </div>
               </div>
-              {listing.score_breakdown.tag_score > 0 && (
+              {(listing.score_breakdown.behavioral_tag_match || 0) > 0 && (
                 <div className="flex justify-between items-center">
                   <span>Behavioral Match:</span>
                   <div className="flex items-center gap-2">
                     <div className="w-16 bg-gray-200 rounded-full h-1.5">
                       <div 
                         className="bg-yellow-500 h-1.5 rounded-full" 
-                        style={{width: `${listing.score_breakdown.tag_score * 100}%`}}
+                        style={{width: `${Math.min(100, listing.score_breakdown.behavioral_tag_match)}%`}}
                       />
                     </div>
-                    <span className="font-medium">{Math.round(listing.score_breakdown.tag_score * 100)}%</span>
+                    <span className="font-medium">{Math.round(listing.score_breakdown.behavioral_tag_match || 0)}%</span>
                   </div>
                 </div>
               )}
-              {listing.score_breakdown.dealbreaker_penalty < 0 && (
+              {(listing.score_breakdown.dealbreaker_penalty || 0) < 0 && (
                 <div className="flex justify-between items-center text-red-600">
                   <span>Dealbreaker Penalty:</span>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.dealbreaker_penalty * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.dealbreaker_penalty || 0)}pts</span>
                 </div>
               )}
             </div>
