@@ -207,6 +207,15 @@ Changelog:
   - Enhanced user experience with professional loading messages explaining AI analysis value
   - Maintained powerful visual intelligence while making messaging agent-controllable and transparent
   - System now balances AI efficiency with professional real estate communication standards
+- July 10, 2025. Engaging Scannable Messaging for All Properties
+  - Replaced formulaic messaging templates with varied, engaging assessments for all properties
+  - Implemented emoji categorization (🏠, ✅, 🚫, 🤔) for instant visual scanning
+  - Added multiple opening hooks ("This one hits the mark", "Mixed bag on this one", "Worth a look")
+  - Created decisive verdicts based on match quality instead of repetitive explanations
+  - Applied new messaging system to all properties, not just top 3 with visual analysis
+  - Messages now under 50 words, scannable, and buyer-friendly instead of agent-focused technical details
+  - Enhanced both basic listing scorer and visual intelligence scorer with consistent engaging tone
+  - System generates varied messages that buyers will actually read and engage with
 ```
 
 ## User Preferences

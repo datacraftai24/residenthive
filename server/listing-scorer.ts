@@ -311,69 +311,82 @@ export class ListingScorer {
   }
 
   /**
-   * Generate human-readable reason for selection
+   * Generate engaging, scannable assessment using varied messaging styles
    */
   private generateReason(listing: RepliersListing, profile: BuyerProfile, matchedFeatures: string[], score: number): string {
     const matches: string[] = [];
     const gaps: string[] = [];
     
-    // Budget analysis with specific differences
-    if (listing.price >= (profile.budgetMin || 0) && listing.price <= (profile.budgetMax || Infinity)) {
-      matches.push('within budget');
+    // Budget analysis
+    const budgetOk = listing.price >= (profile.budgetMin || 0) && listing.price <= (profile.budgetMax || Infinity);
+    if (budgetOk) {
+      matches.push('budget fits');
     } else if (listing.price > (profile.budgetMax || Infinity)) {
       const overBudget = listing.price - (profile.budgetMax || 0);
-      gaps.push(`$${overBudget.toLocaleString()} over budget`);
-    } else if (listing.price < (profile.budgetMin || 0)) {
-      gaps.push('below minimum budget');
+      gaps.push(`$${Math.round(overBudget/1000)}K over budget`);
     }
 
-    // Bedroom analysis with specific differences
-    if (listing.bedrooms >= (profile.bedrooms || 0)) {
-      if (listing.bedrooms === (profile.bedrooms || 0)) {
-        matches.push('exact bedroom count');
-      } else {
-        matches.push(`${listing.bedrooms - (profile.bedrooms || 0)} extra bedroom(s)`);
-      }
+    // Bedroom analysis
+    const bedroomMatch = listing.bedrooms >= (profile.bedrooms || 0);
+    if (bedroomMatch && listing.bedrooms === (profile.bedrooms || 0)) {
+      matches.push(`${listing.bedrooms} bedrooms`);
+    } else if (listing.bedrooms > (profile.bedrooms || 0)) {
+      matches.push(`${listing.bedrooms} bedrooms (bonus!)`);
     } else {
       const shortage = (profile.bedrooms || 0) - listing.bedrooms;
-      gaps.push(`${shortage} bedroom(s) short`);
+      gaps.push(`only ${listing.bedrooms} bedrooms`);
     }
 
-    // Property type analysis
-    if (profile.homeType && listing.property_type !== profile.homeType) {
-      gaps.push(`${listing.property_type} instead of ${profile.homeType}`);
-    }
-
-    // Location analysis
-    const preferredAreas = this.parseJsonArray(profile.preferredAreas);
-    if (preferredAreas.some(area => listing.city?.toLowerCase().includes(area.toLowerCase()))) {
-      matches.push('in preferred area');
-    } else if (preferredAreas.length > 0) {
-      gaps.push(`in ${listing.city} (prefer ${preferredAreas.slice(0, 2).join('/')})`);
-    }
-
-    // Feature matches and gaps
+    // Feature matches
     if (matchedFeatures.length > 0) {
-      matches.push(`has ${matchedFeatures.slice(0, 2).join(' and ')}`);
+      matches.push(matchedFeatures.slice(0, 2).join(', '));
     }
 
-    // Missing must-have features
+    // Missing must-haves
     const missingFeatures = this.findMissingMustHaveFeatures(listing, profile);
     if (missingFeatures.length > 0) {
-      gaps.push(`missing ${missingFeatures.slice(0, 2).join(', ')}`);
+      gaps.push(`no ${missingFeatures.slice(0, 1).join('')}`);
     }
 
-    // Construct explanation showing both matches and gaps
-    let explanation = '';
-    if (matches.length > 0) {
-      explanation += matches.join(', ');
+    // Choose opening hook based on score and matches
+    const openings = {
+      great: ["🏠 This one hits the mark.", "🏠 Perfect match alert.", "🏠 This looks promising."],
+      good: ["🏠 This one has potential.", "🏠 Could be interesting.", "🏠 Worth a look."],
+      mixed: ["🏠 Mixed bag on this one.", "🏠 Close, but not quite.", "🏠 Some good, some not."],
+      poor: ["🏠 Looks great — but doesn't work.", "🏠 Nice, but won't work.", "🏠 Beautiful, but wrong fit."]
+    };
+
+    let opening: string;
+    let verdict: string;
+
+    if (score >= 0.7 && gaps.length === 0) {
+      opening = openings.great[Math.floor(Math.random() * openings.great.length)];
+      verdict = "✅ This is worth seeing!";
+    } else if (score >= 0.5 && gaps.length <= 1) {
+      opening = openings.good[Math.floor(Math.random() * openings.good.length)];
+      verdict = "✅ Worth a second look.";
+    } else if (score >= 0.3 || (matches.length > 0 && gaps.length > 0)) {
+      opening = openings.mixed[Math.floor(Math.random() * openings.mixed.length)];
+      verdict = gaps.length > matches.length ? "🤔 Could work if flexible." : "✅ Has potential.";
+    } else {
+      opening = openings.poor[Math.floor(Math.random() * openings.poor.length)];
+      verdict = "🚫 Not a fit right now.";
     }
-    if (gaps.length > 0) {
-      if (explanation) explanation += '; ';
-      explanation += `but ${gaps.join(', ')}`;
+
+    // Build the message
+    let message = opening + "\n";
+    
+    if (matches.length > 0) {
+      message += `Has ${matches.slice(0, 2).join(' and ')}. `;
     }
     
-    return explanation ? `${explanation.charAt(0).toUpperCase()}${explanation.slice(1)}.` : 'Available property with trade-offs.';
+    if (gaps.length > 0) {
+      message += `But ${gaps.slice(0, 2).join(' and ')}. `;
+    }
+    
+    message += `\n${verdict}`;
+
+    return message;
   }
 
   /**
