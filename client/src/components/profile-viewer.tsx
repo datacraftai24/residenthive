@@ -62,26 +62,31 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     // The query will automatically refetch due to cache invalidation
   };
 
+
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Skeleton className="h-8 w-8" />
           <div className="space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-6 w-32 sm:w-48" />
+            <Skeleton className="h-4 w-48 sm:w-64" />
           </div>
         </div>
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-48 sm:h-64 w-full" />
+        <Skeleton className="h-32 sm:h-48 w-full" />
+        <div className="text-center py-8">
+          <p className="text-blue-600 font-medium">Loading profile data...</p>
+        </div>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Profile not found</p>
+      <div className="text-center py-12 p-4 sm:p-6">
+        <p className="text-gray-500 mb-4">Profile not found</p>
         <Button variant="outline" onClick={onBack} className="mt-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Profiles
@@ -101,42 +106,44 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={onBack}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 flex-shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h2 className="text-xl font-semibold">{profile.name}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-900">{profile.name}</h2>
             <p className="text-sm text-gray-600">Buyer Profile Details</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="gap-1 text-xs">
             <Calendar className="h-3 w-3" />
             {new Date(profile.createdAt).toLocaleDateString()}
           </Badge>
-          <Badge variant={profile.inputMethod === 'form' ? 'default' : 'secondary'}>
+          <Badge variant={profile.inputMethod === 'form' ? 'default' : 'secondary'} className="text-xs">
             {profile.inputMethod}
           </Badge>
-          <ConfidenceDisplay 
-            confidence={profile.nlpConfidence || 0} 
-            inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
-            className="ml-2"
-          />
+          <div className="hidden sm:block">
+            <ConfidenceDisplay 
+              confidence={profile.nlpConfidence || 0} 
+              inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
+              className="ml-2"
+            />
+          </div>
           <ProfileShareButton 
             profileId={profile.id} 
             profileName={profile.name} 
           />
-          <Button onClick={() => setIsEditing(true)} size="sm">
-            <Edit className="h-4 w-4 mr-2" />
+          <Button onClick={() => setIsEditing(true)} size="sm" className="text-xs">
+            <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Edit
           </Button>
         </div>
@@ -144,14 +151,16 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Profile Details
+        <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <User className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Profile Details</span>
+            <span className="sm:hidden">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="listings" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Smart Search
+          <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Smart Search</span>
+            <span className="sm:hidden">Search</span>
           </TabsTrigger>
         </TabsList>
 
@@ -165,53 +174,53 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p className="font-medium">{profile.email}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Email</p>
+                <p className="font-medium text-sm sm:text-base truncate">{profile.email}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Budget</p>
-                <p className="font-medium">{profile.budget}</p>
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <DollarSign className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Budget</p>
+                <p className="font-medium text-sm sm:text-base">{profile.budget}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Home className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Home Type</p>
-                <p className="font-medium capitalize">{profile.homeType?.replace('-', ' ') || 'Not specified'}</p>
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <Home className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Home Type</p>
+                <p className="font-medium text-sm sm:text-base capitalize">{profile.homeType?.replace('-', ' ') || 'Not specified'}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Bed className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Bedrooms</p>
-                <p className="font-medium">{profile.bedrooms}</p>
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <Bed className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Bedrooms</p>
+                <p className="font-medium text-sm sm:text-base">{profile.bedrooms}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Bath className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Bathrooms</p>
-                <p className="font-medium">{profile.bathrooms}</p>
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <Bath className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Bathrooms</p>
+                <p className="font-medium text-sm sm:text-base">{profile.bathrooms}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <div>
-                <p className="text-sm text-gray-600">Priority Score</p>
+            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
+              <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-gray-600">Priority Score</p>
                 <div className="flex items-center gap-2">
-                  <p className="font-medium">{profile.priorityScore}/100</p>
+                  <p className="font-medium text-sm sm:text-base">{profile.priorityScore}/100</p>
                   <div className="w-12 h-2 bg-gray-200 rounded-full">
                     <div 
                       className="h-2 bg-blue-500 rounded-full" 
@@ -226,22 +235,22 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       </Card>
 
       {/* Features and Preferences */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Must-Have Features</CardTitle>
+          <CardHeader className="pb-3 sm:pb-6">
+            <CardTitle className="text-base sm:text-lg">Must-Have Features</CardTitle>
           </CardHeader>
           <CardContent>
             {profile.mustHaveFeatures.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {profile.mustHaveFeatures.map((feature, index) => (
-                  <Badge key={`${feature}-${index}`} variant="outline">
+                  <Badge key={`${feature}-${index}`} variant="outline" className="text-xs">
                     {feature.replace('-', ' ')}
                   </Badge>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No specific features required</p>
+              <p className="text-gray-500 text-xs sm:text-sm">No specific features required</p>
             )}
           </CardContent>
         </Card>
