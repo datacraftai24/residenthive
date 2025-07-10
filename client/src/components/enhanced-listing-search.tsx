@@ -565,13 +565,13 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
         </div>
       </div>
 
-      {/* Cache Status and Control Panel */}
+      {/* Search Data Status Panel */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Database className="h-5 w-5 text-blue-600" />
-              <CardTitle className="text-lg">Search Cache Status</CardTitle>
+              <CardTitle className="text-lg">MLS Data Status</CardTitle>
             </div>
             <Button
               onClick={() => refreshSearchMutation.mutate(true)}
@@ -581,7 +581,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               className="flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${refreshSearchMutation.isPending ? 'animate-spin' : ''}`} />
-              {refreshSearchMutation.isPending ? 'Refreshing...' : 'Refresh Now'}
+              {refreshSearchMutation.isPending ? 'Searching...' : 'Refresh Search'}
             </Button>
           </div>
         </CardHeader>
@@ -591,30 +591,27 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               <Clock className="h-4 w-4 text-gray-500" />
               <span className="text-sm">
                 {cacheStatus?.isCached 
-                  ? `Cached ${cacheStatus.cacheAge?.toFixed(1)}h ago`
-                  : 'No cache available'
+                  ? `Data refreshed ${Math.round(cacheStatus.cacheAge || 0)} ${Math.round(cacheStatus.cacheAge || 0) === 1 ? 'hour' : 'hours'} ago`
+                  : 'Live MLS search completed'
                 }
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={cacheStatus?.isExpired ? "destructive" : "secondary"}>
-                {cacheStatus?.isExpired ? 'Expired' : 'Fresh'}
+                {cacheStatus?.isExpired ? 'Data Outdated' : 'Current Data'}
               </Badge>
             </div>
             <div className="text-sm text-gray-600">
-              {enhancedResults?.cache_status?.from_cache && (
-                <span className="text-green-600">⚡ Served from cache (90% cost savings)</span>
+              {enhancedResults?.cache_status?.from_cache ? (
+                <span className="text-green-600">⚡ Using recent search results</span>
+              ) : (
+                <span className="text-blue-600">🔍 Fresh MLS data retrieved</span>
               )}
             </div>
           </div>
-          {cacheStatus?.isCached && (
+          {cacheStatus?.isCached && cacheStatus.lastUpdated && (
             <div className="mt-3 text-xs text-gray-500">
-              Last updated: {cacheStatus.lastUpdated ? new Date(cacheStatus.lastUpdated).toLocaleString() : 'Unknown'}
-              {cacheStatus.expiresAt && (
-                <span className="ml-2">
-                  • Expires: {new Date(cacheStatus.expiresAt).toLocaleString()}
-                </span>
-              )}
+              Last search: {new Date(cacheStatus.lastUpdated).toLocaleString()}
             </div>
           )}
         </CardContent>
