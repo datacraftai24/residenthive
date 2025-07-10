@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } from "./openai";
 import { tagEngine } from "./tag-engine";
 import { parseProfileChanges, applyChangesToProfile, generateQuickEditSuggestions } from "./conversational-edit";
+import { transactionLogger } from "./transaction-logger";
 import { insertBuyerProfileSchema, buyerFormSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -604,8 +605,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Intelligent Listing Search API
+  // Intelligent Listing Search API with Transaction Logging
   app.post("/api/listings/search", async (req, res) => {
+    const startTime = Date.now();
+    let transactionId: string;
+    
     try {
       const { profileId } = req.body;
       
@@ -618,6 +622,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!profile) {
         return res.status(404).json({ error: "Buyer profile not found" });
       }
+
+      // Start transaction logging
+      transactionId = await transactionLogger.startSearchTransaction({
+        profileId,
+        profile,
+        searchParameters: {
+          budget_min: profile.budgetMin,
+          budget_max: profile.budgetMax,
+          bedrooms: profile.bedrooms,
+          property_type: profile.homeType,
+          location: profile.preferredAreas
+        },
+        searchMethod: 'basic',
+        searchTrigger: 'agent_initiated'
+      });
 
       // Get profile with tags for enhanced scoring
       const profileWithTags = await storage.getProfileWithTags(profileId);
@@ -638,6 +657,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       listings = await repliersAPI.searchListings(profile);
       
       if (!listings || listings.length === 0) {
+        // Save empty results transaction
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: [],
+          scoredListings: [],
+          categorizedResults: { top_picks: [], other_matches: [] },
+          searchSummary: {
+            total_found: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          },
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 1
+          }
+        });
+
         return res.json({
           top_picks: [],
           other_matches: [],
@@ -693,6 +732,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
+      // Save complete search results transaction
+      await transactionLogger.saveSearchResults(transactionId, {
+        rawListings: listings,
+        scoredListings: scoredListings,
+        categorizedResults: categorizedResults,
+        searchSummary: response.search_summary,
+        chatBlocks: categorizedResults.chat_blocks,
+        executionMetrics: {
+          totalTime: Date.now() - startTime,
+          apiCalls: 1
+        }
+      });
+
+      // Save initial outcomes (will be updated when agent interacts)
+      await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
+        searchQualityRating: 7, // Default rating, will be updated if agent provides feedback
+        totalSessionTime: Date.now() - startTime
+      });
+
       res.json(response);
     } catch (error) {
       console.error("Error searching listings:", error);
@@ -703,8 +761,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Visual Intelligence Listing Search
+  // Enhanced Visual Intelligence Listing Search with Transaction Logging
   app.post("/api/listings/search-enhanced", async (req, res) => {
+    const startTime = Date.now();
+    let transactionId: string;
+    let visualAnalysisStartTime: number;
+    
     try {
       const { profileId } = req.body;
       
@@ -716,6 +778,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!profile) {
         return res.status(404).json({ error: "Profile not found" });
       }
+
+      // Start transaction logging for enhanced search
+      transactionId = await transactionLogger.startSearchTransaction({
+        profileId,
+        profile,
+        searchParameters: {
+          budget_min: profile.budgetMin,
+          budget_max: profile.budgetMax,
+          bedrooms: profile.bedrooms,
+          property_type: profile.homeType,
+          location: profile.preferredAreas
+        },
+        searchMethod: 'enhanced',
+        searchTrigger: 'agent_initiated'
+      });
 
       const profileWithTags = await storage.getProfileWithTags(profileId);
       const tags = profileWithTags?.tags || [];
@@ -732,6 +809,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       listings = await repliersAPI.searchListings(profile);
 
       if (!listings || listings.length === 0) {
+        // Save empty results transaction
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: [],
+          scoredListings: [],
+          categorizedResults: { top_picks: [], other_matches: [] },
+          searchSummary: {
+            total_found: 0,
+            top_picks_count: 0,
+            other_matches_count: 0,
+            visual_analysis_count: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          },
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 1
+          }
+        });
+
         return res.json({
           top_picks: [],
           other_matches: [],
@@ -752,23 +852,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Use enhanced scoring with visual intelligence and personalized analysis
+      let enhancedResults;
       try {
         console.log("Loading enhanced listing scorer...");
+        visualAnalysisStartTime = Date.now();
+        
         const { enhancedListingScorer } = await import('./enhanced-listing-scorer');
         console.log("Enhanced listing scorer loaded, starting analysis...");
-        const enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
+        
+        enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
           listings, 
           profile, 
           tags
         );
+        
         console.log("Enhanced analysis complete, sending results...");
+        
+        // Save complete enhanced search results transaction
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: listings,
+          scoredListings: enhancedResults.top_picks.concat(enhancedResults.other_matches),
+          categorizedResults: {
+            top_picks: enhancedResults.top_picks,
+            other_matches: enhancedResults.other_matches
+          },
+          visualAnalysisData: enhancedResults.top_picks
+            .filter(listing => listing.visualAnalysis)
+            .map(listing => listing.visualAnalysis),
+          searchSummary: enhancedResults.search_summary,
+          chatBlocks: enhancedResults.chat_blocks,
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 1,
+            visualAnalysisTime: Date.now() - visualAnalysisStartTime
+          }
+        });
+
+        // Save initial outcomes for enhanced search
+        await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
+          searchQualityRating: 8, // Higher default for enhanced search
+          totalSessionTime: Date.now() - startTime
+        });
+
         res.json(enhancedResults);
       } catch (error) {
         console.error("Enhanced scoring failed, falling back to basic:", error);
+        
+        // Log the fallback event
+        await transactionLogger.logAgentInteraction(transactionId, profileId, {
+          interactionType: 'search_refined',
+          interactionData: {
+            event: 'fallback_to_basic',
+            reason: error instanceof Error ? error.message : 'Unknown error',
+            fallback_applied: true
+          }
+        });
+
         // Fallback to basic scoring if enhanced fails
         const { listingScorer } = await import('./listing-scorer');
         const scoredListings = listings.map(listing => listingScorer.scoreListing(listing, profile, tags));
         const results = listingScorer.categorizeListings(scoredListings);
+        
+        // Save fallback results
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: listings,
+          scoredListings: scoredListings,
+          categorizedResults: results,
+          searchSummary: {
+            total_found: listings.length,
+            top_picks_count: results.top_picks.length,
+            other_matches_count: results.other_matches.length,
+            visual_analysis_count: 0,
+            search_criteria: {
+              budget: `$${profile.budgetMin?.toLocaleString()} - $${profile.budgetMax?.toLocaleString()}`,
+              bedrooms: profile.bedrooms,
+              property_type: profile.homeType,
+              location: profile.preferredAreas
+            }
+          },
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 1
+          }
+        });
+
         res.json(results);
       }
     } catch (error) {
@@ -776,6 +943,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to perform enhanced search",
         details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Agent Interaction Logging APIs - Phase 1 Transaction Logging
+
+  // Log agent interaction during search session
+  app.post("/api/agent-interactions", async (req, res) => {
+    try {
+      const { transactionId, profileId, interactionType, listingId, interactionData, agentConfidence } = req.body;
+
+      if (!transactionId || !profileId || !interactionType || !interactionData) {
+        return res.status(400).json({ error: "Missing required fields for agent interaction" });
+      }
+
+      await transactionLogger.logAgentInteraction(transactionId, profileId, {
+        interactionType,
+        listingId,
+        interactionData,
+        agentConfidence
+      });
+
+      res.json({ success: true, message: "Agent interaction logged successfully" });
+    } catch (error) {
+      console.error("Error logging agent interaction:", error);
+      res.status(500).json({ 
+        error: "Failed to log agent interaction",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Update search outcomes with agent feedback
+  app.post("/api/search-outcomes", async (req, res) => {
+    try {
+      const { transactionId, profileId, outcomes } = req.body;
+
+      if (!transactionId || !profileId) {
+        return res.status(400).json({ error: "Missing transactionId or profileId" });
+      }
+
+      await transactionLogger.saveSearchOutcomes(transactionId, profileId, outcomes);
+
+      res.json({ success: true, message: "Search outcomes saved successfully" });
+    } catch (error) {
+      console.error("Error saving search outcomes:", error);
+      res.status(500).json({ 
+        error: "Failed to save search outcomes",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Update existing search outcomes (for follow-up data)
+  app.patch("/api/search-outcomes/:transactionId", async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+      const outcomes = req.body;
+
+      await transactionLogger.updateSearchOutcomes(transactionId, outcomes);
+
+      res.json({ success: true, message: "Search outcomes updated successfully" });
+    } catch (error) {
+      console.error("Error updating search outcomes:", error);
+      res.status(500).json({ 
+        error: "Failed to update search outcomes",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get complete transaction data for analysis
+  app.get("/api/transactions/:transactionId", async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+
+      const transactionData = await transactionLogger.getTransactionData(transactionId);
+
+      if (!transactionData.transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      res.json(transactionData);
+    } catch (error) {
+      console.error("Error getting transaction data:", error);
+      res.status(500).json({ 
+        error: "Failed to get transaction data",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Get recent transactions for a profile (for pattern analysis)
+  app.get("/api/profiles/:profileId/transactions", async (req, res) => {
+    try {
+      const { profileId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      const transactions = await transactionLogger.getProfileTransactions(parseInt(profileId), limit);
+
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error getting profile transactions:", error);
+      res.status(500).json({ 
+        error: "Failed to get profile transactions",
+        message: (error as Error).message 
+      });
+    }
+  });
+
+  // Agent feedback on search results (for immediate learning)
+  app.post("/api/search-feedback", async (req, res) => {
+    try {
+      const { 
+        transactionId, 
+        profileId, 
+        resultRelevance, 
+        topPicksAccuracy, 
+        listingFeedback, 
+        improvementSuggestions,
+        agentNotes 
+      } = req.body;
+
+      if (!transactionId || !profileId) {
+        return res.status(400).json({ error: "Missing transactionId or profileId" });
+      }
+
+      // Log feedback as agent interaction
+      await transactionLogger.logAgentInteraction(transactionId, profileId, {
+        interactionType: 'search_refined',
+        interactionData: {
+          feedback_type: 'search_quality',
+          result_relevance: resultRelevance,
+          top_picks_accuracy: topPicksAccuracy,
+          listing_feedback: listingFeedback,
+          improvement_suggestions: improvementSuggestions,
+          agent_notes: agentNotes
+        },
+        agentConfidence: topPicksAccuracy
+      });
+
+      // Update outcomes with feedback ratings
+      await transactionLogger.updateSearchOutcomes(transactionId, {
+        searchQualityRating: resultRelevance,
+        agentSatisfactionRating: topPicksAccuracy,
+        agentNotes: agentNotes
+      });
+
+      res.json({ success: true, message: "Search feedback logged successfully" });
+    } catch (error) {
+      console.error("Error logging search feedback:", error);
+      res.status(500).json({ 
+        error: "Failed to log search feedback",
+        message: (error as Error).message 
       });
     }
   });

@@ -146,6 +146,109 @@ export const profileShareableLinks = pgTable("profile_shareable_links", {
   isActive: boolean("is_active").notNull().default(true)
 });
 
+// Core Transaction Logging Tables - Phase 1 Implementation
+export const searchTransactions = pgTable("search_transactions", {
+  id: serial("id").primaryKey(),
+  transactionId: text("transaction_id").notNull().unique(), // UUID for this search transaction
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id),
+  sessionId: text("session_id"), // For grouping related searches
+  
+  // Search Input Context
+  profileSnapshot: json("profile_snapshot").notNull(), // Complete profile state at search time
+  searchParameters: json("search_parameters").notNull(), // All search params used
+  searchMethod: text("search_method").notNull(), // 'enhanced', 'basic', 'hybrid'
+  searchTrigger: text("search_trigger").notNull(), // 'agent_initiated', 'profile_update', 'refinement'
+  
+  // Search Results Data
+  rawListingsCount: integer("raw_listings_count").notNull(), // Total from API
+  scoredListingsCount: integer("scored_listings_count").notNull(), // After AI scoring
+  topPicksCount: integer("top_picks_count").notNull(),
+  otherMatchesCount: integer("other_matches_count").notNull(),
+  noImageCount: integer("no_image_count").notNull(),
+  visualAnalysisCount: integer("visual_analysis_count").notNull(),
+  
+  // Execution Metrics
+  totalExecutionTime: integer("total_execution_time").notNull(), // milliseconds
+  apiCallsCount: integer("api_calls_count").notNull(),
+  visualAnalysisTime: integer("visual_analysis_time"), // milliseconds for visual processing
+  
+  // Search Quality Metrics
+  averageScore: numeric("average_score", { precision: 5, scale: 2 }),
+  scoreDistribution: json("score_distribution"), // {"70+": 16, "55-70": 34, etc.}
+  dealbreakerPropertiesCount: integer("dealbreaker_properties_count").notNull().default(0),
+  
+  createdAt: text("created_at").notNull()
+});
+
+export const searchTransactionResults = pgTable("search_transaction_results", {
+  id: serial("id").primaryKey(),
+  transactionId: text("transaction_id").notNull().references(() => searchTransactions.transactionId, { onDelete: "cascade" }),
+  
+  // Top Results (Top 20 properties for learning)
+  topResults: json("top_results").notNull(), // Array of top scored listings with full data
+  
+  // Categorized Results Summary
+  topPicksData: json("top_picks_data").notNull(), // Complete top picks with scores/reasoning
+  otherMatchesData: json("other_matches_data").notNull(), // Other matches data
+  
+  // Visual Analysis Results
+  visualAnalysisData: json("visual_analysis_data"), // Visual intelligence results for enhanced searches
+  
+  // Search Summary
+  searchSummary: json("search_summary").notNull(), // Complete search summary object
+  chatBlocks: json("chat_blocks"), // Generated chat blocks
+  
+  createdAt: text("created_at").notNull()
+});
+
+export const agentInteractions = pgTable("agent_interactions", {
+  id: serial("id").primaryKey(),
+  transactionId: text("transaction_id").notNull().references(() => searchTransactions.transactionId, { onDelete: "cascade" }),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id),
+  
+  // Agent Actions During Search Session
+  interactionType: text("interaction_type").notNull(), // 'property_clicked', 'score_adjusted', 'message_edited', 'property_shared', 'search_refined'
+  
+  // Property-specific interactions
+  listingId: text("listing_id"), // If interaction is property-specific
+  
+  // Interaction Data
+  interactionData: json("interaction_data").notNull(), // Specific data for this interaction type
+  
+  // Context
+  sessionDuration: integer("session_duration"), // seconds from search start
+  agentConfidence: integer("agent_confidence"), // 1-100 if agent provides confidence rating
+  
+  createdAt: text("created_at").notNull()
+});
+
+export const searchOutcomes = pgTable("search_outcomes", {
+  id: serial("id").primaryKey(),
+  transactionId: text("transaction_id").notNull().references(() => searchTransactions.transactionId, { onDelete: "cascade" }),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id),
+  
+  // Immediate Outcomes
+  propertiesClicked: json("properties_clicked"), // Array of listing IDs clicked by agent
+  propertiesSaved: json("properties_saved"), // Array of listing IDs saved
+  propertiesShared: json("properties_shared"), // Array of listing IDs shared with client
+  
+  // Agent Feedback
+  agentSatisfactionRating: integer("agent_satisfaction_rating"), // 1-10 scale
+  searchQualityRating: integer("search_quality_rating"), // 1-10 scale
+  agentNotes: text("agent_notes"), // Free-form agent comments
+  
+  // Follow-up Actions
+  searchRefinementNeeded: boolean("search_refinement_needed").notNull().default(false),
+  clientMeetingScheduled: boolean("client_meeting_scheduled").notNull().default(false),
+  
+  // Session Metrics
+  totalSessionTime: integer("total_session_time"), // Total time agent spent with results
+  mostViewedListings: json("most_viewed_listings"), // Array of {listing_id, time_spent}
+  
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at") // For follow-up outcome updates
+});
+
 export const insertBuyerProfileSchema = createInsertSchema(buyerProfiles).omit({
   id: true,
   createdAt: true
@@ -198,6 +301,28 @@ export const insertProfileShareableLinksSchema = createInsertSchema(profileShare
   createdAt: true
 });
 
+// Transaction Logging Insert Schemas
+export const insertSearchTransactionSchema = createInsertSchema(searchTransactions).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertSearchTransactionResultsSchema = createInsertSchema(searchTransactionResults).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertAgentInteractionSchema = createInsertSchema(agentInteractions).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertSearchOutcomeSchema = createInsertSchema(searchOutcomes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
@@ -218,6 +343,16 @@ export type InsertListingShareableLinks = z.infer<typeof insertListingShareableL
 export type ListingShareableLinks = typeof listingShareableLinks.$inferSelect;
 export type InsertProfileShareableLinks = z.infer<typeof insertProfileShareableLinksSchema>;
 export type ProfileShareableLinks = typeof profileShareableLinks.$inferSelect;
+
+// Transaction Logging Types
+export type InsertSearchTransaction = z.infer<typeof insertSearchTransactionSchema>;
+export type SearchTransaction = typeof searchTransactions.$inferSelect;
+export type InsertSearchTransactionResults = z.infer<typeof insertSearchTransactionResultsSchema>;
+export type SearchTransactionResults = typeof searchTransactionResults.$inferSelect;
+export type InsertAgentInteraction = z.infer<typeof insertAgentInteractionSchema>;
+export type AgentInteraction = typeof agentInteractions.$inferSelect;
+export type InsertSearchOutcome = z.infer<typeof insertSearchOutcomeSchema>;
+export type SearchOutcome = typeof searchOutcomes.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

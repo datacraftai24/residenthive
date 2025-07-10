@@ -8,7 +8,8 @@ import ProfileDisplay from "@/components/profile-display";
 import ProfileViewer from "@/components/profile-viewer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Home, FormInput, Mic } from "lucide-react";
+import { Bell, Home, FormInput, Mic, BarChart3 } from "lucide-react";
+import { Link } from "wouter";
 
 type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
 
@@ -75,6 +76,12 @@ export default function Dashboard() {
               <p className="text-xs sm:text-sm text-slate-500 mt-1">Create comprehensive buyer profiles with AI-powered insights</p>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-3">
+              <Link href="/analytics">
+                <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </button>
+              </Link>
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
