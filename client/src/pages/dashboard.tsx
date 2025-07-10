@@ -45,35 +45,48 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <Sidebar 
-        profiles={profiles}
-        isLoading={isLoading}
-        selectedProfile={profiles.find(p => p.id === selectedProfileId) || null}
-        onSelectProfile={handleProfileSelected}
-      />
+    <div className="flex flex-col lg:flex-row h-screen bg-slate-50">
+      <div className="lg:hidden">
+        <Sidebar 
+          profiles={profiles}
+          isLoading={isLoading}
+          selectedProfile={profiles.find(p => p.id === selectedProfileId) || null}
+          onSelectProfile={handleProfileSelected}
+          isMobile={true}
+        />
+      </div>
+      
+      <div className="hidden lg:block">
+        <Sidebar 
+          profiles={profiles}
+          isLoading={isLoading}
+          selectedProfile={profiles.find(p => p.id === selectedProfileId) || null}
+          onSelectProfile={handleProfileSelected}
+          isMobile={false}
+        />
+      </div>
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900">Buyer Profile Management</h1>
-              <p className="text-sm text-slate-500 mt-1">Create comprehensive buyer profiles with AI-powered insights</p>
+              <h1 className="text-lg sm:text-xl font-semibold text-slate-900">Buyer Profile Management</h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">Create comprehensive buyer profiles with AI-powered insights</p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                <Bell className="h-5 w-5" />
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
-              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-primary-foreground text-sm font-medium">JD</span>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-full flex items-center justify-center">
+                <span className="text-primary-foreground text-xs sm:text-sm font-medium">JD</span>
               </div>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {viewMode === 'view-profile' && selectedProfileId ? (
             <ProfileViewer
               profileId={selectedProfileId}

@@ -220,40 +220,51 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
 
   const renderListing = (listing: EnhancedScoredListing, isTopPick: boolean = false) => (
     <Card key={listing.listing.id} className="mb-4">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <CardTitle className="text-lg">
-              {listing.listing.address}
-              {isTopPick && <Badge className="ml-2 bg-green-100 text-green-800">Top Pick</Badge>}
-            </CardTitle>
-            <CardDescription>
-              {formatPrice(listing.listing.price)} • {listing.listing.bedrooms}BR/{listing.listing.bathrooms}BA
-              {listing.listing.square_feet && ` • ${listing.listing.square_feet.toLocaleString()} sqft`}
+      <CardHeader className="p-3 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+          <div className="flex-1 w-full">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <CardTitle className="text-base sm:text-lg leading-tight">
+                {listing.listing.address}
+              </CardTitle>
+              {isTopPick && <Badge className="bg-green-100 text-green-800 text-xs">Top Pick</Badge>}
+            </div>
+            <CardDescription className="text-sm mt-1">
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                <span className="font-semibold">{formatPrice(listing.listing.price)}</span>
+                <span>•</span>
+                <span>{listing.listing.bedrooms}BR/{listing.listing.bathrooms}BA</span>
+                {listing.listing.square_feet && (
+                  <>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="hidden sm:inline">{listing.listing.square_feet.toLocaleString()} sqft</span>
+                  </>
+                )}
+              </div>
             </CardDescription>
           </div>
-          <div className="text-right">
-            <div className={`text-2xl font-bold ${getScoreColor(listing.match_score)}`}>
+          <div className="text-right sm:text-center">
+            <div className={`text-xl sm:text-2xl font-bold ${getScoreColor(listing.match_score)}`}>
               {Math.round(listing.match_score * 100)}%
             </div>
-            <div className="text-sm text-gray-500">{listing.label}</div>
+            <div className="text-xs sm:text-sm text-gray-500">{listing.label}</div>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="p-3 sm:p-6">
+        <div className="space-y-3 sm:space-y-4">
           {/* Professional Agent Assessment */}
-          <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
+          <div className="bg-blue-50 dark:bg-blue-950/20 p-2 sm:p-3 rounded-lg">
             <div className="flex items-start gap-2">
               <Brain className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-800 dark:text-blue-200 flex-1">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-1">
                   <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
                     <Eye className="w-3 h-3" />
                     Professional Assessment:
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2">
                     <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300">
                       AI Generated
                     </Badge>
@@ -267,7 +278,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                     </Button>
                   </div>
                 </div>
-                <div>{listing.enhancedReason}</div>
+                <div className="text-sm leading-relaxed">{listing.enhancedReason}</div>
               </div>
             </div>
           </div>
@@ -422,11 +433,12 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button 
               size="sm" 
               variant="outline"
               onClick={() => setSelectedListing(listing)}
+              className="flex-1 sm:flex-none"
             >
               <Share2 className="w-4 h-4 mr-1" />
               Share
@@ -434,7 +446,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
             <Button 
               size="sm" 
               variant="outline"
-              className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+              className="bg-green-50 text-green-700 border-green-300 hover:bg-green-100 flex-1 sm:flex-none"
               onClick={() => handleGeneratePersonalMessage(listing)}
               disabled={generatePersonalMessageMutation.isPending}
             >
@@ -443,9 +455,10 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               ) : (
                 <MessageSquare className="w-4 h-4 mr-1" />
               )}
-              Generate Personal Message
+              <span className="hidden sm:inline">Generate Personal Message</span>
+              <span className="sm:hidden">Personal Message</span>
             </Button>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" className="flex-1 sm:flex-none">
               View Details
             </Button>
           </div>
@@ -456,11 +469,11 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
 
   if (isSearching) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p className="text-lg font-medium mb-2">🎯 Preparing Your Client's Dream Property Report</p>
-          <p className="text-sm text-gray-600 mb-4">
+      <div className="flex items-center justify-center p-4 sm:p-8">
+        <div className="text-center max-w-md mx-auto">
+          <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-2" />
+          <p className="text-base sm:text-lg font-medium mb-2">🎯 Preparing Your Client's Dream Property Report</p>
+          <p className="text-sm text-gray-600 mb-4 leading-relaxed">
             We're analyzing property interiors with AI vision to find homes that match their visual style. 
             Your clients will think you read their minds when you show them these personalized matches.
           </p>
@@ -487,14 +500,14 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Brain className="w-6 h-6 text-purple-600" />
+          <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Brain className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
             Enhanced Listing Search
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             AI-powered visual analysis with intelligent matching
           </p>
         </div>
@@ -504,19 +517,19 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
         <>
           {/* Search Summary */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-4 gap-4 text-center">
+            <CardContent className="p-4 sm:pt-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-xl sm:text-2xl font-bold text-green-600">
                     {enhancedResults.top_picks?.length || 0}
                   </div>
-                  <div className="text-sm text-gray-600">Top Picks</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Top Picks</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-yellow-600">
+                  <div className="text-xl sm:text-2xl font-bold text-yellow-600">
                     {enhancedResults.other_matches?.length || 0}
                   </div>
-                  <div className="text-sm text-gray-600">Other Matches</div>
+                  <div className="text-xs sm:text-sm text-gray-600">Other Matches</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-purple-600">
@@ -536,13 +549,17 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
 
           {/* Listings */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="enhanced-search">
-                <Star className="w-4 h-4 mr-1" />
-                Top Picks ({enhancedResults.top_picks?.length || 0})
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="enhanced-search" className="text-xs sm:text-sm">
+                <Star className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                <span className="hidden sm:inline">Top Picks </span>
+                <span className="sm:hidden">Top </span>
+                ({enhancedResults.top_picks?.length || 0})
               </TabsTrigger>
-              <TabsTrigger value="other-matches">
-                Other Matches ({enhancedResults.other_matches?.length || 0})
+              <TabsTrigger value="other-matches" className="text-xs sm:text-sm">
+                <span className="hidden sm:inline">Other Matches </span>
+                <span className="sm:hidden">Other </span>
+                ({enhancedResults.other_matches?.length || 0})
               </TabsTrigger>
             </TabsList>
 
@@ -576,48 +593,51 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       {/* Share Modal */}
       {selectedListing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Share Listing</CardTitle>
-              <CardDescription>
+          <Card className="w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Share Listing</CardTitle>
+              <CardDescription className="text-sm">
                 Create a shareable link for {selectedListing.listing.address}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="agentName">Agent Name</Label>
+                <Label htmlFor="agentName" className="text-sm">Agent Name</Label>
                 <Input
                   id="agentName"
                   value={shareData.agentName}
                   onChange={(e) => setShareData(prev => ({ ...prev, agentName: e.target.value }))}
                   placeholder="Your name"
+                  className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="agentEmail">Agent Email</Label>
+                <Label htmlFor="agentEmail" className="text-sm">Agent Email</Label>
                 <Input
                   id="agentEmail"
                   type="email"
                   value={shareData.agentEmail}
                   onChange={(e) => setShareData(prev => ({ ...prev, agentEmail: e.target.value }))}
                   placeholder="your.email@agency.com"
+                  className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="customMessage">Custom Message</Label>
+                <Label htmlFor="customMessage" className="text-sm">Custom Message</Label>
                 <Textarea
                   id="customMessage"
                   value={shareData.customMessage}
                   onChange={(e) => setShareData(prev => ({ ...prev, customMessage: e.target.value }))}
                   placeholder="This property matches your criteria perfectly..."
                   rows={3}
+                  className="mt-1"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button 
                   onClick={() => handleShare(selectedListing)}
                   disabled={shareMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 order-2 sm:order-1"
                 >
                   {shareMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-1" />
@@ -629,6 +649,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                 <Button 
                   variant="outline" 
                   onClick={() => setSelectedListing(null)}
+                  className="order-1 sm:order-2"
                 >
                   Cancel
                 </Button>
@@ -641,16 +662,16 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       {/* Personal Message Modal */}
       {personalMessageModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-lg">
-            <CardHeader>
-              <CardTitle>Personal Message Generated</CardTitle>
-              <CardDescription>
+          <Card className="w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Personal Message Generated</CardTitle>
+              <CardDescription className="text-sm">
                 AI-generated personal message for {personalMessageModal.listing.listing.address}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="personalMessage">Personal Message</Label>
+                <Label htmlFor="personalMessage" className="text-sm">Personal Message</Label>
                 <Textarea
                   id="personalMessage"
                   value={personalMessageModal.message}
@@ -660,20 +681,20 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   rows={4}
                   className="mt-2"
                 />
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2">
                   <Badge variant="outline" className="text-xs">
                     AI Generated
                   </Badge>
                   <span className="text-xs text-gray-500">Edit as needed before sending</span>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button 
                   onClick={() => {
                     navigator.clipboard.writeText(personalMessageModal.message);
                     toast({ title: "Message copied to clipboard!" });
                   }}
-                  className="flex-1"
+                  className="flex-1 order-2 sm:order-1"
                 >
                   <Copy className="w-4 h-4 mr-1" />
                   Copy Message
@@ -681,6 +702,7 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                 <Button 
                   variant="outline" 
                   onClick={() => setPersonalMessageModal(null)}
+                  className="order-1 sm:order-2"
                 >
                   Close
                 </Button>
@@ -693,16 +715,16 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
       {/* Edit Message Modal */}
       {editingListing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-lg">
-            <CardHeader>
-              <CardTitle>Edit Assessment</CardTitle>
-              <CardDescription>
+          <Card className="w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Edit Assessment</CardTitle>
+              <CardDescription className="text-sm">
                 Modify the AI-generated assessment for this property
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="editMessage">Professional Assessment</Label>
+                <Label htmlFor="editMessage" className="text-sm">Professional Assessment</Label>
                 <Textarea
                   id="editMessage"
                   value={editedMessage}
@@ -711,16 +733,17 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   className="mt-2"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button 
                   onClick={() => handleSaveEdit(editingListing)}
-                  className="flex-1"
+                  className="flex-1 order-2 sm:order-1"
                 >
                   Save Changes
                 </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => setEditingListing(null)}
+                  className="order-1 sm:order-2"
                 >
                   Cancel
                 </Button>

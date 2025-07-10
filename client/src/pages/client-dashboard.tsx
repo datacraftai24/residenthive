@@ -162,27 +162,27 @@ export default function ClientDashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
                 Property Matches for {profile?.name || 'Client'}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
                 {searchSummary.total_found || 0} properties found • {topPicks.length} top picks
               </p>
             </div>
             
             {shareableProfile.agentName && (
               <Card className="lg:max-w-sm">
-                <CardContent className="p-4">
+                <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Home className="w-6 h-6 text-blue-600" />
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Home className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{shareableProfile.agentName}</h3>
-                      <div className="flex gap-3 mt-1">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-sm sm:text-base truncate">{shareableProfile.agentName}</h3>
+                      <div className="flex flex-col sm:flex-row sm:gap-3 mt-1 space-y-1 sm:space-y-0">
                         {shareableProfile.agentPhone && (
                           <a href={`tel:${shareableProfile.agentPhone}`} className="text-blue-600 hover:underline flex items-center gap-1">
                             <Phone className="w-3 h-3" />
@@ -204,24 +204,24 @@ export default function ClientDashboard() {
           </div>
 
           {shareableProfile.customMessage && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-gray-700">{shareableProfile.customMessage}</p>
+            <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm sm:text-base text-gray-700">{shareableProfile.customMessage}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Search Criteria Summary */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Your Search Criteria</CardTitle>
+          <CardHeader className="pb-3 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">Your Search Criteria</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-green-600" />
-                <span>
+                <DollarSign className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span className="truncate">
                   {profile?.budgetMin && profile?.budgetMax ? 
                     `${formatPrice(profile.budgetMin)} - ${formatPrice(profile.budgetMax)}` :
                     'Budget flexible'
@@ -229,16 +229,16 @@ export default function ClientDashboard() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Home className="w-4 h-4 text-blue-600" />
-                <span>{profile?.bedrooms || 'Any'} bed, {profile?.bathrooms || 'Any'} bath</span>
+                <Home className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="truncate">{profile?.bedrooms || 'Any'} bed, {profile?.bathrooms || 'Any'} bath</span>
               </div>
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-red-600" />
-                <span>{profile?.location || profile?.preferredAreas?.[0] || 'Location flexible'}</span>
+                <MapPin className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <span className="truncate">{profile?.location || profile?.preferredAreas?.[0] || 'Location flexible'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-600" />
-                <span>{profile?.mustHaveFeatures?.length || 0} must-have features</span>
+                <Star className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                <span className="truncate">{profile?.mustHaveFeatures?.length || 0} must-have features</span>
               </div>
             </div>
           </CardContent>
@@ -247,12 +247,12 @@ export default function ClientDashboard() {
 
       {/* Top Picks */}
       {topPicks.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 pb-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2">
+            <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
             Top Picks for You
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {topPicks.map((scored: ScoredListing, index: number) => (
               <PropertyCard 
                 key={scored.listing.id || index}
@@ -270,12 +270,12 @@ export default function ClientDashboard() {
 
       {/* Other Matches */}
       {otherMatches.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 pb-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Eye className="w-5 h-5 text-gray-500" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2">
+            <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
             More Options to Consider
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {otherMatches.map((scored: ScoredListing, index: number) => (
               <PropertyCard 
                 key={scored.listing.id || index}
@@ -411,7 +411,7 @@ function PropertyCard({
           <img
             src={propertyImage}
             alt={listing.address || 'Property'}
-            className="w-full h-56 object-cover"
+            className="w-full h-48 sm:h-56 object-cover"
             onLoad={() => console.log('Image loaded successfully:', propertyImage)}
             onError={(e) => {
               console.error('Image failed to load:', propertyImage);
@@ -420,22 +420,22 @@ function PropertyCard({
             }}
           />
         ) : (
-          <div className="w-full h-56 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+          <div className="w-full h-48 sm:h-56 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-12 h-12 bg-gray-300 rounded-full mx-auto mb-2 flex items-center justify-center">
-                <span className="text-gray-500 text-xl">🏠</span>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 rounded-full mx-auto mb-2 flex items-center justify-center">
+                <span className="text-gray-500 text-lg sm:text-xl">🏠</span>
               </div>
-              <span className="text-gray-500 text-sm">No Image Available</span>
+              <span className="text-gray-500 text-xs sm:text-sm">No Image Available</span>
             </div>
           </div>
         )}
         
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex gap-2">
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col sm:flex-row gap-1 sm:gap-2">
           {isTopPick && (
-            <Badge className="bg-blue-600 text-white font-medium">⭐ Top Pick</Badge>
+            <Badge className="bg-blue-600 text-white font-medium text-xs">⭐ Top Pick</Badge>
           )}
-          <Badge className={`font-medium ${getMatchColor(matchPercent)}`}>
+          <Badge className={`font-medium text-xs ${getMatchColor(matchPercent)}`}>
             {matchPercent}% Match
           </Badge>
         </div>
@@ -443,21 +443,21 @@ function PropertyCard({
         {/* Save button */}
         <button
           onClick={onToggleSaved}
-          className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-colors"
         >
-          <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+          <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
         </button>
       </div>
 
       {/* Content */}
-      <div className="p-5">
+      <div className="p-3 sm:p-5">
         {/* Price and basic info */}
         <div className="flex items-start justify-between mb-3">
           <div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
               {formatPrice(listing.price)}
             </div>
-            <div className="text-sm text-gray-600 flex items-center gap-3">
+            <div className="text-xs sm:text-sm text-gray-600 flex items-center gap-2 sm:gap-3">
               <span>{listing.bedrooms || 0} bds</span>
               <span>•</span>
               <span>{listing.bathrooms || 0} ba</span>
@@ -469,7 +469,7 @@ function PropertyCard({
 
         {/* Address */}
         <div className="mb-3">
-          <p className="text-gray-700 font-medium text-sm">
+          <p className="text-gray-700 font-medium text-xs sm:text-sm leading-relaxed">
             {listing.address}, {listing.city}, {listing.state} {listing.zip_code}
           </p>
           {listing.mls_number && (
@@ -478,8 +478,8 @@ function PropertyCard({
         </div>
 
         {/* Match reasoning */}
-        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-          <p className="text-sm text-gray-700 leading-relaxed">
+        <div className="mb-4 p-2 sm:p-3 bg-blue-50 rounded-lg border border-blue-100">
+          <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
             {generateMatchReasoning()}
           </p>
         </div>
