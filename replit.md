@@ -225,6 +225,9 @@ Changelog:
   - Enhanced categorization thresholds: Top Picks (70+), Other Matches (55-70)
   - Updated all scoring methods including listing quality assessment, visual analysis integration, and missing data penalties
   - System now provides more granular and meaningful score differentiation for better property matching
+  - Fixed critical frontend "NaN%" display issue by updating all components to use new property names (budget_match, feature_match, etc.)
+  - Updated enhanced-listing-search.tsx, listing-search.tsx, and client-dashboard.tsx to properly display score breakdowns
+  - Score breakdown now shows points instead of percentages for clarity with comprehensive breakdown including all new scoring components
 ```
 
 ## User Preferences
