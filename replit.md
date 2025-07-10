@@ -216,6 +216,15 @@ Changelog:
   - Messages now under 50 words, scannable, and buyer-friendly instead of agent-focused technical details
   - Enhanced both basic listing scorer and visual intelligence scorer with consistent engaging tone
   - System generates varied messages that buyers will actually read and engage with
+- July 10, 2025. Smart Listing Scoring System Implementation (0-100 Scale)
+  - Replaced old 0-1 scoring scale with new Smart Listing Scoring System using 0-100 scale
+  - Implemented weighted component scoring: Feature_Match (25%), Budget_Match (20%), Bedroom_Match (15%), Location_Match (10%), Visual_Tag_Match (10%), Behavioral_Tag_Match (10%), Listing_Quality_Score (10%)
+  - Added penalty system: Dealbreakers (-30 points), Missing data (-10 points), with visual boost (+10 points)
+  - Implemented floor constraint: minimum score of 10 to prevent scoring anomalies
+  - Updated score labels: Excellent Match (85+), Good Match (70+), Fair Match (55+), Poor Match (40+), Not Recommended (<40)
+  - Enhanced categorization thresholds: Top Picks (70+), Other Matches (55-70)
+  - Updated all scoring methods including listing quality assessment, visual analysis integration, and missing data penalties
+  - System now provides more granular and meaningful score differentiation for better property matching
 ```
 
 ## User Preferences

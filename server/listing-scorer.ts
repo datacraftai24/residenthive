@@ -9,11 +9,18 @@ export interface ScoredListing {
   dealbreaker_flags: string[];
   reason: string;
   score_breakdown: {
-    budget_score: number;
-    feature_score: number;
+    feature_match: number;
+    budget_match: number;
+    bedroom_match: number;
+    location_match: number;
+    visual_tag_match: number;
+    behavioral_tag_match: number;
+    listing_quality_score: number;
     dealbreaker_penalty: number;
-    location_score: number;
-    tag_score: number;
+    missing_data_penalty: number;
+    visual_boost: number;
+    raw_total: number;
+    final_score: number;
   };
 }
 
@@ -26,43 +33,65 @@ export interface CategorizedListings {
 
 export class ListingScorer {
   /**
-   * Score a single listing against buyer profile
+   * Score a single listing against buyer profile using Smart Listing Scoring System (0-100)
    */
-  scoreListing(listing: RepliersListing, profile: BuyerProfile, tags: ProfileTag[] = []): ScoredListing {
-    const scores = {
-      budget_score: this.calculateBudgetScore(listing, profile),
-      feature_score: this.calculateFeatureScore(listing, profile),
-      bedroom_score: this.calculateBedroomScore(listing, profile),
-      dealbreaker_penalty: this.calculateDealbreakerPenalty(listing, profile),
-      location_score: this.calculateLocationScore(listing, profile),
-      tag_score: this.calculateTagScore(listing, profile, tags)
-    };
+  scoreListing(listing: RepliersListing, profile: BuyerProfile, tags: ProfileTag[] = [], visualTags: string[] = []): ScoredListing {
+    // Calculate component scores (0-1 scale)
+    const featureMatch = this.calculateFeatureScore(listing, profile);
+    const budgetMatch = this.calculateBudgetScore(listing, profile);
+    const bedroomMatch = this.calculateBedroomScore(listing, profile);
+    const locationMatch = this.calculateLocationScore(listing, profile);
+    const visualTagMatch = this.calculateVisualTagScore(listing, profile, visualTags);
+    const behavioralTagMatch = this.calculateTagScore(listing, profile, tags);
+    const listingQuality = this.calculateListingQualityScore(listing);
 
-    // Weighted final score with image bonus
-    let finalScore = Math.max(0, Math.min(1, 
-      (scores.budget_score * 0.20) +
-      (scores.feature_score * 0.25) +
-      (scores.bedroom_score * 0.20) +
-      (scores.location_score * 0.15) +
-      (scores.tag_score * 0.20) +
-      scores.dealbreaker_penalty // This is negative
-    ));
+    // Apply weights to get base score (0-100)
+    const weightedScore = 
+      (featureMatch * 25) +      // Feature_Match: 25%
+      (budgetMatch * 20) +       // Budget_Match: 20%
+      (bedroomMatch * 15) +      // Bedroom_Match: 15%
+      (locationMatch * 10) +     // Location_Match: 10%
+      (visualTagMatch * 10) +    // Visual_Tag_Match: 10%
+      (behavioralTagMatch * 10) + // Behavioral_Tag_Match: 10%
+      (listingQuality * 10);     // Listing_Quality_Score: 10%
 
-    // Remove artificial image scoring boost - handle this in categorization instead
+    // Calculate penalties
+    const dealbreakerPenalty = this.calculateDealbreakerPenalty(listing, profile);
+    const missingDataPenalty = this.calculateMissingDataPenalty(listing);
+    
+    // Calculate visual boost
+    const visualBoost = this.calculateVisualBoost(visualTags, profile);
+
+    // Apply penalties and boosts
+    const rawTotal = weightedScore + dealbreakerPenalty + missingDataPenalty + visualBoost;
+    
+    // Apply floor constraint: never drop below 10
+    const finalScore = Math.max(10, Math.min(100, rawTotal));
 
     const matchedFeatures = this.findMatchedFeatures(listing, profile);
     const dealbreakerFlags = this.findDealbreakerFlags(listing, profile);
-    
-
 
     return {
       listing,
-      match_score: finalScore,
+      match_score: finalScore / 100, // Convert back to 0-1 for compatibility
       label: this.getScoreLabel(finalScore),
       matched_features: matchedFeatures,
       dealbreaker_flags: dealbreakerFlags,
       reason: this.generateReason(listing, profile, matchedFeatures, finalScore),
-      score_breakdown: scores
+      score_breakdown: {
+        feature_match: featureMatch * 25,
+        budget_match: budgetMatch * 20,
+        bedroom_match: bedroomMatch * 15,
+        location_match: locationMatch * 10,
+        visual_tag_match: visualTagMatch * 10,
+        behavioral_tag_match: behavioralTagMatch * 10,
+        listing_quality_score: listingQuality * 10,
+        dealbreaker_penalty: dealbreakerPenalty,
+        missing_data_penalty: missingDataPenalty,
+        visual_boost: visualBoost,
+        raw_total: rawTotal,
+        final_score: finalScore
+      }
     };
   }
 
@@ -167,7 +196,7 @@ export class ListingScorer {
   }
 
   /**
-   * Calculate dealbreaker penalties (negative score)
+   * Calculate dealbreaker penalties (subtract 30 points per dealbreaker)
    */
   private calculateDealbreakerPenalty(listing: RepliersListing, profile: BuyerProfile): number {
     const dealbreakers = this.parseJsonArray(profile.dealbreakers);
@@ -185,7 +214,7 @@ export class ListingScorer {
       'ground floor only': ['2nd floor', 'second floor', 'upstairs', 'elevator'],
       'busy road': ['busy street', 'main road', 'highway', 'traffic'],
       'no garage': ['no parking', 'street parking only'],
-      'major repairs needed': ['needs work', 'fixer upper', 'repair', 'renovation needed'],
+      'fixer-uppers': ['needs work', 'fixer upper', 'repair', 'renovation needed', 'tlc needed'],
       'hoa restrictions': ['strict hoa', 'hoa restrictions', 'no pets', 'rental restrictions']
     };
 
@@ -195,7 +224,7 @@ export class ListingScorer {
       if (hasDealbreakerFlag) penaltyCount++;
     }
 
-    return penaltyCount * -0.5; // -0.5 per dealbreaker
+    return penaltyCount * -30; // -30 points per dealbreaker
   }
 
   /**
@@ -359,13 +388,13 @@ export class ListingScorer {
     let opening: string;
     let verdict: string;
 
-    if (score >= 0.7 && gaps.length === 0) {
+    if (score >= 70 && gaps.length === 0) {
       opening = openings.great[Math.floor(Math.random() * openings.great.length)];
       verdict = "✅ This is worth seeing!";
-    } else if (score >= 0.5 && gaps.length <= 1) {
+    } else if (score >= 55 && gaps.length <= 1) {
       opening = openings.good[Math.floor(Math.random() * openings.good.length)];
       verdict = "✅ Worth a second look.";
-    } else if (score >= 0.3 || (matches.length > 0 && gaps.length > 0)) {
+    } else if (score >= 40 || (matches.length > 0 && gaps.length > 0)) {
       opening = openings.mixed[Math.floor(Math.random() * openings.mixed.length)];
       verdict = gaps.length > matches.length ? "🤔 Could work if flexible." : "✅ Has potential.";
     } else {
@@ -405,14 +434,14 @@ export class ListingScorer {
   }
 
   /**
-   * Get label based on score
+   * Get label based on score (0-100 scale)
    */
   private getScoreLabel(score: number): string {
-    if (score >= 0.85) return 'Perfect Match';
-    if (score >= 0.75) return 'Excellent Fit';
-    if (score >= 0.65) return 'Worth Considering';
-    if (score >= 0.45) return 'Consider with Trade-offs';
-    return 'Available Option';
+    if (score >= 85) return "Excellent Match";
+    if (score >= 70) return "Good Match";
+    if (score >= 55) return "Fair Match";
+    if (score >= 40) return "Poor Match";
+    return "Not Recommended";
   }
 
   /**
@@ -421,6 +450,123 @@ export class ListingScorer {
   private calculateLocationSimilarity(area1: string, area2: string): number {
     const commonWords = area1.split(' ').filter(word => area2.includes(word));
     return commonWords.length / Math.max(area1.split(' ').length, 1);
+  }
+
+  /**
+   * Calculate visual tag matching score (0-1)
+   */
+  private calculateVisualTagScore(listing: RepliersListing, profile: BuyerProfile, visualTags: string[]): number {
+    if (!visualTags.length) return 0.5; // Neutral if no visual tags
+    
+    const preferredStyles = this.parseJsonArray(profile.mustHaveFeatures).filter(feature => 
+      feature.toLowerCase().includes('modern') || 
+      feature.toLowerCase().includes('traditional') ||
+      feature.toLowerCase().includes('contemporary')
+    );
+    
+    if (!preferredStyles.length) return 0.5;
+    
+    let matchCount = 0;
+    for (const style of preferredStyles) {
+      const matchingTags = visualTags.filter(tag => 
+        tag.toLowerCase().includes(style.toLowerCase()) ||
+        (style.toLowerCase().includes('modern') && (tag.includes('contemporary') || tag.includes('updated')))
+      );
+      if (matchingTags.length > 0) matchCount++;
+    }
+    
+    return Math.min(1.0, matchCount / preferredStyles.length);
+  }
+
+  /**
+   * Calculate listing quality score (0-1)
+   */
+  private calculateListingQualityScore(listing: RepliersListing): number {
+    let qualityScore = 0;
+    
+    // Photo count (max 3 points)
+    const imageCount = listing.images?.length || 0;
+    if (imageCount >= 5) qualityScore += 0.3;
+    else if (imageCount >= 3) qualityScore += 0.2;
+    else if (imageCount >= 1) qualityScore += 0.1;
+    
+    // Description completeness (max 3 points)
+    const description = listing.description || '';
+    if (description.length >= 200) qualityScore += 0.3;
+    else if (description.length >= 100) qualityScore += 0.2;
+    else if (description.length >= 50) qualityScore += 0.1;
+    
+    // Feature completeness (max 2 points)
+    const features = listing.features?.length || 0;
+    if (features >= 5) qualityScore += 0.2;
+    else if (features >= 3) qualityScore += 0.1;
+    
+    // Recent listing bonus (max 2 points)
+    if (listing.listing_date) {
+      const listingDate = new Date(listing.listing_date);
+      const daysSinceListing = (Date.now() - listingDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceListing <= 30) qualityScore += 0.2;
+      else if (daysSinceListing <= 60) qualityScore += 0.1;
+    }
+    
+    return Math.min(1.0, qualityScore);
+  }
+
+  /**
+   * Calculate missing data penalty (subtract 10 points for missing critical data)
+   */
+  private calculateMissingDataPenalty(listing: RepliersListing): number {
+    let penalty = 0;
+    
+    // Missing bedroom data
+    if (!listing.bedrooms || listing.bedrooms === 0) penalty -= 10;
+    
+    // Missing bathroom data
+    if (!listing.bathrooms) penalty -= 10;
+    
+    // Missing images
+    if (!listing.images || listing.images.length === 0) penalty -= 10;
+    
+    return penalty;
+  }
+
+  /**
+   * Calculate visual boost (+10 if visual tags strongly match preferences)
+   */
+  private calculateVisualBoost(visualTags: string[], profile: BuyerProfile): number {
+    if (!visualTags.length) return 0;
+    
+    const preferredFeatures = this.parseJsonArray(profile.mustHaveFeatures);
+    const stylePreferences = preferredFeatures.filter(feature => 
+      feature.toLowerCase().includes('modern') ||
+      feature.toLowerCase().includes('kitchen') ||
+      feature.toLowerCase().includes('updated') ||
+      feature.toLowerCase().includes('granite') ||
+      feature.toLowerCase().includes('hardwood')
+    );
+    
+    if (!stylePreferences.length) return 0;
+    
+    let strongMatches = 0;
+    for (const preference of stylePreferences) {
+      const matchingTags = visualTags.filter(tag => {
+        const tagLower = tag.toLowerCase();
+        const prefLower = preference.toLowerCase();
+        
+        if (prefLower.includes('modern') && (tagLower.includes('modern') || tagLower.includes('contemporary'))) return true;
+        if (prefLower.includes('kitchen') && tagLower.includes('kitchen')) return true;
+        if (prefLower.includes('granite') && tagLower.includes('granite')) return true;
+        if (prefLower.includes('hardwood') && tagLower.includes('hardwood')) return true;
+        if (prefLower.includes('updated') && (tagLower.includes('updated') || tagLower.includes('renovated'))) return true;
+        
+        return false;
+      });
+      
+      if (matchingTags.length >= 1) strongMatches++;
+    }
+    
+    // Strong match if 3+ visual preferences match
+    return strongMatches >= 3 ? 10 : 0;
   }
 
   /**
@@ -451,9 +597,9 @@ export class ListingScorer {
       !item.listing.images || item.listing.images.length === 0
     );
 
-    // Categorize properties WITH images using score thresholds
-    const topPicks = propertiesWithImages.filter(item => item.match_score >= 0.35);
-    const otherMatches = propertiesWithImages.filter(item => item.match_score >= 0.25 && item.match_score < 0.35);
+    // Categorize properties WITH images using score thresholds (0-100 scale converted to 0-1)
+    const topPicks = propertiesWithImages.filter(item => item.match_score >= 0.70); // 70/100
+    const otherMatches = propertiesWithImages.filter(item => item.match_score >= 0.55 && item.match_score < 0.70); // 55-70/100
 
     // Sort all categories by score descending
     topPicks.sort((a, b) => b.match_score - a.match_score);

@@ -39,9 +39,9 @@ export class EnhancedListingScorer {
   ): Promise<EnhancedCategorizedListings> {
     console.log(`Starting enhanced scoring for ${listings.length} listings for profile ${profile.id}`);
     
-    // First, get basic scores using existing algorithm
+    // First, get basic scores using new Smart Listing Scoring System
     const basicScoredListings = listings.map(listing => 
-      listingScorer.scoreListing(listing, profile, tags)
+      listingScorer.scoreListing(listing, profile, tags, []) // Empty visual tags for initial scoring
     );
 
     // Prioritize properties with images for visual analysis
@@ -139,8 +139,18 @@ export class EnhancedListingScorer {
       console.error(`Visual analysis failed for listing ${scored.listing.id}:`, error);
     }
 
-    // Apply visual boost to score
-    const enhancedScore = Math.min(scored.match_score + visualBoost, 1.0);
+    // Re-score with visual tags if visual analysis available
+    let enhancedScore = scored.match_score;
+    if (visualAnalysis && visualAnalysis.overallTags.length > 0) {
+      // Re-score using visual tags
+      const rescoredListing = listingScorer.scoreListing(
+        scored.listing, 
+        profile, 
+        tags, 
+        visualAnalysis.overallTags
+      );
+      enhancedScore = rescoredListing.match_score;
+    }
 
     // Generate enhanced reason with personalized analysis
     let enhancedReason = this.generateEnhancedReason(
@@ -372,8 +382,8 @@ export class EnhancedListingScorer {
     profile: BuyerProfile
   ): EnhancedCategorizedListings {
     
-    const topPicks = listings.filter(l => l.match_score >= 0.35);
-    const otherMatches = listings.filter(l => l.match_score >= 0.25 && l.match_score < 0.35);
+    const topPicks = listings.filter(l => l.match_score >= 0.70); // 70/100 converted to 0.7
+    const otherMatches = listings.filter(l => l.match_score >= 0.55 && l.match_score < 0.70); // 55-70/100
     const visualAnalysisCount = listings.filter(l => l.visualAnalysis).length;
 
     return {

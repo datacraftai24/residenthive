@@ -20,9 +20,9 @@ export class HybridListingScorer {
     tags: ProfileTag[] = []
   ): Promise<CategorizedListings & { enhancedCount: number }> {
     
-    // Step 1: Get immediate results with basic scoring
+    // Step 1: Get immediate results with Smart Listing Scoring System
     const scoredListings = listings.map(listing => 
-      this.listingScorer.scoreListing(listing, profile, tags)
+      this.listingScorer.scoreListing(listing, profile, tags, []) // Empty visual tags for initial scoring
     );
     
     const categorized = this.listingScorer.categorizeListings(scoredListings);
