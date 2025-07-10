@@ -13,7 +13,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/analytics" component={Analytics} />
-      <Route path="/client-dashboard/:shareId" component={ClientDashboard} />
+      <Route path="/client/:shareId" component={ClientDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
