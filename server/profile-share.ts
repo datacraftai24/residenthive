@@ -230,9 +230,18 @@ export class ProfileShareableService {
    * Build the full share URL
    */
   private buildShareUrl(shareId: string): string {
-    const baseUrl = process.env.REPLIT_DOMAIN 
-      ? `https://${process.env.REPLIT_DOMAIN}`
-      : 'http://localhost:5000';
+    // Use REPLIT_DOMAINS for deployed environments
+    const deploymentDomain = process.env.REPLIT_DOMAINS;
+    
+    let baseUrl: string;
+    
+    if (deploymentDomain) {
+      // Use the deployed domain directly
+      baseUrl = `https://${deploymentDomain}`;
+    } else {
+      // Development environment
+      baseUrl = 'http://localhost:5000';
+    }
     
     return `${baseUrl}/client/${shareId}`;
   }
