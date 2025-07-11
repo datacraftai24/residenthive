@@ -29,10 +29,18 @@ interface ScoredListing {
   matched_features: string[];
   reason: string;
   score_breakdown: {
-    budget_score: number;
-    feature_score: number;
+    feature_match: number;
+    budget_match: number;
+    bedroom_match: number;
+    location_match: number;
+    visual_tag_match: number;
+    behavioral_tag_match: number;
+    listing_quality_score: number;
     dealbreaker_penalty: number;
-    location_score: number;
+    missing_data_penalty: number;
+    visual_boost: number;
+    raw_total: number;
+    final_score: number;
   };
 }
 
@@ -243,10 +251,10 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-blue-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.budget_score * 100)}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.budget_match * 100)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_match * 100)}%</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -255,10 +263,10 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-green-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.feature_score * 100)}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.feature_match * 100)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_match * 100)}%</span>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -267,10 +275,10 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
                   <div className="w-16 bg-gray-200 rounded-full h-1.5">
                     <div 
                       className="bg-purple-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.location_score * 100)}%`}}
+                      style={{width: `${Math.min(100, listing.score_breakdown.location_match * 100)}%`}}
                     />
                   </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.location_score * 100)}%</span>
+                  <span className="font-medium">{Math.round(listing.score_breakdown.location_match * 100)}%</span>
                 </div>
               </div>
             </div>
