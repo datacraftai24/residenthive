@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Search, Star, MapPin, DollarSign, Home, AlertCircle, Loader2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { getDisplayScore, validateScoreBreakdown } from '@/lib/score-utils';
 
 interface ScoredListing {
   listing: {
@@ -27,11 +28,23 @@ interface ScoredListing {
   dealbreaker_flags: string[];
   reason: string;
   score_breakdown: {
-    budget_score: number;
-    feature_score: number;
+    feature_match: number;
+    budget_match: number;
+    bedroom_match: number;
+    location_match: number;
+    visual_tag_match: number;
+    behavioral_tag_match: number;
+    listing_quality_score: number;
     dealbreaker_penalty: number;
-    location_score: number;
-    tag_score: number;
+    missing_data_penalty: number;
+    visual_boost: number;
+    raw_total: number;
+    final_score: number;
+    // Legacy support
+    budget_score?: number;
+    feature_score?: number;
+    location_score?: number;
+    tag_score?: number;
   };
 }
 

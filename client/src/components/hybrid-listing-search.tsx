@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Brain, Eye, Share2, Copy, MessageSquare, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getDisplayScore, validateScoreBreakdown } from "@/lib/score-utils";
 
 interface ScoredListing {
   listing: {
@@ -245,42 +246,57 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
               Score Breakdown
             </p>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center">
-                <span>Budget Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-blue-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.budget_match * 100)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_match * 100)}%</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Feature Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-green-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.feature_match * 100)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_match * 100)}%</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Location Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-purple-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.location_match * 100)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.location_match * 100)}%</span>
-                </div>
-              </div>
+              {(() => {
+                // Validate score breakdown to prevent display errors
+                if (!validateScoreBreakdown(listing.score_breakdown)) {
+                  return <div className="text-red-500 text-xs">Score data unavailable</div>;
+                }
+
+                const budgetScore = getDisplayScore(listing.score_breakdown, 'budget');
+                const featureScore = getDisplayScore(listing.score_breakdown, 'feature');
+                const locationScore = getDisplayScore(listing.score_breakdown, 'location');
+
+                return (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span>Budget Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-500 h-1.5 rounded-full" 
+                            style={{width: budgetScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{budgetScore.percentage}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Feature Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-green-500 h-1.5 rounded-full" 
+                            style={{width: featureScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{featureScore.percentage}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Location Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-purple-500 h-1.5 rounded-full" 
+                            style={{width: locationScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{locationScore.percentage}%</span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
 

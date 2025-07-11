@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getDisplayScore, validateScoreBreakdown } from "@/lib/score-utils";
 
 interface EnhancedScoredListing {
   listing: {
@@ -33,11 +34,23 @@ interface EnhancedScoredListing {
   visualFlags: string[];
   enhancedReason: string;
   score_breakdown: {
-    budget_score: number;
-    feature_score: number;
+    feature_match: number;
+    budget_match: number;
+    bedroom_match: number;
+    location_match: number;
+    visual_tag_match: number;
+    behavioral_tag_match: number;
+    listing_quality_score: number;
     dealbreaker_penalty: number;
-    location_score: number;
-    tag_score: number;
+    missing_data_penalty: number;
+    visual_boost: number;
+    raw_total: number;
+    final_score: number;
+    // Legacy support
+    budget_score?: number;
+    feature_score?: number;
+    location_score?: number;
+    tag_score?: number;
   };
   visualAnalysis?: {
     analyses: Array<{
@@ -426,62 +439,77 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               <span className="text-sm font-medium">Why This Score?</span>
             </div>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span>Budget Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-green-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.budget_match)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.budget_match || 0)}%</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Features Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-blue-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.feature_match)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.feature_match || 0)}%</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Location Match:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                    <div 
-                      className="bg-purple-500 h-1.5 rounded-full" 
-                      style={{width: `${Math.min(100, listing.score_breakdown.location_match)}%`}}
-                    />
-                  </div>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.location_match || 0)}%</span>
-                </div>
-              </div>
-              {(listing.score_breakdown.behavioral_tag_match || 0) > 0 && (
-                <div className="flex justify-between items-center">
-                  <span>Behavioral Match:</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                      <div 
-                        className="bg-yellow-500 h-1.5 rounded-full" 
-                        style={{width: `${Math.min(100, listing.score_breakdown.behavioral_tag_match)}%`}}
-                      />
+              {(() => {
+                // Validate score breakdown to prevent display errors
+                if (!validateScoreBreakdown(listing.score_breakdown)) {
+                  return <div className="text-red-500 text-xs">Score data unavailable</div>;
+                }
+
+                const budgetScore = getDisplayScore(listing.score_breakdown, 'budget');
+                const featureScore = getDisplayScore(listing.score_breakdown, 'feature');
+                const locationScore = getDisplayScore(listing.score_breakdown, 'location');
+
+                return (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span>Budget Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-green-500 h-1.5 rounded-full" 
+                            style={{width: budgetScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{budgetScore.percentage}%</span>
+                      </div>
                     </div>
-                    <span className="font-medium">{Math.round(listing.score_breakdown.behavioral_tag_match || 0)}%</span>
-                  </div>
-                </div>
-              )}
-              {(listing.score_breakdown.dealbreaker_penalty || 0) < 0 && (
-                <div className="flex justify-between items-center text-red-600">
-                  <span>Dealbreaker Penalty:</span>
-                  <span className="font-medium">{Math.round(listing.score_breakdown.dealbreaker_penalty || 0)}pts</span>
-                </div>
-              )}
+                    <div className="flex justify-between items-center">
+                      <span>Features Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-500 h-1.5 rounded-full" 
+                            style={{width: featureScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{featureScore.percentage}%</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Location Match:</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-purple-500 h-1.5 rounded-full" 
+                            style={{width: locationScore.width}}
+                          />
+                        </div>
+                        <span className="font-medium">{locationScore.percentage}%</span>
+                      </div>
+                    </div>
+                    {(listing.score_breakdown.behavioral_tag_match || 0) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span>Behavioral Match:</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className="bg-yellow-500 h-1.5 rounded-full" 
+                              style={{width: `${Math.min(100, (listing.score_breakdown.behavioral_tag_match || 0) / 10 * 100)}%`}}
+                            />
+                          </div>
+                          <span className="font-medium">{Math.round((listing.score_breakdown.behavioral_tag_match || 0) / 10 * 100)}%</span>
+                        </div>
+                      </div>
+                    )}
+                    {(listing.score_breakdown.dealbreaker_penalty || 0) < 0 && (
+                      <div className="flex justify-between items-center text-red-600">
+                        <span>Dealbreaker Penalty:</span>
+                        <span className="font-medium">{Math.round(listing.score_breakdown.dealbreaker_penalty || 0)}pts</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
