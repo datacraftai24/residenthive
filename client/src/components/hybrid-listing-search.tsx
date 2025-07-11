@@ -314,7 +314,7 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+    <div className="space-y-4 sm:space-y-6 px-2 sm:px-0 pb-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
@@ -454,7 +454,9 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
 
             <TabsContent value="hybrid-search" className="space-y-4">
               {hybridResults.top_picks && hybridResults.top_picks.length > 0 ? (
-                hybridResults.top_picks.map(listing => renderListing(listing, true))
+                <div className="space-y-4">
+                  {hybridResults.top_picks.map(listing => renderListing(listing, true))}
+                </div>
               ) : (
                 <Card>
                   <CardContent className="pt-6 text-center text-gray-500">
@@ -466,7 +468,9 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
 
             <TabsContent value="other-matches" className="space-y-4">
               {hybridResults.other_matches && hybridResults.other_matches.length > 0 ? (
-                hybridResults.other_matches.map(listing => renderListing(listing))
+                <div className="space-y-4">
+                  {hybridResults.other_matches.map(listing => renderListing(listing))}
+                </div>
               ) : (
                 <Card>
                   <CardContent className="pt-6 text-center text-gray-500">
