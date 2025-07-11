@@ -335,6 +335,30 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
             </div>
           </div>
 
+          {/* Property Images */}
+          {listing.listing.images && listing.listing.images.length > 0 && (
+            <div>
+              <p className="text-sm font-medium mb-2 flex items-center gap-1">
+                <Camera className="w-4 h-4" />
+                Property Photos ({listing.listing.images.length})
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {listing.listing.images.slice(0, 6).map((image, idx) => (
+                  <div key={idx} className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                    <img 
+                      src={image} 
+                      alt={`Property ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Visual Analysis Results */}
           {listing.visualAnalysis && (
             <div className="bg-purple-50 dark:bg-purple-950/20 p-3 rounded-lg">
@@ -390,29 +414,6 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
                   <Badge key={idx} variant="outline" className="text-xs">
                     {feature}
                   </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Images Preview */}
-          {listing.listing.images && listing.listing.images.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                <Camera className="w-4 h-4" />
-                Photos ({listing.listing.images.length})
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {listing.listing.images.slice(0, 4).map((image, idx) => (
-                  <img 
-                    key={idx}
-                    src={image} 
-                    alt={`Property ${idx + 1}`}
-                    className="w-full h-16 object-cover rounded-md"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
                 ))}
               </div>
             </div>

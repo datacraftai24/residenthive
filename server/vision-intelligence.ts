@@ -37,6 +37,19 @@ export class VisionIntelligenceService {
    */
   async analyzeImage(imageUrl: string, imageType: string): Promise<VisualAnalysisResult> {
     try {
+      // Validate imageUrl before making API call
+      if (!imageUrl || !imageUrl.trim() || !imageUrl.startsWith('http')) {
+        console.warn(`Invalid imageUrl provided: ${imageUrl}`);
+        return {
+          imageUrl: imageUrl || '',
+          imageType,
+          visualTags: [],
+          summary: "Invalid image URL",
+          flags: ["invalid_url"],
+          confidence: 0
+        };
+      }
+
       const prompt = `Analyze this real estate ${imageType} image and provide:
 
 1. Visual Tags (3-8 specific tags):
@@ -163,15 +176,25 @@ Respond in JSON format:
             break;
           }
           
-          // For other errors, add a placeholder result
-          analyses.push({
-            imageUrl: image.url,
-            imageType: image.type,
+          // For other errors, add a placeholder result but don't save to DB
+          const failedResult = {
+            imageUrl: image.url || '',
+            imageType: image.type || 'unknown',
             visualTags: [],
-            summary: "Analysis failed",
+            summary: "Image analysis unavailable",
             flags: ["analysis_failed"],
             confidence: 0
-          });
+          };
+          analyses.push(failedResult);
+          
+          // Only try to save to database if we have a valid imageUrl
+          if (failedResult.imageUrl) {
+            try {
+              await this.saveAnalysisToDatabase(listingId, failedResult);
+            } catch (dbError) {
+              console.error("Failed to save failed analysis to database:", dbError);
+            }
+          }
         }
       }
     }
@@ -189,14 +212,20 @@ Respond in JSON format:
    */
   private async saveAnalysisToDatabase(listingId: string, analysis: VisualAnalysisResult): Promise<void> {
     try {
+      // Validate required fields before saving
+      if (!analysis.imageUrl || !listingId) {
+        console.warn("Skipping database save - missing required fields (imageUrl or listingId)");
+        return;
+      }
+
       const insertData: InsertListingVisualAnalysis = {
         listingId,
         imageUrl: analysis.imageUrl,
-        imageType: analysis.imageType,
-        visualTags: JSON.stringify(analysis.visualTags),
-        summary: analysis.summary,
-        flags: JSON.stringify(analysis.flags),
-        confidence: analysis.confidence,
+        imageType: analysis.imageType || 'unknown',
+        visualTags: JSON.stringify(analysis.visualTags || []),
+        summary: analysis.summary || 'No summary available',
+        flags: JSON.stringify(analysis.flags || []),
+        confidence: analysis.confidence || 0,
         analyzedAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
       };
