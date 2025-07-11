@@ -863,6 +863,217 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Hybrid search endpoint - immediate results with async enhancement
+  app.post("/api/listings/search-hybrid", async (req, res) => {
+    const startTime = Date.now();
+    let transactionId: string;
+    
+    try {
+      const { profileId, forceRefresh = false } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Use cached search service for intelligent caching
+      const { cachedSearchService } = await import('./cached-search-service');
+      const { results, cacheStatus, fromCache } = await cachedSearchService.getSearchResults(
+        profile,
+        tags,
+        'hybrid',
+        forceRefresh
+      );
+
+      // Start transaction logging
+      transactionId = await transactionLogger.startSearchTransaction({
+        profileId,
+        profile,
+        searchParameters: {
+          budget_min: profile.budgetMin,
+          budget_max: profile.budgetMax,
+          bedrooms: profile.bedrooms,
+          property_type: profile.homeType,
+          location: profile.preferredAreas
+        },
+        searchMethod: 'hybrid',
+        searchTrigger: forceRefresh ? 'manual_refresh' : (fromCache ? 'cache_hit' : 'agent_initiated')
+      });
+
+      // Log search transaction results (cached or fresh)
+      if (fromCache) {
+        console.log(`📋 Using cached hybrid results for profile ${profileId}, cache age: ${cacheStatus.cacheAge}h`);
+        
+        // Log cache hit transaction
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: [],
+          scoredListings: results.top_picks.concat(results.other_matches),
+          categorizedResults: {
+            top_picks: results.top_picks,
+            other_matches: results.other_matches
+          },
+          searchSummary: 'search_summary' in results ? results.search_summary : {
+            total_found: results.top_picks.length + results.other_matches.length,
+            top_picks_count: results.top_picks.length,
+            other_matches_count: results.other_matches.length,
+            visual_analysis_count: 0,
+            search_criteria: profile
+          },
+          chatBlocks: results.chat_blocks,
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 0, // No API calls for cached results
+            cached: true,
+            cacheAge: cacheStatus.cacheAge
+          }
+        });
+
+        // Save search outcomes
+        await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
+          searchQualityRating: 7,
+          totalSessionTime: Date.now() - startTime,
+          cacheHit: fromCache,
+          cacheAge: cacheStatus.cacheAge
+        });
+
+        // Add cache metadata to response
+        const responseWithCache = {
+          ...results,
+          search_type: 'hybrid',
+          cache_status: {
+            from_cache: fromCache,
+            last_updated: cacheStatus.lastUpdated,
+            cache_age_hours: cacheStatus.cacheAge,
+            expires_at: cacheStatus.expiresAt
+          }
+        };
+
+        return res.json(responseWithCache);
+      }
+
+      // For fresh results, use hybrid async scorer
+      const { hybridAsyncScorer } = await import('./hybrid-async-scorer');
+      
+      // Get listings from Repliers API
+      const { repliersAPI } = await import('./repliers-api');
+      const listingsResponse = await repliersAPI.searchListings(profile);
+      
+      if (!listingsResponse || listingsResponse.length === 0) {
+        // Handle empty results
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: [],
+          scoredListings: [],
+          categorizedResults: { top_picks: [], other_matches: [] },
+          searchSummary: {
+            total_found: 0,
+            top_picks_count: 0,
+            other_matches_count: 0,
+            visual_analysis_count: 0,
+            search_criteria: profile
+          },
+          chatBlocks: ["No listings found matching your criteria."],
+          executionMetrics: {
+            totalTime: Date.now() - startTime,
+            apiCalls: 1,
+            cached: false,
+            analysisInProgress: false
+          }
+        });
+
+        await transactionLogger.completeSearchTransaction(transactionId);
+
+        return res.json({
+          top_picks: [],
+          other_matches: [],
+          chat_blocks: ["No listings found matching your criteria. Try adjusting your search parameters."],
+          search_summary: {
+            total_found: 0,
+            top_picks_count: 0,
+            other_matches_count: 0,
+            visual_analysis_count: 0,
+            search_criteria: profile
+          },
+          search_type: 'hybrid',
+          analysis_in_progress: false,
+          cache_status: {
+            from_cache: false,
+            last_updated: new Date().toISOString(),
+            cache_age_hours: 0
+          }
+        });
+      }
+
+      console.log(`🚀 Starting hybrid search for ${listingsResponse.length} listings`);
+
+      // Get immediate basic results with async enhancement
+      const hybridResults = await hybridAsyncScorer.scoreWithProgressiveEnhancement(
+        listingsResponse,
+        profile,
+        tags
+      );
+
+      // Log search results for immediate response
+      await transactionLogger.saveSearchResults(transactionId, {
+        rawListings: listingsResponse,
+        scoredListings: hybridResults.immediate.top_picks.concat(hybridResults.immediate.other_matches),
+        categorizedResults: hybridResults.immediate,
+        searchSummary: {
+          total_found: listingsResponse.length,
+          top_picks_count: hybridResults.immediate.top_picks.length,
+          other_matches_count: hybridResults.immediate.other_matches.length,
+          visual_analysis_count: hybridResults.analysisProgress?.total || 0,
+          search_criteria: profile
+        },
+        chatBlocks: hybridResults.immediate.chat_blocks,
+        executionMetrics: {
+          totalTime: Date.now() - startTime,
+          apiCalls: 1,
+          cached: false,
+          analysisInProgress: true
+        }
+      });
+
+      // Save search outcomes
+      await transactionLogger.saveSearchOutcomes(transactionId, profileId, {
+        searchQualityRating: 8,
+        totalSessionTime: Date.now() - startTime,
+        cacheHit: false,
+        analysisInProgress: true
+      });
+
+      console.log(`⚡ Hybrid search immediate results completed in ${Date.now() - startTime}ms`);
+
+      // Return immediate response with analysis progress
+      const immediateResponse = {
+        ...hybridResults.immediate,
+        search_type: 'hybrid',
+        analysis_in_progress: true,
+        analysis_progress: hybridResults.analysisProgress,
+        cache_status: {
+          from_cache: false,
+          last_updated: new Date().toISOString(),
+          cache_age_hours: 0
+        }
+      };
+
+      res.json(immediateResponse);
+
+    } catch (error) {
+      console.error("Error in hybrid listing search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform hybrid search",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Agent Interaction Logging APIs - Phase 1 Transaction Logging
 
   // Log agent interaction during search session
