@@ -21,7 +21,7 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: agent_action_feedback; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.agent_action_feedback (
@@ -33,10 +33,8 @@ CREATE TABLE public.agent_action_feedback (
 );
 
 
-ALTER TABLE public.agent_action_feedback OWNER TO neondb_owner;
-
 --
--- Name: agent_action_feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.agent_action_feedback_id_seq
@@ -48,17 +46,15 @@ CREATE SEQUENCE public.agent_action_feedback_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.agent_action_feedback_id_seq OWNER TO neondb_owner;
-
 --
--- Name: agent_action_feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.agent_action_feedback_id_seq OWNED BY public.agent_action_feedback.id;
 
 
 --
--- Name: agent_insight_feedback; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.agent_insight_feedback (
@@ -71,10 +67,8 @@ CREATE TABLE public.agent_insight_feedback (
 );
 
 
-ALTER TABLE public.agent_insight_feedback OWNER TO neondb_owner;
-
 --
--- Name: agent_insight_feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.agent_insight_feedback_id_seq
@@ -86,17 +80,15 @@ CREATE SEQUENCE public.agent_insight_feedback_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.agent_insight_feedback_id_seq OWNER TO neondb_owner;
-
 --
--- Name: agent_insight_feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.agent_insight_feedback_id_seq OWNED BY public.agent_insight_feedback.id;
 
 
 --
--- Name: agent_interactions; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.agent_interactions (
@@ -112,10 +104,8 @@ CREATE TABLE public.agent_interactions (
 );
 
 
-ALTER TABLE public.agent_interactions OWNER TO neondb_owner;
-
 --
--- Name: agent_interactions_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.agent_interactions_id_seq
@@ -127,17 +117,15 @@ CREATE SEQUENCE public.agent_interactions_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.agent_interactions_id_seq OWNER TO neondb_owner;
-
 --
--- Name: agent_interactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.agent_interactions_id_seq OWNED BY public.agent_interactions.id;
 
 
 --
--- Name: agent_notes; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: agent_notes; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.agent_notes (
@@ -148,10 +136,8 @@ CREATE TABLE public.agent_notes (
 );
 
 
-ALTER TABLE public.agent_notes OWNER TO neondb_owner;
-
 --
--- Name: agent_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: agent_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.agent_notes_id_seq
@@ -163,17 +149,15 @@ CREATE SEQUENCE public.agent_notes_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.agent_notes_id_seq OWNER TO neondb_owner;
-
 --
--- Name: agent_notes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: agent_notes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.agent_notes_id_seq OWNED BY public.agent_notes.id;
 
 
 --
--- Name: buyer_profiles; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.buyer_profiles (
@@ -208,10 +192,8 @@ CREATE TABLE public.buyer_profiles (
 );
 
 
-ALTER TABLE public.buyer_profiles OWNER TO neondb_owner;
-
 --
--- Name: buyer_profiles_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.buyer_profiles_id_seq
@@ -223,17 +205,15 @@ CREATE SEQUENCE public.buyer_profiles_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.buyer_profiles_id_seq OWNER TO neondb_owner;
-
 --
--- Name: buyer_profiles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.buyer_profiles_id_seq OWNED BY public.buyer_profiles.id;
 
 
 --
--- Name: cached_search_results; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.cached_search_results (
@@ -256,10 +236,8 @@ CREATE TABLE public.cached_search_results (
 );
 
 
-ALTER TABLE public.cached_search_results OWNER TO neondb_owner;
-
 --
--- Name: cached_search_results_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.cached_search_results_id_seq
@@ -271,17 +249,15 @@ CREATE SEQUENCE public.cached_search_results_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.cached_search_results_id_seq OWNER TO neondb_owner;
-
 --
--- Name: cached_search_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.cached_search_results_id_seq OWNED BY public.cached_search_results.id;
 
 
 --
--- Name: listing_shareable_links; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.listing_shareable_links (
@@ -299,10 +275,8 @@ CREATE TABLE public.listing_shareable_links (
 );
 
 
-ALTER TABLE public.listing_shareable_links OWNER TO neondb_owner;
-
 --
--- Name: listing_shareable_links_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.listing_shareable_links_id_seq
@@ -314,17 +288,15 @@ CREATE SEQUENCE public.listing_shareable_links_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.listing_shareable_links_id_seq OWNER TO neondb_owner;
-
 --
--- Name: listing_shareable_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.listing_shareable_links_id_seq OWNED BY public.listing_shareable_links.id;
 
 
 --
--- Name: listing_visual_analysis; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.listing_visual_analysis (
@@ -341,10 +313,8 @@ CREATE TABLE public.listing_visual_analysis (
 );
 
 
-ALTER TABLE public.listing_visual_analysis OWNER TO neondb_owner;
-
 --
--- Name: listing_visual_analysis_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.listing_visual_analysis_id_seq
@@ -356,17 +326,15 @@ CREATE SEQUENCE public.listing_visual_analysis_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.listing_visual_analysis_id_seq OWNER TO neondb_owner;
-
 --
--- Name: listing_visual_analysis_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.listing_visual_analysis_id_seq OWNED BY public.listing_visual_analysis.id;
 
 
 --
--- Name: profile_insights_lock; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.profile_insights_lock (
@@ -377,10 +345,8 @@ CREATE TABLE public.profile_insights_lock (
 );
 
 
-ALTER TABLE public.profile_insights_lock OWNER TO neondb_owner;
-
 --
--- Name: profile_insights_lock_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.profile_insights_lock_id_seq
@@ -392,17 +358,15 @@ CREATE SEQUENCE public.profile_insights_lock_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.profile_insights_lock_id_seq OWNER TO neondb_owner;
-
 --
--- Name: profile_insights_lock_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.profile_insights_lock_id_seq OWNED BY public.profile_insights_lock.id;
 
 
 --
--- Name: profile_persona; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: profile_persona; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.profile_persona (
@@ -419,10 +383,8 @@ CREATE TABLE public.profile_persona (
 );
 
 
-ALTER TABLE public.profile_persona OWNER TO neondb_owner;
-
 --
--- Name: profile_persona_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: profile_persona_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.profile_persona_id_seq
@@ -434,17 +396,15 @@ CREATE SEQUENCE public.profile_persona_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.profile_persona_id_seq OWNER TO neondb_owner;
-
 --
--- Name: profile_persona_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: profile_persona_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.profile_persona_id_seq OWNED BY public.profile_persona.id;
 
 
 --
--- Name: profile_shareable_links; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.profile_shareable_links (
@@ -465,10 +425,8 @@ CREATE TABLE public.profile_shareable_links (
 );
 
 
-ALTER TABLE public.profile_shareable_links OWNER TO neondb_owner;
-
 --
--- Name: profile_shareable_links_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.profile_shareable_links_id_seq
@@ -480,17 +438,15 @@ CREATE SEQUENCE public.profile_shareable_links_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.profile_shareable_links_id_seq OWNER TO neondb_owner;
-
 --
--- Name: profile_shareable_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.profile_shareable_links_id_seq OWNED BY public.profile_shareable_links.id;
 
 
 --
--- Name: profile_tags; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: profile_tags; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.profile_tags (
@@ -504,10 +460,8 @@ CREATE TABLE public.profile_tags (
 );
 
 
-ALTER TABLE public.profile_tags OWNER TO neondb_owner;
-
 --
--- Name: profile_tags_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: profile_tags_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.profile_tags_id_seq
@@ -519,17 +473,15 @@ CREATE SEQUENCE public.profile_tags_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.profile_tags_id_seq OWNER TO neondb_owner;
-
 --
--- Name: profile_tags_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: profile_tags_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.profile_tags_id_seq OWNED BY public.profile_tags.id;
 
 
 --
--- Name: repliers_listings; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: repliers_listings; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.repliers_listings (
@@ -556,10 +508,8 @@ CREATE TABLE public.repliers_listings (
 );
 
 
-ALTER TABLE public.repliers_listings OWNER TO neondb_owner;
-
 --
--- Name: search_outcomes; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.search_outcomes (
@@ -581,10 +531,8 @@ CREATE TABLE public.search_outcomes (
 );
 
 
-ALTER TABLE public.search_outcomes OWNER TO neondb_owner;
-
 --
--- Name: search_outcomes_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.search_outcomes_id_seq
@@ -596,17 +544,15 @@ CREATE SEQUENCE public.search_outcomes_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.search_outcomes_id_seq OWNER TO neondb_owner;
-
 --
--- Name: search_outcomes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.search_outcomes_id_seq OWNED BY public.search_outcomes.id;
 
 
 --
--- Name: search_transaction_results; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.search_transaction_results (
@@ -622,10 +568,8 @@ CREATE TABLE public.search_transaction_results (
 );
 
 
-ALTER TABLE public.search_transaction_results OWNER TO neondb_owner;
-
 --
--- Name: search_transaction_results_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.search_transaction_results_id_seq
@@ -637,17 +581,15 @@ CREATE SEQUENCE public.search_transaction_results_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.search_transaction_results_id_seq OWNER TO neondb_owner;
-
 --
--- Name: search_transaction_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.search_transaction_results_id_seq OWNED BY public.search_transaction_results.id;
 
 
 --
--- Name: search_transactions; Type: TABLE; Schema: public; Owner: neondb_owner
+-- Name: search_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.search_transactions (
@@ -675,10 +617,8 @@ CREATE TABLE public.search_transactions (
 );
 
 
-ALTER TABLE public.search_transactions OWNER TO neondb_owner;
-
 --
--- Name: search_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: neondb_owner
+-- Name: search_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.search_transactions_id_seq
@@ -690,122 +630,120 @@ CREATE SEQUENCE public.search_transactions_id_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.search_transactions_id_seq OWNER TO neondb_owner;
-
 --
--- Name: search_transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: neondb_owner
+-- Name: search_transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
 ALTER SEQUENCE public.search_transactions_id_seq OWNED BY public.search_transactions.id;
 
 
 --
--- Name: agent_action_feedback id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_action_feedback ALTER COLUMN id SET DEFAULT nextval('public.agent_action_feedback_id_seq'::regclass);
 
 
 --
--- Name: agent_insight_feedback id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_insight_feedback ALTER COLUMN id SET DEFAULT nextval('public.agent_insight_feedback_id_seq'::regclass);
 
 
 --
--- Name: agent_interactions id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_interactions ALTER COLUMN id SET DEFAULT nextval('public.agent_interactions_id_seq'::regclass);
 
 
 --
--- Name: agent_notes id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: agent_notes id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_notes ALTER COLUMN id SET DEFAULT nextval('public.agent_notes_id_seq'::regclass);
 
 
 --
--- Name: buyer_profiles id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.buyer_profiles ALTER COLUMN id SET DEFAULT nextval('public.buyer_profiles_id_seq'::regclass);
 
 
 --
--- Name: cached_search_results id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cached_search_results ALTER COLUMN id SET DEFAULT nextval('public.cached_search_results_id_seq'::regclass);
 
 
 --
--- Name: listing_shareable_links id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_shareable_links ALTER COLUMN id SET DEFAULT nextval('public.listing_shareable_links_id_seq'::regclass);
 
 
 --
--- Name: listing_visual_analysis id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_visual_analysis ALTER COLUMN id SET DEFAULT nextval('public.listing_visual_analysis_id_seq'::regclass);
 
 
 --
--- Name: profile_insights_lock id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_insights_lock ALTER COLUMN id SET DEFAULT nextval('public.profile_insights_lock_id_seq'::regclass);
 
 
 --
--- Name: profile_persona id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: profile_persona id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_persona ALTER COLUMN id SET DEFAULT nextval('public.profile_persona_id_seq'::regclass);
 
 
 --
--- Name: profile_shareable_links id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_shareable_links ALTER COLUMN id SET DEFAULT nextval('public.profile_shareable_links_id_seq'::regclass);
 
 
 --
--- Name: profile_tags id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: profile_tags id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_tags ALTER COLUMN id SET DEFAULT nextval('public.profile_tags_id_seq'::regclass);
 
 
 --
--- Name: search_outcomes id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_outcomes ALTER COLUMN id SET DEFAULT nextval('public.search_outcomes_id_seq'::regclass);
 
 
 --
--- Name: search_transaction_results id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transaction_results ALTER COLUMN id SET DEFAULT nextval('public.search_transaction_results_id_seq'::regclass);
 
 
 --
--- Name: search_transactions id; Type: DEFAULT; Schema: public; Owner: neondb_owner
+-- Name: search_transactions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transactions ALTER COLUMN id SET DEFAULT nextval('public.search_transactions_id_seq'::regclass);
 
 
 --
--- Data for Name: agent_action_feedback; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: agent_action_feedback; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.agent_action_feedback (id, profile_id, action_id, action_taken, created_at) FROM stdin;
@@ -813,7 +751,7 @@ COPY public.agent_action_feedback (id, profile_id, action_id, action_taken, crea
 
 
 --
--- Data for Name: agent_insight_feedback; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: agent_insight_feedback; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.agent_insight_feedback (id, profile_id, tag_name, persona_field, feedback_type, created_at) FROM stdin;
@@ -821,7 +759,7 @@ COPY public.agent_insight_feedback (id, profile_id, tag_name, persona_field, fee
 
 
 --
--- Data for Name: agent_interactions; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: agent_interactions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.agent_interactions (id, transaction_id, profile_id, interaction_type, listing_id, interaction_data, session_duration, agent_confidence, created_at) FROM stdin;
@@ -829,7 +767,7 @@ COPY public.agent_interactions (id, transaction_id, profile_id, interaction_type
 
 
 --
--- Data for Name: agent_notes; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: agent_notes; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.agent_notes (id, profile_id, note, created_at) FROM stdin;
@@ -837,7 +775,7 @@ COPY public.agent_notes (id, profile_id, note, created_at) FROM stdin;
 
 
 --
--- Data for Name: buyer_profiles; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: buyer_profiles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.buyer_profiles (id, name, budget, budget_min, budget_max, home_type, bedrooms, bathrooms, must_have_features, dealbreakers, preferred_areas, lifestyle_drivers, special_needs, budget_flexibility, location_flexibility, timing_flexibility, emotional_context, voice_transcript, inferred_tags, emotional_tone, priority_score, raw_input, created_at, email, input_method, nlp_confidence, version, parent_profile_id) FROM stdin;
@@ -854,7 +792,7 @@ COPY public.buyer_profiles (id, name, budget, budget_min, budget_max, home_type,
 
 
 --
--- Data for Name: cached_search_results; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: cached_search_results; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.cached_search_results (id, profile_id, profile_fingerprint, search_method, top_picks, other_matches, properties_without_images, chat_blocks, search_summary, total_listings_processed, visual_analysis_count, execution_time_ms, cache_version, expires_at, created_at, last_accessed_at) FROM stdin;
@@ -867,7 +805,7 @@ COPY public.cached_search_results (id, profile_id, profile_fingerprint, search_m
 
 
 --
--- Data for Name: listing_shareable_links; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: listing_shareable_links; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.listing_shareable_links (id, listing_id, share_id, profile_id, agent_name, agent_email, custom_message, view_count, last_viewed, expires_at, created_at) FROM stdin;
@@ -882,7 +820,7 @@ COPY public.listing_shareable_links (id, listing_id, share_id, profile_id, agent
 
 
 --
--- Data for Name: listing_visual_analysis; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: listing_visual_analysis; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.listing_visual_analysis (id, listing_id, image_url, image_type, visual_tags, summary, flags, confidence, analyzed_at, created_at) FROM stdin;
@@ -1592,7 +1530,7 @@ COPY public.listing_visual_analysis (id, listing_id, image_url, image_type, visu
 
 
 --
--- Data for Name: profile_insights_lock; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: profile_insights_lock; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.profile_insights_lock (id, profile_id, is_locked, created_at) FROM stdin;
@@ -1600,7 +1538,7 @@ COPY public.profile_insights_lock (id, profile_id, is_locked, created_at) FROM s
 
 
 --
--- Data for Name: profile_persona; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: profile_persona; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.profile_persona (id, profile_id, emotional_tone, communication_style, decision_making_style, urgency_level, price_orientation, personality_traits, confidence_score, created_at) FROM stdin;
@@ -1608,7 +1546,7 @@ COPY public.profile_persona (id, profile_id, emotional_tone, communication_style
 
 
 --
--- Data for Name: profile_shareable_links; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: profile_shareable_links; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.profile_shareable_links (id, profile_id, share_id, agent_name, agent_email, agent_phone, custom_message, branding_colors, show_visual_analysis, view_count, last_viewed, expires_at, created_at, is_active) FROM stdin;
@@ -1620,7 +1558,7 @@ COPY public.profile_shareable_links (id, profile_id, share_id, agent_name, agent
 
 
 --
--- Data for Name: profile_tags; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: profile_tags; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.profile_tags (id, profile_id, tag, category, confidence, source, created_at) FROM stdin;
@@ -1628,7 +1566,7 @@ COPY public.profile_tags (id, profile_id, tag, category, confidence, source, cre
 
 
 --
--- Data for Name: repliers_listings; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: repliers_listings; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.repliers_listings (id, address, price, bedrooms, bathrooms, square_feet, property_type, city, state, zip_code, description, features, images, listing_date, status, mls_number, lot_size, year_built, garage_spaces, created_at) FROM stdin;
@@ -1686,7 +1624,7 @@ ACT7487244	2909 Wheeler ST	385000	3	2.0	1858	house	Houston	TX	77004	Welcome to y
 
 
 --
--- Data for Name: search_outcomes; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: search_outcomes; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.search_outcomes (id, transaction_id, profile_id, properties_clicked, properties_saved, properties_shared, agent_satisfaction_rating, search_quality_rating, agent_notes, search_refinement_needed, client_meeting_scheduled, total_session_time, most_viewed_listings, created_at, updated_at) FROM stdin;
@@ -1747,7 +1685,7 @@ COPY public.search_outcomes (id, transaction_id, profile_id, properties_clicked,
 
 
 --
--- Data for Name: search_transaction_results; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: search_transaction_results; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.search_transaction_results (id, transaction_id, top_results, top_picks_data, other_matches_data, visual_analysis_data, search_summary, chat_blocks, created_at) FROM stdin;
@@ -1805,7 +1743,7 @@ COPY public.search_transaction_results (id, transaction_id, top_results, top_pic
 
 
 --
--- Data for Name: search_transactions; Type: TABLE DATA; Schema: public; Owner: neondb_owner
+-- Data for Name: search_transactions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 COPY public.search_transactions (id, transaction_id, profile_id, session_id, profile_snapshot, search_parameters, search_method, search_trigger, raw_listings_count, scored_listings_count, top_picks_count, other_matches_count, no_image_count, visual_analysis_count, total_execution_time, api_calls_count, visual_analysis_time, average_score, score_distribution, dealbreaker_properties_count, created_at) FROM stdin;
@@ -1867,112 +1805,112 @@ COPY public.search_transactions (id, transaction_id, profile_id, session_id, pro
 
 
 --
--- Name: agent_action_feedback_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.agent_action_feedback_id_seq', 1, false);
 
 
 --
--- Name: agent_insight_feedback_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.agent_insight_feedback_id_seq', 1, false);
 
 
 --
--- Name: agent_interactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.agent_interactions_id_seq', 1, false);
 
 
 --
--- Name: agent_notes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: agent_notes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.agent_notes_id_seq', 1, false);
 
 
 --
--- Name: buyer_profiles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.buyer_profiles_id_seq', 11, true);
 
 
 --
--- Name: cached_search_results_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.cached_search_results_id_seq', 14, true);
 
 
 --
--- Name: listing_shareable_links_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.listing_shareable_links_id_seq', 7, true);
 
 
 --
--- Name: listing_visual_analysis_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.listing_visual_analysis_id_seq', 722, true);
 
 
 --
--- Name: profile_insights_lock_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.profile_insights_lock_id_seq', 1, false);
 
 
 --
--- Name: profile_persona_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: profile_persona_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.profile_persona_id_seq', 1, false);
 
 
 --
--- Name: profile_shareable_links_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.profile_shareable_links_id_seq', 4, true);
 
 
 --
--- Name: profile_tags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: profile_tags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.profile_tags_id_seq', 1, false);
 
 
 --
--- Name: search_outcomes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.search_outcomes_id_seq', 53, true);
 
 
 --
--- Name: search_transaction_results_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.search_transaction_results_id_seq', 50, true);
 
 
 --
--- Name: search_transactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: neondb_owner
+-- Name: search_transactions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
 SELECT pg_catalog.setval('public.search_transactions_id_seq', 54, true);
 
 
 --
--- Name: agent_action_feedback agent_action_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback agent_action_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_action_feedback
@@ -1980,7 +1918,7 @@ ALTER TABLE ONLY public.agent_action_feedback
 
 
 --
--- Name: agent_insight_feedback agent_insight_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback agent_insight_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_insight_feedback
@@ -1988,7 +1926,7 @@ ALTER TABLE ONLY public.agent_insight_feedback
 
 
 --
--- Name: agent_interactions agent_interactions_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions agent_interactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_interactions
@@ -1996,7 +1934,7 @@ ALTER TABLE ONLY public.agent_interactions
 
 
 --
--- Name: agent_notes agent_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_notes agent_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_notes
@@ -2004,7 +1942,7 @@ ALTER TABLE ONLY public.agent_notes
 
 
 --
--- Name: buyer_profiles buyer_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: buyer_profiles buyer_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.buyer_profiles
@@ -2012,7 +1950,7 @@ ALTER TABLE ONLY public.buyer_profiles
 
 
 --
--- Name: cached_search_results cached_search_results_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results cached_search_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cached_search_results
@@ -2020,7 +1958,7 @@ ALTER TABLE ONLY public.cached_search_results
 
 
 --
--- Name: listing_shareable_links listing_shareable_links_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links listing_shareable_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_shareable_links
@@ -2028,7 +1966,7 @@ ALTER TABLE ONLY public.listing_shareable_links
 
 
 --
--- Name: listing_shareable_links listing_shareable_links_share_id_unique; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links listing_shareable_links_share_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_shareable_links
@@ -2036,7 +1974,7 @@ ALTER TABLE ONLY public.listing_shareable_links
 
 
 --
--- Name: listing_visual_analysis listing_visual_analysis_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: listing_visual_analysis listing_visual_analysis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_visual_analysis
@@ -2044,7 +1982,7 @@ ALTER TABLE ONLY public.listing_visual_analysis
 
 
 --
--- Name: profile_insights_lock profile_insights_lock_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock profile_insights_lock_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_insights_lock
@@ -2052,7 +1990,7 @@ ALTER TABLE ONLY public.profile_insights_lock
 
 
 --
--- Name: profile_persona profile_persona_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_persona profile_persona_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_persona
@@ -2060,7 +1998,7 @@ ALTER TABLE ONLY public.profile_persona
 
 
 --
--- Name: profile_shareable_links profile_shareable_links_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links profile_shareable_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_shareable_links
@@ -2068,7 +2006,7 @@ ALTER TABLE ONLY public.profile_shareable_links
 
 
 --
--- Name: profile_shareable_links profile_shareable_links_share_id_unique; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links profile_shareable_links_share_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_shareable_links
@@ -2076,7 +2014,7 @@ ALTER TABLE ONLY public.profile_shareable_links
 
 
 --
--- Name: profile_tags profile_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_tags profile_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_tags
@@ -2084,7 +2022,7 @@ ALTER TABLE ONLY public.profile_tags
 
 
 --
--- Name: repliers_listings repliers_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: repliers_listings repliers_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.repliers_listings
@@ -2092,7 +2030,7 @@ ALTER TABLE ONLY public.repliers_listings
 
 
 --
--- Name: search_outcomes search_outcomes_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes search_outcomes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_outcomes
@@ -2100,7 +2038,7 @@ ALTER TABLE ONLY public.search_outcomes
 
 
 --
--- Name: search_transaction_results search_transaction_results_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results search_transaction_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transaction_results
@@ -2108,7 +2046,7 @@ ALTER TABLE ONLY public.search_transaction_results
 
 
 --
--- Name: search_transactions search_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_transactions search_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transactions
@@ -2116,7 +2054,7 @@ ALTER TABLE ONLY public.search_transactions
 
 
 --
--- Name: search_transactions search_transactions_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_transactions search_transactions_transaction_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transactions
@@ -2124,7 +2062,7 @@ ALTER TABLE ONLY public.search_transactions
 
 
 --
--- Name: agent_action_feedback agent_action_feedback_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_action_feedback agent_action_feedback_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_action_feedback
@@ -2132,7 +2070,7 @@ ALTER TABLE ONLY public.agent_action_feedback
 
 
 --
--- Name: agent_insight_feedback agent_insight_feedback_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_insight_feedback agent_insight_feedback_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_insight_feedback
@@ -2140,7 +2078,7 @@ ALTER TABLE ONLY public.agent_insight_feedback
 
 
 --
--- Name: agent_interactions agent_interactions_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions agent_interactions_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_interactions
@@ -2148,7 +2086,7 @@ ALTER TABLE ONLY public.agent_interactions
 
 
 --
--- Name: agent_interactions agent_interactions_transaction_id_search_transactions_transacti; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_interactions agent_interactions_transaction_id_search_transactions_transacti; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_interactions
@@ -2156,7 +2094,7 @@ ALTER TABLE ONLY public.agent_interactions
 
 
 --
--- Name: agent_notes agent_notes_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: agent_notes agent_notes_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.agent_notes
@@ -2164,7 +2102,7 @@ ALTER TABLE ONLY public.agent_notes
 
 
 --
--- Name: cached_search_results cached_search_results_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: cached_search_results cached_search_results_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cached_search_results
@@ -2172,7 +2110,7 @@ ALTER TABLE ONLY public.cached_search_results
 
 
 --
--- Name: listing_shareable_links listing_shareable_links_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: listing_shareable_links listing_shareable_links_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.listing_shareable_links
@@ -2180,7 +2118,7 @@ ALTER TABLE ONLY public.listing_shareable_links
 
 
 --
--- Name: profile_insights_lock profile_insights_lock_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_insights_lock profile_insights_lock_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_insights_lock
@@ -2188,7 +2126,7 @@ ALTER TABLE ONLY public.profile_insights_lock
 
 
 --
--- Name: profile_persona profile_persona_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_persona profile_persona_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_persona
@@ -2196,7 +2134,7 @@ ALTER TABLE ONLY public.profile_persona
 
 
 --
--- Name: profile_shareable_links profile_shareable_links_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_shareable_links profile_shareable_links_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_shareable_links
@@ -2204,7 +2142,7 @@ ALTER TABLE ONLY public.profile_shareable_links
 
 
 --
--- Name: profile_tags profile_tags_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: profile_tags profile_tags_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.profile_tags
@@ -2212,7 +2150,7 @@ ALTER TABLE ONLY public.profile_tags
 
 
 --
--- Name: search_outcomes search_outcomes_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes search_outcomes_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_outcomes
@@ -2220,7 +2158,7 @@ ALTER TABLE ONLY public.search_outcomes
 
 
 --
--- Name: search_outcomes search_outcomes_transaction_id_search_transactions_transaction_; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_outcomes search_outcomes_transaction_id_search_transactions_transaction_; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_outcomes
@@ -2228,7 +2166,7 @@ ALTER TABLE ONLY public.search_outcomes
 
 
 --
--- Name: search_transaction_results search_transaction_results_transaction_id_search_transactions_t; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_transaction_results search_transaction_results_transaction_id_search_transactions_t; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transaction_results
@@ -2236,25 +2174,11 @@ ALTER TABLE ONLY public.search_transaction_results
 
 
 --
--- Name: search_transactions search_transactions_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: neondb_owner
+-- Name: search_transactions search_transactions_profile_id_buyer_profiles_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.search_transactions
     ADD CONSTRAINT search_transactions_profile_id_buyer_profiles_id_fk FOREIGN KEY (profile_id) REFERENCES public.buyer_profiles(id);
-
-
---
--- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: cloud_admin
---
-
-ALTER DEFAULT PRIVILEGES FOR ROLE cloud_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO neon_superuser WITH GRANT OPTION;
-
-
---
--- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: cloud_admin
---
-
-ALTER DEFAULT PRIVILEGES FOR ROLE cloud_admin IN SCHEMA public GRANT ALL ON TABLES TO neon_superuser WITH GRANT OPTION;
 
 
 --
