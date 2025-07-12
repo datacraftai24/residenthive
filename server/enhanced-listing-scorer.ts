@@ -382,8 +382,8 @@ export class EnhancedListingScorer {
     profile: BuyerProfile
   ): EnhancedCategorizedListings {
     
-    const topPicks = listings.filter(l => l.match_score >= 0.70); // 70/100 converted to 0.7
-    const otherMatches = listings.filter(l => l.match_score >= 0.55 && l.match_score < 0.70); // 55-70/100
+    const topPicks = listings.filter(l => l.match_score >= 70); // 70/100 score
+    const otherMatches = listings.filter(l => l.match_score >= 55 && l.match_score < 70); // 55-70/100
     const visualAnalysisCount = listings.filter(l => l.visualAnalysis).length;
 
     return {

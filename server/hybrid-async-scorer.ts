@@ -112,7 +112,7 @@ export class HybridAsyncScorer {
           visualTagMatches: visualMatching.matches,
           visualFlags: visualMatching.flags,
           enhancedReason: this.generateEnhancedReason(listing, visualMatching, profile),
-          match_score: Math.min(1.0, listing.match_score + visualMatching.boost)
+          match_score: Math.min(100, listing.match_score + visualMatching.boost)
         };
 
         enhancedListings.push(enhancedListing);
@@ -164,7 +164,7 @@ export class HybridAsyncScorer {
       analysis.overallTags.forEach(tag => {
         if (this.isVisualMatch(feature, tag)) {
           matches.push(tag);
-          boost += 0.05; // 5% boost per visual match
+          boost += 5; // 5 point boost per visual match
         }
       });
     });
@@ -175,7 +175,7 @@ export class HybridAsyncScorer {
         analysis.overallTags.forEach(visualTag => {
           if (this.isStyleMatch(tag.tag, visualTag)) {
             matches.push(visualTag);
-            boost += 0.03; // 3% boost for style matches
+            boost += 3; // 3 point boost for style matches
           }
         });
       }
@@ -185,15 +185,15 @@ export class HybridAsyncScorer {
     if (analysis.overallFlags) {
       analysis.overallFlags.forEach(flag => {
         if (flag.includes('excellent') || flag.includes('updated')) {
-          boost += 0.02;
+          boost += 2;
         } else if (flag.includes('dated') || flag.includes('needs_work')) {
-          boost -= 0.02;
+          boost -= 2;
         }
         flags.push(flag);
       });
     }
 
-    return { matches, flags, boost: Math.max(-0.1, Math.min(0.15, boost)) };
+    return { matches, flags, boost: Math.max(-10, Math.min(15, boost)) };
   }
 
   /**
@@ -282,8 +282,8 @@ export class HybridAsyncScorer {
     // Sort by enhanced scores
     enhancedListings.sort((a, b) => b.match_score - a.match_score);
 
-    const topPicks = enhancedListings.filter(listing => listing.match_score >= 0.7);
-    const otherMatches = enhancedListings.filter(listing => listing.match_score < 0.7 && listing.match_score >= 0.5);
+    const topPicks = enhancedListings.filter(listing => listing.match_score >= 70);
+    const otherMatches = enhancedListings.filter(listing => listing.match_score < 70 && listing.match_score >= 55);
 
     return {
       top_picks: topPicks,
