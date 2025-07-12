@@ -200,19 +200,26 @@ export class RepliersAPIService {
     const address = rawListing.address || {};
     const details = rawListing.details || {};
     
-    // Images are now properly extracted
+    // Data extraction optimized for Repliers API structure
+    
+    // Extract bedrooms and bathrooms using correct field names
+    const bedrooms = this.parseNumber(details.numBedrooms) || 
+                    this.parseNumber(details.numBedroomsPlus) || 0;
+    
+    const bathrooms = this.parseNumber(details.numBathrooms) || 
+                     this.parseNumber(details.numBathroomsPlus) || 0;
     
     return {
       id: rawListing.mlsNumber || `listing_${Date.now()}`,
       price: rawListing.listPrice || 0,
-      bedrooms: this.parseNumber(details.totalBedrooms) || this.parseNumber(details.bedrooms) || 0,
-      bathrooms: this.parseNumber(details.totalBathrooms) || (details.bathrooms?.length || 0),
+      bedrooms,
+      bathrooms,
       property_type: this.normalizePropertyType(details.propertyType || 'house'),
       address: this.buildAddress(address),
       city: address.city || '',
       state: address.state || '',
       zip_code: address.zip || '',
-      square_feet: this.parseNumber(details.livingAreaSqFt) || this.parseNumber(details.totalSqFt),
+      square_feet: this.parseNumber(details.sqft) || this.parseNumber(details.livingAreaSqFt) || this.parseNumber(details.totalSqFt),
       year_built: this.parseNumber(details.yearBuilt),
       description: details.description || '',
       features: this.extractFeatures(details),

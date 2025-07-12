@@ -357,6 +357,34 @@ export const insertCachedSearchResultsSchema = createInsertSchema(cachedSearchRe
   lastAccessedAt: true
 });
 
+// Repliers Listings table for local testing data
+export const repliersListings = pgTable("repliers_listings", {
+  id: text("id").primaryKey(),
+  address: text("address").notNull(),
+  price: integer("price").notNull(),
+  bedrooms: integer("bedrooms").notNull().default(0),
+  bathrooms: numeric("bathrooms", { precision: 3, scale: 1 }).notNull().default('0'),
+  square_feet: integer("square_feet"),
+  property_type: text("property_type").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  zip_code: text("zip_code"),
+  description: text("description"),
+  features: text("features"), // JSON string of array
+  images: text("images"), // JSON string of array  
+  listing_date: text("listing_date"),
+  status: text("status").notNull().default('active'),
+  mls_number: text("mls_number"),
+  lot_size: numeric("lot_size", { precision: 10, scale: 2 }),
+  year_built: integer("year_built"),
+  garage_spaces: integer("garage_spaces"),
+  createdAt: text("created_at").notNull().default('now()')
+});
+
+export const insertRepliersListingSchema = createInsertSchema(repliersListings).omit({
+  createdAt: true
+});
+
 export type InsertBuyerProfile = z.infer<typeof insertBuyerProfileSchema>;
 export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
@@ -389,6 +417,8 @@ export type InsertSearchOutcome = z.infer<typeof insertSearchOutcomeSchema>;
 export type SearchOutcome = typeof searchOutcomes.$inferSelect;
 export type InsertCachedSearchResults = z.infer<typeof insertCachedSearchResultsSchema>;
 export type CachedSearchResults = typeof cachedSearchResults.$inferSelect;
+export type InsertRepliersListing = z.infer<typeof insertRepliersListingSchema>;
+export type RepliersListing = typeof repliersListings.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({
