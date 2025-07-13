@@ -1,0 +1,799 @@
+[
+  {
+    "insertId": "tpuntod4hti",
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "methodName": "/Services.CreateService",
+      "resourceName": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+      "response": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.Service",
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Service",
+        "metadata": {
+          "annotations": {
+            "run.googleapis.com/build-enable-automatic-updates": "false",
+            "run.googleapis.com/build-id": "7f04ad72-8c8f-4224-be45-d3698da01878",
+            "run.googleapis.com/build-image-uri": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app",
+            "run.googleapis.com/build-name": "projects/971261331418/locations/us-central1/builds/7f04ad72-8c8f-4224-be45-d3698da01878",
+            "run.googleapis.com/build-source-location": "gs://run-sources-resident-hive-ai-agent-pilot-us-central1/services/real-estate-app/1752367021.962441-fd6b874134ab4331a9f5bcec7db34485.zip#1752367022838969",
+            "run.googleapis.com/client-name": "gcloud",
+            "run.googleapis.com/client-version": "529.0.0",
+            "run.googleapis.com/ingress": "all",
+            "run.googleapis.com/ingress-status": "all",
+            "run.googleapis.com/operation-id": "fb4548af-1eaf-4e4c-b281-d8bcf0108732",
+            "run.googleapis.com/urls": "[\"https://real-estate-app-971261331418.us-central1.run.app\"]",
+            "serving.knative.dev/creator": "info@fitxbuddy.com",
+            "serving.knative.dev/lastModifier": "info@fitxbuddy.com"
+          },
+          "creationTimestamp": "2025-07-13T00:38:49.881499Z",
+          "generation": 1,
+          "labels": {
+            "cloud.googleapis.com/location": "us-central1"
+          },
+          "name": "real-estate-app",
+          "namespace": "971261331418",
+          "resourceVersion": "AAY5xMn/quY",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/971261331418/services/real-estate-app",
+          "uid": "05611b50-6f39-4b82-9d46-8f73dda97a9f"
+        },
+        "spec": {
+          "template": {
+            "metadata": {
+              "annotations": {
+                "autoscaling.knative.dev/maxScale": "100",
+                "run.googleapis.com/client-name": "gcloud",
+                "run.googleapis.com/client-version": "529.0.0",
+                "run.googleapis.com/cloudsql-instances": "resident-hive-ai-agent-pilot:us-central1:real-estate-db",
+                "run.googleapis.com/startup-cpu-boost": "true"
+              },
+              "labels": {
+                "client.knative.dev/nonce": "vnuisvosuq",
+                "run.googleapis.com/startupProbeType": "Default"
+              }
+            },
+            "spec": {
+              "containerConcurrency": 160,
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "NODE_ENV",
+                      "value": "production"
+                    },
+                    {
+                      "name": "DATABASE_URL",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "latest",
+                          "name": "DATABASE_URL"
+                        }
+                      }
+                    },
+                    {
+                      "name": "PGPASSWORD",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "latest",
+                          "name": "PGPASSWORD"
+                        }
+                      }
+                    },
+                    {
+                      "name": "OPENAI_API_KEY",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "latest",
+                          "name": "OPENAI_API_KEY"
+                        }
+                      }
+                    },
+                    {
+                      "name": "REPLIERS_API_KEY",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "latest",
+                          "name": "REPLIERS_API_KEY"
+                        }
+                      }
+                    },
+                    {
+                      "name": "SESSION_SECRET",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "latest",
+                          "name": "SESSION_SECRET"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:86f15725f23ca2119bee24ec5d9cdd226ec26c056adbe850d7d3e6fd4c315b27",
+                  "ports": [
+                    {
+                      "containerPort": 8080,
+                      "name": "http1"
+                    }
+                  ],
+                  "resources": {
+                    "limits": {
+                      "cpu": "2",
+                      "memory": "2Gi"
+                    }
+                  },
+                  "startupProbe": {
+                    "failureThreshold": 1,
+                    "periodSeconds": 240,
+                    "tcpSocket": {
+                      "port": 8080
+                    },
+                    "timeoutSeconds": 240
+                  }
+                }
+              ],
+              "serviceAccountName": "971261331418-compute@developer.gserviceaccount.com",
+              "timeoutSeconds": 300
+            }
+          },
+          "traffic": [
+            {
+              "latestRevision": true,
+              "percent": 100
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastTransitionTime": "2025-07-13T00:40:25.572145Z",
+              "message": "Revision 'real-estate-app-00001-krv' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:25.553306Z",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "status": "True",
+              "type": "ConfigurationsReady"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:25.572145Z",
+              "message": "Revision 'real-estate-app-00001-krv' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "RoutesReady"
+            }
+          ],
+          "latestCreatedRevisionName": "real-estate-app-00001-krv",
+          "observedGeneration": 1
+        }
+      },
+      "serviceName": "run.googleapis.com",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Service real-estate-app with message: Revision 'real-estate-app-00001-krv' is not ready and cannot serve traffic. The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      }
+    },
+    "receiveTimestamp": "2025-07-13T00:40:26.316167979Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "timestamp": "2025-07-13T00:40:25.624804Z"
+  },
+  {
+    "insertId": "6ogbgvd3z14",
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/cloudaudit.googleapis.com%2Fsystem_event",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "methodName": "/Services.CreateService",
+      "resourceName": "namespaces/resident-hive-ai-agent-pilot/revisions/real-estate-app-00001-krv",
+      "response": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.Revision",
+        "apiVersion": "serving.knative.dev/v1",
+        "kind": "Revision",
+        "metadata": {
+          "annotations": {
+            "autoscaling.knative.dev/maxScale": "100",
+            "run.googleapis.com/build-source-location": "{\"real-estate-app-1\":\"gs://run-sources-resident-hive-ai-agent-pilot-us-central1/services/real-estate-app/1752367021.962441-fd6b874134ab4331a9f5bcec7db34485.zip#1752367022838969\"}",
+            "run.googleapis.com/client-name": "gcloud",
+            "run.googleapis.com/client-version": "529.0.0",
+            "run.googleapis.com/cloudsql-instances": "resident-hive-ai-agent-pilot:us-central1:real-estate-db",
+            "run.googleapis.com/operation-id": "fb4548af-1eaf-4e4c-b281-d8bcf0108732",
+            "run.googleapis.com/startup-cpu-boost": "true",
+            "serving.knative.dev/creator": "info@fitxbuddy.com"
+          },
+          "creationTimestamp": "2025-07-13T00:38:50.037227Z",
+          "generation": 1,
+          "labels": {
+            "client.knative.dev/nonce": "vnuisvosuq",
+            "cloud.googleapis.com/location": "us-central1",
+            "run.googleapis.com/startupProbeType": "Default",
+            "serving.knative.dev/configuration": "real-estate-app",
+            "serving.knative.dev/configurationGeneration": "1",
+            "serving.knative.dev/route": "real-estate-app",
+            "serving.knative.dev/service": "real-estate-app",
+            "serving.knative.dev/serviceUid": "05611b50-6f39-4b82-9d46-8f73dda97a9f"
+          },
+          "name": "real-estate-app-00001-krv",
+          "namespace": "971261331418",
+          "ownerReferences": [
+            {
+              "apiVersion": "serving.knative.dev/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Configuration",
+              "name": "real-estate-app",
+              "uid": "6d5fce10-5d6b-45bd-ad28-5207ad921b91"
+            }
+          ],
+          "resourceVersion": "AAY5xMn+NyQ",
+          "selfLink": "/apis/serving.knative.dev/v1/namespaces/971261331418/revisions/real-estate-app-00001-krv",
+          "uid": "2a5899bd-e87d-44a9-877b-84de0dd626f6"
+        },
+        "spec": {
+          "containerConcurrency": 160,
+          "containers": [
+            {
+              "env": [
+                {
+                  "name": "NODE_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "DATABASE_URL"
+                    }
+                  }
+                },
+                {
+                  "name": "PGPASSWORD",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "PGPASSWORD"
+                    }
+                  }
+                },
+                {
+                  "name": "OPENAI_API_KEY",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "OPENAI_API_KEY"
+                    }
+                  }
+                },
+                {
+                  "name": "REPLIERS_API_KEY",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "REPLIERS_API_KEY"
+                    }
+                  }
+                },
+                {
+                  "name": "SESSION_SECRET",
+                  "valueFrom": {
+                    "secretKeyRef": {
+                      "key": "latest",
+                      "name": "SESSION_SECRET"
+                    }
+                  }
+                }
+              ],
+              "image": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:86f15725f23ca2119bee24ec5d9cdd226ec26c056adbe850d7d3e6fd4c315b27",
+              "name": "real-estate-app-1",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http1"
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "2",
+                  "memory": "2Gi"
+                }
+              },
+              "startupProbe": {
+                "failureThreshold": 1,
+                "periodSeconds": 240,
+                "tcpSocket": {
+                  "port": 8080
+                },
+                "timeoutSeconds": 240
+              }
+            }
+          ],
+          "serviceAccountName": "971261331418-compute@developer.gserviceaccount.com",
+          "timeoutSeconds": 300
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastTransitionTime": "2025-07-13T00:40:25.517860Z",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:25.517860Z",
+              "message": "The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start",
+              "reason": "HealthCheckContainerError",
+              "status": "False",
+              "type": "ContainerHealthy"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:21.491144Z",
+              "message": "Container image import completed in 5.04s.",
+              "status": "True",
+              "type": "ContainerReady"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:23.069587Z",
+              "message": "Provisioning imported containers completed in 1.58s. Checking container health. This will wait for up to 4m for the configured startup probe, including an initial delay of 0s.",
+              "status": "True",
+              "type": "ResourcesAvailable"
+            },
+            {
+              "lastTransitionTime": "2025-07-13T00:40:23.069587Z",
+              "message": "System will retry after 0:00:00 from lastTransitionTime for attempt 0.",
+              "reason": "ImmediateRetry",
+              "severity": "Info",
+              "status": "True",
+              "type": "Retry"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "imageDigest": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:86f15725f23ca2119bee24ec5d9cdd226ec26c056adbe850d7d3e6fd4c315b27",
+              "name": "real-estate-app-1"
+            }
+          ],
+          "imageDigest": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:86f15725f23ca2119bee24ec5d9cdd226ec26c056adbe850d7d3e6fd4c315b27",
+          "logUrl": "https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22",
+          "observedGeneration": 1
+        }
+      },
+      "serviceName": "run.googleapis.com",
+      "status": {
+        "code": 9,
+        "message": "Ready condition status changed to False for Revision real-estate-app-00001-krv with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.\n\nLogs URL: https://console.cloud.google.com/logs/viewer?project=resident-hive-ai-agent-pilot&resource=cloud_run_revision/service_name/real-estate-app/revision_name/real-estate-app-00001-krv&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22real-estate-app%22%0Aresource.labels.revision_name%3D%22real-estate-app-00001-krv%22 \nFor more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start"
+      }
+    },
+    "receiveTimestamp": "2025-07-13T00:40:25.926863300Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "timestamp": "2025-07-13T00:40:25.528427Z"
+  },
+  {
+    "insertId": "687300790007e91432b98aae",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-07-13T00:40:25.767495886Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "textPayload": "Default STARTUP TCP probe failed 1 time consecutively for container \"real-estate-app-1\" on port 8080. The instance was not started.\nConnection failed with status CANCELLED.",
+    "timestamp": "2025-07-13T00:40:25.518420Z"
+  },
+  {
+    "insertId": "68730079000692bce23a0e21",
+    "labels": {
+      "container_name": "real-estate-app-1",
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fvarlog%2Fsystem",
+    "receiveTimestamp": "2025-07-13T00:40:25.436085784Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "WARNING",
+    "textPayload": "Container called exit(1).",
+    "timestamp": "2025-07-13T00:40:25.430746842Z"
+  },
+  {
+    "insertId": "68730078000d927c36d9e31d",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "Node.js v18.20.8",
+    "timestamp": "2025-07-13T00:40:24.889468Z"
+  },
+  {
+    "insertId": "68730078000d9278fc3d951e",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "}",
+    "timestamp": "2025-07-13T00:40:24.889464Z"
+  },
+  {
+    "insertId": "68730078000d9274df102946",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "  code: 'ERR_INVALID_ARG_TYPE'",
+    "timestamp": "2025-07-13T00:40:24.889460Z"
+  },
+  {
+    "errorGroups": [
+      {
+        "id": "CKi6vODfrJPaggE"
+      }
+    ],
+    "insertId": "68730078000d9270fb3b0987",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "textPayload": "TypeError [ERR_INVALID_ARG_TYPE]: The \"paths[0]\" argument must be of type string. Received undefined\n    at new NodeError (node:internal/errors:405:5)\n    at validateString (node:internal/validators:162:11)\n    at Object.resolve (node:path:1115:7)\n    at file:///app/dist/index.js:5750:17\n    at ModuleJob.run (node:internal/modules/esm/module_job:195:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)\n    at async loadESM (node:internal/process/esm_loader:34:7)\n    at async handleMainPromise (node:internal/modules/run_main:106:12) {",
+    "timestamp": "2025-07-13T00:40:24.889456Z"
+  },
+  {
+    "insertId": "68730078000d9240ea1f907e",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    ^",
+    "timestamp": "2025-07-13T00:40:24.889408Z"
+  },
+  {
+    "insertId": "68730078000d923b54258ff5",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "    ErrorCaptureStackTrace(err);",
+    "timestamp": "2025-07-13T00:40:24.889403Z"
+  },
+  {
+    "insertId": "68730078000d92050d44e991",
+    "labels": {
+      "instanceId": "0069c7a9889da69c02c066a8d1ee34145bb380c8d1d1059a4f35d0da3e395d515296709092d0cb0c29089be017cf9ef9851dc4df735ff96f3e9b6dca55f11bea2eab14335b8ea8d056ac276d5090f9"
+    },
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/run.googleapis.com%2Fstderr",
+    "receiveTimestamp": "2025-07-13T00:40:24.893554609Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "real-estate-app",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "real-estate-app-00001-krv",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "textPayload": "node:internal/errors:496",
+    "timestamp": "2025-07-13T00:40:24.889349Z"
+  },
+  {
+    "insertId": "mtdut6d5a81",
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/cloudaudit.googleapis.com%2Factivity",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "info@fitxbuddy.com",
+        "principalSubject": "user:info@fitxbuddy.com"
+      },
+      "authorizationInfo": [
+        {
+          "granted": true,
+          "permission": "run.services.create",
+          "permissionType": "ADMIN_WRITE",
+          "resource": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+          "resourceAttributes": {}
+        },
+        {
+          "granted": true,
+          "permission": "run.services.create",
+          "permissionType": "ADMIN_WRITE",
+          "resource": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+          "resourceAttributes": {
+            "name": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+            "service": "run.googleapis.com/",
+            "type": "run.googleapis.com/Service"
+          }
+        }
+      ],
+      "methodName": "google.cloud.run.v1.Services.CreateService",
+      "request": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.CreateServiceRequest",
+        "parent": "namespaces/resident-hive-ai-agent-pilot",
+        "service": {
+          "apiVersion": "serving.knative.dev/v1",
+          "kind": "Service",
+          "metadata": {
+            "annotations": {
+              "run.googleapis.com/build-enable-automatic-updates": "false",
+              "run.googleapis.com/build-id": "7f04ad72-8c8f-4224-be45-d3698da01878",
+              "run.googleapis.com/build-image-uri": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app",
+              "run.googleapis.com/build-name": "projects/971261331418/locations/us-central1/builds/7f04ad72-8c8f-4224-be45-d3698da01878",
+              "run.googleapis.com/build-source-location": "gs://run-sources-resident-hive-ai-agent-pilot-us-central1/services/real-estate-app/1752367021.962441-fd6b874134ab4331a9f5bcec7db34485.zip#1752367022838969",
+              "run.googleapis.com/client-name": "gcloud",
+              "run.googleapis.com/client-version": "529.0.0"
+            },
+            "name": "real-estate-app",
+            "namespace": "resident-hive-ai-agent-pilot"
+          },
+          "spec": {
+            "template": {
+              "metadata": {
+                "annotations": {
+                  "run.googleapis.com/client-name": "gcloud",
+                  "run.googleapis.com/client-version": "529.0.0",
+                  "run.googleapis.com/cloudsql-instances": "resident-hive-ai-agent-pilot:us-central1:real-estate-db",
+                  "run.googleapis.com/startup-cpu-boost": "True"
+                },
+                "labels": {
+                  "client.knative.dev/nonce": "vnuisvosuq"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:86f15725f23ca2119bee24ec5d9cdd226ec26c056adbe850d7d3e6fd4c315b27",
+                    "name": "",
+                    "resources": {
+                      "limits": {
+                        "cpu": "2",
+                        "memory": "2Gi"
+                      }
+                    }
+                  }
+                ],
+                "timeoutSeconds": 300
+              }
+            }
+          },
+          "status": {}
+        }
+      },
+      "requestMetadata": {
+        "callerIp": "76.71.154.89",
+        "callerSuppliedUserAgent": "google-cloud-sdk gcloud/529.0.0 command/gcloud.run.deploy invocation-id/65835d9757624d5b8c6557c3d55d6ec0 environment/None environment-version/None client-os/MACOSX client-os-ver/24.5.0 client-pltf-arch/arm interactive/True from-script/False python/3.12.4 term/xterm-256color (Macintosh; Intel Mac OS X 24.5.0),gzip(gfe)",
+        "destinationAttributes": {},
+        "requestAttributes": {
+          "auth": {},
+          "time": "2025-07-13T00:38:49.977385Z"
+        }
+      },
+      "resourceLocation": {
+        "currentLocations": [
+          "us-central1"
+        ]
+      },
+      "resourceName": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+      "serviceName": "run.googleapis.com"
+    },
+    "receiveTimestamp": "2025-07-13T00:38:50.393609484Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "NOTICE",
+    "timestamp": "2025-07-13T00:38:49.785237Z"
+  },
+  {
+    "insertId": "10dixogd4gts",
+    "logName": "projects/resident-hive-ai-agent-pilot/logs/cloudaudit.googleapis.com%2Factivity",
+    "protoPayload": {
+      "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+      "authenticationInfo": {
+        "principalEmail": "info@fitxbuddy.com",
+        "principalSubject": "user:info@fitxbuddy.com"
+      },
+      "authorizationInfo": [
+        {
+          "granted": true,
+          "permission": "run.services.create",
+          "permissionType": "ADMIN_WRITE",
+          "resource": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+          "resourceAttributes": {}
+        }
+      ],
+      "methodName": "google.cloud.run.v1.Services.CreateService",
+      "request": {
+        "@type": "type.googleapis.com/google.cloud.run.v1.CreateServiceRequest",
+        "parent": "namespaces/resident-hive-ai-agent-pilot",
+        "service": {
+          "apiVersion": "serving.knative.dev/v1",
+          "kind": "Service",
+          "metadata": {
+            "annotations": {
+              "run.googleapis.com/build-enable-automatic-updates": "false",
+              "run.googleapis.com/build-id": "9cd7817f-a3e9-4337-abc5-b2103c496c93",
+              "run.googleapis.com/build-image-uri": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app",
+              "run.googleapis.com/build-name": "projects/971261331418/locations/us-central1/builds/9cd7817f-a3e9-4337-abc5-b2103c496c93",
+              "run.googleapis.com/build-source-location": "gs://run-sources-resident-hive-ai-agent-pilot-us-central1/services/real-estate-app/1752366770.266156-6fede5e81d4f4240bbafa8cbfb0927e3.zip#1752366771159524",
+              "run.googleapis.com/client-name": "gcloud",
+              "run.googleapis.com/client-version": "529.0.0"
+            },
+            "name": "real-estate-app",
+            "namespace": "resident-hive-ai-agent-pilot"
+          },
+          "spec": {
+            "template": {
+              "metadata": {
+                "annotations": {
+                  "run.googleapis.com/client-name": "gcloud",
+                  "run.googleapis.com/client-version": "529.0.0",
+                  "run.googleapis.com/cloudsql-instances": "resident-hive-ai-agent-pilot:us-central1:real-estate-db",
+                  "run.googleapis.com/startup-cpu-boost": "True"
+                },
+                "labels": {
+                  "client.knative.dev/nonce": "oeuglpozrt"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "us-central1-docker.pkg.dev/resident-hive-ai-agent-pilot/cloud-run-source-deploy/real-estate-app@sha256:2f9aebc266d47aecfcdccb2aa3aa9550059447ecdca2ef8539c96b3ad5f22ab9",
+                    "name": "",
+                    "resources": {
+                      "limits": {
+                        "cpu": "2",
+                        "memory": "2Gi"
+                      }
+                    }
+                  }
+                ],
+                "timeoutSeconds": 300
+              }
+            }
+          },
+          "status": {}
+        }
+      },
+      "requestMetadata": {
+        "callerIp": "76.71.154.89",
+        "callerSuppliedUserAgent": "google-cloud-sdk gcloud/529.0.0 command/gcloud.run.deploy invocation-id/b38a83457591467cbe639a6ed90e9a9a environment/None environment-version/None client-os/MACOSX client-os-ver/24.5.0 client-pltf-arch/arm interactive/True from-script/False python/3.12.4 term/xterm-256color (Macintosh; Intel Mac OS X 24.5.0),gzip(gfe)",
+        "destinationAttributes": {},
+        "requestAttributes": {
+          "auth": {},
+          "time": "2025-07-13T00:34:38.157303Z"
+        }
+      },
+      "resourceLocation": {
+        "currentLocations": [
+          "us-central1"
+        ]
+      },
+      "resourceName": "namespaces/resident-hive-ai-agent-pilot/services/real-estate-app",
+      "serviceName": "run.googleapis.com",
+      "status": {
+        "code": 3,
+        "message": "spec.template.spec.containers[0].env: The following reserved env names were provided: PORT. These values are automatically set by the system."
+      }
+    },
+    "receiveTimestamp": "2025-07-13T00:34:38.476071368Z",
+    "resource": {
+      "labels": {
+        "configuration_name": "",
+        "location": "us-central1",
+        "project_id": "resident-hive-ai-agent-pilot",
+        "revision_name": "",
+        "service_name": "real-estate-app"
+      },
+      "type": "cloud_run_revision"
+    },
+    "severity": "ERROR",
+    "timestamp": "2025-07-13T00:34:38.062956Z"
+  }
+]
