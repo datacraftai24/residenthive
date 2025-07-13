@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } from "./openai";
 import { tagEngine } from "./tag-engine";
@@ -21,7 +20,7 @@ const enhancedExtractionSchema = z.object({
   inputMethod: z.enum(['voice', 'text']).default('text')
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   // Extract buyer profile from raw text input
   app.post("/api/extract-profile", async (req, res) => {
     try {
@@ -2204,6 +2203,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  // Routes registered successfully - no need to return custom server
+  return;
 }
