@@ -26,8 +26,8 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS production
 
-# Install dumb-init for signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for signal handling and curl for health checks
+RUN apk add --no-cache dumb-init curl
 
 # Create app user
 RUN addgroup -g 1001 -S nodejs
@@ -44,12 +44,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
 # Switch to non-root user
 USER nextjs
 
-# Expose port
-EXPOSE 5000
+# Expose port (Cloud Run uses 8080)
+EXPOSE 8080
 
-# Health check
+# Health check (uses PORT environment variable)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Start application
 ENTRYPOINT ["dumb-init", "--"]

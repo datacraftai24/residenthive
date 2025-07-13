@@ -66,10 +66,9 @@ app.get('/health', (_req: Request, res: Response) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  // Use Cloud Run's PORT environment variable or default to 5000 for local development
+  // Cloud Run sets PORT=8080, while Replit uses 5000
+  const port = parseInt(process.env.PORT || "5000");
   server.listen({
     port,
     host: "0.0.0.0",
