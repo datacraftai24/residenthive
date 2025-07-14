@@ -48,8 +48,8 @@ USER nextjs
 EXPOSE 8080
 
 # Health check (uses PORT environment variable)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+#  CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Start application
 ENTRYPOINT ["dumb-init", "--"]
