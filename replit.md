@@ -120,6 +120,13 @@ This is a full-stack web application for capturing and managing real estate buye
 - **Build Config**: `vite.config.ts` handles client build with path aliases
 - **TypeScript**: Shared configuration across client, server, and shared directories
 
+## Development Workflow
+
+### Branch Structure (Updated July 13, 2025)
+- **`main`** - Production-ready code, synced with Cloud Run deployments
+- **`dev`** - Active development branch for new features and experiments
+- **Workflow**: Develop on `dev` → merge to `main` when ready for production
+
 ## Changelog
 
 ```
