@@ -59,18 +59,56 @@ app.get('/ip', async (_req, res) => {
 
 
 // Health check for deploy monitoring
-app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({
+app.get('/health', async (_req: Request, res: Response) => {
+  const healthData = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0'
-  });
+    version: process.env.npm_package_version || '1.0.0',
+    database: {
+      status: 'unknown',
+      connection: false
+    }
+  };
+
+  try {
+    const { healthCheck } = await import('./db.js');
+    const isDbHealthy = await healthCheck();
+    healthData.database.status = isDbHealthy ? 'healthy' : 'unhealthy';
+    healthData.database.connection = isDbHealthy;
+    
+    if (!isDbHealthy) {
+      healthData.status = 'degraded';
+    }
+  } catch (error) {
+    console.error('Health check database error:', error);
+    healthData.database.status = 'error';
+    healthData.database.connection = false;
+    healthData.status = 'degraded';
+  }
+
+  const statusCode = healthData.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(healthData);
 });
 
 (async () => {
   // Register all custom routes first
   await registerRoutes(app);
+  
+  // Test database connection on startup
+  console.log('🔍 Testing database connection during startup...');
+  try {
+    const { testConnection } = await import('./db.js');
+    const isDbConnected = await testConnection();
+    if (!isDbConnected) {
+      console.error('❌ Database connection failed during startup. Application may not work correctly.');
+      // Don't exit in Cloud Run - let it attempt to serve static content and health check
+      // process.exit(1);
+    }
+  } catch (error) {
+    console.error('❌ Error importing or testing database connection:', error);
+    // Don't exit in Cloud Run - let it attempt to serve static content
+  }
 
   // Robust error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
