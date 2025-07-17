@@ -4,8 +4,12 @@ import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } 
 import { tagEngine } from "./tag-engine";
 import { parseProfileChanges, applyChangesToProfile, generateQuickEditSuggestions } from "./conversational-edit";
 import { transactionLogger } from "./transaction-logger";
-import { insertBuyerProfileSchema, buyerFormSchema } from "@shared/schema";
+import { insertBuyerProfileSchema, buyerFormSchema, agents, type InsertAgent } from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { db } from "./db.js";
+import { eq } from "drizzle-orm";
+import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
 
 const extractRequestSchema = z.object({
   input: z.string().min(1, "Input text is required")
@@ -18,6 +22,24 @@ const enhanceRequestSchema = z.object({
 const enhancedExtractionSchema = z.object({
   input: z.string().min(1, "Input text is required"),
   inputMethod: z.enum(['voice', 'text']).default('text')
+});
+
+// Agent-related schemas
+const agentSetupSchema = z.object({
+  token: z.string().min(1, "Setup token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+
+const agentLoginSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(1, "Password is required")
+});
+
+const inviteAgentSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  brokerageName: z.string().min(1, "Brokerage name is required")
 });
 
 export async function registerRoutes(app: Express): Promise<void> {
@@ -2199,6 +2221,205 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.status(500).json({ 
         error: 'Failed to proxy image',
         details: (error as Error).message 
+      });
+    }
+  });
+
+  // Agent Management Endpoints
+  
+  // Process agent invites from YAML file
+  app.post("/api/agents/process-invites", async (req, res) => {
+    try {
+      const result = await processAgentInvites();
+      res.json({
+        success: true,
+        message: "Agent invites processed successfully",
+        ...result
+      });
+    } catch (error) {
+      console.error("Error processing agent invites:", error);
+      res.status(500).json({
+        error: "Failed to process agent invites",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Manual agent invite (can be used by admin interface later)
+  app.post("/api/agents/invite", async (req, res) => {
+    try {
+      const agentData = inviteAgentSchema.parse(req.body);
+      const result = await inviteAgent(agentData);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error inviting agent:", error);
+      res.status(400).json({
+        error: "Failed to invite agent",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Agent setup password (token validation)
+  app.post("/api/agents/setup-password", async (req, res) => {
+    try {
+      const { token, password } = agentSetupSchema.parse(req.body);
+      
+      // Find agent by invite token
+      const agent = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.inviteToken, token))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(400).json({
+          error: "Invalid or expired setup token"
+        });
+      }
+
+      if (agent[0].isActivated) {
+        return res.status(400).json({
+          error: "Agent account is already activated"
+        });
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(password, saltRounds);
+
+      // Update agent with password and activate
+      await db
+        .update(agents)
+        .set({
+          passwordHash,
+          isActivated: true,
+          inviteToken: null // Clear the token after use
+        })
+        .where(eq(agents.inviteToken, token));
+
+      res.json({
+        success: true,
+        message: "Password set successfully. You can now log in."
+      });
+    } catch (error) {
+      console.error("Error setting up agent password:", error);
+      res.status(400).json({
+        error: "Failed to set up password",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Agent login (activated agents only)
+  app.post("/api/agents/login", async (req, res) => {
+    try {
+      const { email, password } = agentLoginSchema.parse(req.body);
+      
+      // Find agent by email
+      const agent = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.email, email))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(401).json({
+          error: "Invalid email or password"
+        });
+      }
+
+      const agentRecord = agent[0];
+
+      if (!agentRecord.isActivated) {
+        return res.status(401).json({
+          error: "Account not activated. Please use your setup link first."
+        });
+      }
+
+      if (!agentRecord.passwordHash) {
+        return res.status(401).json({
+          error: "Password not set. Please use your setup link."
+        });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, agentRecord.passwordHash);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({
+          error: "Invalid email or password"
+        });
+      }
+
+      // Return agent info (without password hash)
+      const { passwordHash, inviteToken, ...agentInfo } = agentRecord;
+      
+      res.json({
+        success: true,
+        message: "Login successful",
+        agent: agentInfo
+      });
+    } catch (error) {
+      console.error("Error during agent login:", error);
+      res.status(400).json({
+        error: "Login failed",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Get agent by token (for setup form)
+  app.get("/api/agents/setup/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      if (!token) {
+        return res.status(400).json({
+          error: "Setup token is required"
+        });
+      }
+
+      // Find agent by invite token
+      const agent = await db
+        .select({
+          id: agents.id,
+          email: agents.email,
+          firstName: agents.firstName,
+          lastName: agents.lastName,
+          brokerageName: agents.brokerageName,
+          isActivated: agents.isActivated
+        })
+        .from(agents)
+        .where(eq(agents.inviteToken, token))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(404).json({
+          error: "Invalid or expired setup token"
+        });
+      }
+
+      if (agent[0].isActivated) {
+        return res.status(400).json({
+          error: "Agent account is already activated"
+        });
+      }
+
+      res.json({
+        success: true,
+        agent: agent[0]
+      });
+    } catch (error) {
+      console.error("Error getting agent setup info:", error);
+      res.status(500).json({
+        error: "Failed to get setup information",
+        message: (error as Error).message
       });
     }
   });

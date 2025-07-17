@@ -30,6 +30,7 @@ export class HybridAsyncScorer {
     tags: ProfileTag[] = [],
     onProgress?: (progress: { completed: number; total: number; currentProperty?: string }) => void
   ): Promise<HybridSearchResults> {
+    const startTime = Date.now();
     console.log(`🚀 Starting hybrid search for ${listings.length} listings`);
     
     // Step 1: Get immediate basic scoring results
@@ -37,7 +38,7 @@ export class HybridAsyncScorer {
       this.listingScorer.scoreListing(listing, profile, tags, []) // Empty visual tags for initial scoring
     );
     const basicResults = this.listingScorer.categorizeListings(scoredListings);
-    console.log(`⚡ Basic scoring completed in ${Date.now()}ms`);
+    console.log(`⚡ Basic scoring completed in ${Date.now() - startTime}ms`);
 
     // Step 2: Identify top 10 properties for enhancement
     const allScoredListings = [...basicResults.top_picks, ...basicResults.other_matches];

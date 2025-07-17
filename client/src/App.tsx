@@ -7,12 +7,16 @@ import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import ClientDashboard from "@/pages/client-dashboard";
 import Analytics from "@/pages/analytics";
+import AgentLogin from "@/pages/agent-login";
+import AgentSetup from "@/pages/agent-setup";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/agent-login" component={AgentLogin} />
+      <Route path="/agent-setup" component={AgentSetup} />
       <Route path="/client/:shareId" component={ClientDashboard} />
       <Route component={NotFound} />
     </Switch>

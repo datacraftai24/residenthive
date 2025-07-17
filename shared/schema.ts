@@ -1,6 +1,19 @@
-import { pgTable, text, serial, integer, json, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, numeric, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Agent schema for agent management
+export const agents = pgTable("agents", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash"),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  brokerageName: text("brokerage_name").notNull(),
+  inviteToken: text("invite_token").unique(),
+  isActivated: boolean("is_activated").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
 
 export const buyerProfiles = pgTable("buyer_profiles", {
   id: serial("id").primaryKey(),
@@ -357,6 +370,11 @@ export const insertCachedSearchResultsSchema = createInsertSchema(cachedSearchRe
   lastAccessedAt: true
 });
 
+export const insertAgentSchema = createInsertSchema(agents).omit({
+  id: true,
+  createdAt: true
+});
+
 // Repliers Listings table for local testing data
 export const repliersListings = pgTable("repliers_listings", {
   id: text("id").primaryKey(),
@@ -419,6 +437,8 @@ export type InsertCachedSearchResults = z.infer<typeof insertCachedSearchResults
 export type CachedSearchResults = typeof cachedSearchResults.$inferSelect;
 export type InsertRepliersListing = z.infer<typeof insertRepliersListingSchema>;
 export type RepliersListing = typeof repliersListings.$inferSelect;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Agent = typeof agents.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

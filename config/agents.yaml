@@ -1,0 +1,9 @@
+agents:
+  - email: "agent1@example.com"
+    firstName: "John"
+    lastName: "Smith"
+    brokerageName: "Prime Realty"
+  - email: "agent2@example.com"
+    firstName: "Jane"
+    lastName: "Doe"
+    brokerageName: "Elite Properties"
