@@ -26,7 +26,7 @@ export class EmailService {
 
     try {
       const inviteUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/agent-setup?token=${inviteToken}`;
-      const fromEmail = process.env.FROM_EMAIL || 'noreply@datacraftai.com';
+      const fromEmail = process.env.FROM_EMAIL || 'info@datacraftai.com';
 
       const msg = {
         to: agentConfig.email,
