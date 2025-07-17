@@ -26,7 +26,7 @@ export class EmailService {
 
     try {
       const inviteUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/agent-setup?token=${inviteToken}`;
-      const fromEmail = process.env.FROM_EMAIL || 'noreply@residenthive.com';
+      const fromEmail = process.env.FROM_EMAIL || 'testing@example.com';
 
       const msg = {
         to: agentConfig.email,
@@ -40,7 +40,20 @@ export class EmailService {
       console.log(`✅ Invitation email sent to ${agentConfig.email}`);
       return true;
     } catch (error) {
-      console.error(`❌ Failed to send email to ${agentConfig.email}:`, error);
+      const errorDetail = error.response?.body?.errors?.[0];
+      console.error(`❌ Failed to send email to ${agentConfig.email}:`);
+      console.error(`   Error: ${errorDetail?.message || error.message}`);
+      console.error(`   Field: ${errorDetail?.field || 'unknown'}`);
+      console.error(`   Help: ${errorDetail?.help || 'Check SendGrid configuration'}`);
+      
+      // Provide helpful guidance for common issues
+      if (error.code === 403) {
+        console.error(`   💡 403 Forbidden - Possible issues:`);
+        console.error(`      • FROM_EMAIL domain not verified in SendGrid`);
+        console.error(`      • API key missing 'Mail Send' permission`);
+        console.error(`      • Single Sender Verification required`);
+      }
+      
       // Fallback to console logging
       this.logInviteDetails(agentConfig, inviteToken);
       return false;
@@ -66,8 +79,8 @@ export class EmailService {
    * Generates professional HTML email template using EmailTemplates
    */
   private generateInviteEmailTemplate(agentConfig: AgentConfig, inviteUrl: string): string {
-    const { EmailTemplates } = require('./email-templates.js');
-    return EmailTemplates.getAgentInvitation(agentConfig, inviteUrl).html;
+    // Using inline template for now to avoid import issues
+    return this.createInlineInviteTemplate(agentConfig, inviteUrl);
   }
 
   /**
@@ -210,6 +223,86 @@ ResidentHive - Intelligent Real Estate Solutions
       console.error(`❌ Failed to send welcome email to ${agentConfig.email}:`, error);
       return false;
     }
+  }
+
+  /**
+   * Creates professional inline invite email template
+   */
+  private createInlineInviteTemplate(agentConfig: AgentConfig, inviteUrl: string): string {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ResidentHive</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f8fafc; }
+        .container { max-width: 600px; margin: 0 auto; background-color: white; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 40px 30px; text-align: center; }
+        .logo { color: white; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: -0.5px; }
+        .subtitle { color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 8px 0 0 0; }
+        .content { padding: 40px 30px; }
+        .greeting { color: #1e293b; margin: 0 0 24px 0; font-size: 28px; font-weight: 600; }
+        .message { font-size: 16px; color: #475569; line-height: 1.6; margin: 0 0 24px 0; }
+        .cta-button { display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; text-decoration: none; padding: 16px 32px; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 20px 0; }
+        .details { background-color: #f1f5f9; padding: 24px; border-radius: 8px; margin: 30px 0; }
+        .details h3 { color: #1e293b; margin: 0 0 16px 0; font-size: 18px; }
+        .detail-item { margin: 8px 0; color: #475569; }
+        .footer { background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0; }
+        .footer p { color: #64748b; font-size: 14px; margin: 5px 0; }
+        .text-center { text-align: center; }
+        @media (max-width: 480px) { .container { margin: 0 10px; } .content { padding: 30px 20px; } .header { padding: 30px 20px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="logo">🏠 ResidentHive</h1>
+            <p class="subtitle">AI-Powered Real Estate Platform</p>
+        </div>
+        
+        <div class="content">
+            <h2 class="greeting">Welcome to ResidentHive, ${agentConfig.firstName}!</h2>
+            
+            <p class="message">
+                You've been invited to join our AI-powered real estate buyer profile management platform. 
+                ResidentHive helps you create intelligent buyer profiles, find perfect property matches, 
+                and provide exceptional client experiences.
+            </p>
+            
+            <div class="text-center">
+                <a href="${inviteUrl}" class="cta-button">Complete Your Setup</a>
+            </div>
+            
+            <div class="details">
+                <h3>Your Account Details</h3>
+                <div class="detail-item"><strong>Name:</strong> ${agentConfig.firstName} ${agentConfig.lastName}</div>
+                <div class="detail-item"><strong>Email:</strong> ${agentConfig.email}</div>
+                <div class="detail-item"><strong>Brokerage:</strong> ${agentConfig.brokerageName}</div>
+            </div>
+            
+            <p class="message">
+                <strong>Next Steps:</strong><br>
+                1. Click the setup button above<br>
+                2. Create your secure password<br>
+                3. Start creating intelligent buyer profiles<br>
+                4. Experience AI-powered property matching
+            </p>
+            
+            <p style="font-size: 14px; color: #64748b; margin: 24px 0 0 0;">
+                This invitation link will expire in 7 days for security purposes.
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p><strong>ResidentHive</strong> - AI-Powered Real Estate Platform</p>
+            <p>Questions? Contact us at <a href="mailto:support@residenthive.com" style="color: #3b82f6;">support@residenthive.com</a></p>
+            <p style="font-size: 12px; color: #94a3b8;">This email was sent to ${agentConfig.email}</p>
+        </div>
+    </div>
+</body>
+</html>`;
   }
 
   private generateWelcomeEmailTemplate(agentConfig: AgentConfig, dashboardUrl: string): string {
