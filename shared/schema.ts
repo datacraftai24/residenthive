@@ -19,6 +19,8 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull(),
+  phone: text("phone"),
+  location: text("location").notNull(),
   
   // Basic Requirements
   budget: text("budget").notNull(),

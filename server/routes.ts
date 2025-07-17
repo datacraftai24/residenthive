@@ -2303,6 +2303,20 @@ export async function registerRoutes(app: Express): Promise<void> {
         })
         .where(eq(agents.inviteToken, token));
 
+      // Send welcome email after successful activation
+      try {
+        const { emailService } = await import('./email-service.js');
+        await emailService.sendWelcomeEmail({
+          email: agent[0].email,
+          firstName: agent[0].firstName,
+          lastName: agent[0].lastName,
+          brokerageName: agent[0].brokerageName
+        });
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't fail the request if email fails
+      }
+
       res.json({
         success: true,
         message: "Password set successfully. You can now log in."

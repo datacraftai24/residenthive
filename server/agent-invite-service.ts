@@ -76,20 +76,11 @@ export async function createAgentWithInvite(agentConfig: AgentConfig): Promise<s
 }
 
 /**
- * Sends an invite email to the agent (placeholder for now)
- * In production, this would integrate with your email service
+ * Sends an invite email to the agent using the email service
  */
 export async function sendInviteEmail(agentConfig: AgentConfig, inviteToken: string): Promise<void> {
-  // For now, just log the invite details
-  // In production, integrate with SendGrid, AWS SES, or your email service
-  
-  const inviteUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/agent-setup?token=${inviteToken}`;
-  
-  console.log(`📧 Invite email for ${agentConfig.firstName} ${agentConfig.lastName}:`);
-  console.log(`   Email: ${agentConfig.email}`);
-  console.log(`   Setup URL: ${inviteUrl}`);
-  console.log(`   Brokerage: ${agentConfig.brokerageName}`);
-  console.log('   (Email integration pending - check logs for setup link)');
+  const { emailService } = await import('./email-service.js');
+  await emailService.sendAgentInvite(agentConfig, inviteToken);
 }
 
 /**
