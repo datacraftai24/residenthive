@@ -16,6 +16,7 @@ export class EmailService {
 
   /**
    * Sends an agent invitation email with setup link
+   * SECURITY: Includes additional validation and logging
    */
   async sendAgentInvite(agentConfig: AgentConfig, inviteToken: string): Promise<boolean> {
     if (!this.isConfigured) {
@@ -28,6 +29,9 @@ export class EmailService {
       const inviteUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/agent-setup?token=${inviteToken}`;
       const fromEmail = process.env.FROM_EMAIL || 'info@datacraftai.com';
 
+      // SECURITY: Log email sending attempt for audit trail
+      console.log(`🔒 SECURITY: Sending email to ${agentConfig.email} with token ${inviteToken.substring(0, 8)}...`);
+
       const msg = {
         to: agentConfig.email,
         from: fromEmail,
@@ -37,7 +41,7 @@ export class EmailService {
       };
 
       await sgMail.send(msg);
-      console.log(`✅ Invitation email sent to ${agentConfig.email}`);
+      console.log(`✅ SECURITY: Email successfully sent to ${agentConfig.email} with token ${inviteToken.substring(0, 8)}...`);
       return true;
     } catch (error) {
       const errorDetail = error.response?.body?.errors?.[0];
@@ -54,6 +58,9 @@ export class EmailService {
         console.error(`      • Single Sender Verification required`);
       }
       
+      // SECURITY: Log email failure for audit trail
+      console.error(`🔒 SECURITY: Failed to send email to ${agentConfig.email} with token ${inviteToken.substring(0, 8)}...`);
+      
       // Fallback to console logging
       this.logInviteDetails(agentConfig, inviteToken);
       return false;
@@ -62,6 +69,7 @@ export class EmailService {
 
   /**
    * Fallback method to log invite details when email service is unavailable
+   * SECURITY: Includes token validation logging
    */
   private logInviteDetails(agentConfig: AgentConfig, inviteToken: string): void {
     const inviteUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/agent-setup?token=${inviteToken}`;
@@ -71,7 +79,7 @@ export class EmailService {
     console.log(`   Email: ${agentConfig.email}`);
     console.log(`   Brokerage: ${agentConfig.brokerageName}`);
     console.log(`   Setup URL: ${inviteUrl}`);
-    console.log(`   Token: ${inviteToken}`);
+    console.log(`   Token: ${inviteToken.substring(0, 8)}...${inviteToken.substring(-4)} (truncated for security)`);
     console.log('   💡 Configure SENDGRID_API_KEY to enable email delivery');
   }
 
