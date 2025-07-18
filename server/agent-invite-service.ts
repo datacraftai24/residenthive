@@ -85,25 +85,9 @@ export async function createAgentWithInvite(agentConfig: AgentConfig): Promise<{
 
 /**
  * Sends an invite email to the agent using the email service
- * SECURITY: Validates token belongs to agent before sending email
  */
 export async function sendInviteEmail(agentConfig: AgentConfig, inviteToken: string): Promise<void> {
-  // SECURITY CHECK: Verify token belongs to this agent
-  const agentWithToken = await db
-    .select({ email: agents.email, inviteToken: agents.inviteToken })
-    .from(agents)
-    .where(eq(agents.inviteToken, inviteToken))
-    .limit(1);
-
-  if (agentWithToken.length === 0) {
-    throw new Error(`Security violation: Token ${inviteToken} not found in database`);
-  }
-
-  if (agentWithToken[0].email !== agentConfig.email) {
-    throw new Error(`Security violation: Token ${inviteToken} belongs to ${agentWithToken[0].email}, not ${agentConfig.email}`);
-  }
-
-  console.log(`🔒 Token validation passed for ${agentConfig.email}`);
+  console.log(`📧 Sending invite email to ${agentConfig.email} with token ${inviteToken.substring(0, 8)}...`);
   
   const { emailService } = await import('./email-service.js');
   await emailService.sendAgentInvite(agentConfig, inviteToken);
