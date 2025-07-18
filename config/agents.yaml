@@ -1,4 +1,8 @@
 agents:
+  - email: "info@datacraftai.com"
+    firstName: "Admin"
+    lastName: "User"
+    brokerageName: "DataCraft AI"
   - email: "agent1@example.com"
     firstName: "John"
     lastName: "Smith"

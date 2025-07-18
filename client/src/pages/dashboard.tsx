@@ -8,7 +8,7 @@ import ProfileDisplay from "@/components/profile-display";
 import ProfileViewer from "@/components/profile-viewer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Home, FormInput, Mic, BarChart3, LogOut, User } from "lucide-react";
+import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
@@ -42,9 +42,13 @@ export default function Dashboard() {
       } catch (error) {
         console.error("Error parsing agent data:", error);
         localStorage.removeItem("agent");
+        setLocation("/agent-login");
       }
+    } else {
+      // This shouldn't happen due to ProtectedRoute, but safety fallback
+      setLocation("/agent-login");
     }
-  }, []);
+  }, [setLocation]);
 
   const handleLogout = () => {
     localStorage.removeItem("agent");
@@ -120,7 +124,7 @@ export default function Dashboard() {
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
               
-              {/* Agent Info & Logout */}
+              {/* Agent Info & Logout - Always present for authenticated users */}
               {agent ? (
                 <div className="flex items-center space-x-2">
                   <div className="hidden sm:flex flex-col items-end">
@@ -140,12 +144,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <Link href="/agent-login">
-                    <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors">
-                      <User className="h-4 w-4" />
-                      <span className="hidden sm:inline">Login</span>
-                    </button>
-                  </Link>
+                  <div className="text-xs text-slate-500">Loading...</div>
                 </div>
               )}
             </div>
