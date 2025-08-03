@@ -44,6 +44,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
     defaultValues: {
       name: "",
       email: "",
+      location: "",
       budget: "",
       homeType: "single-family",
       bedrooms: 2,
@@ -168,6 +169,20 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
               </div>
               
               <div className="grid grid-cols-1 gap-4">
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location/City</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Austin, TX" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <FormField
                   control={form.control}
                   name="budget"

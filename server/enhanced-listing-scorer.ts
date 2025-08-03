@@ -118,10 +118,18 @@ export class EnhancedListingScorer {
         // Prepare images for analysis
         const imagesToAnalyze = scored.listing.images
           .slice(0, 5) // Limit to 5 images
-          .map((url, index) => ({
-            url,
-            type: visionIntelligence.categorizeImageType(url, index)
-          }));
+          .map((imagePath, index) => {
+            // Ensure CDN URL format for visual analysis
+            let processedUrl = imagePath;
+            if (!imagePath.startsWith('http')) {
+              processedUrl = `https://cdn.repliers.io/${imagePath}?class=medium`;
+            }
+            
+            return {
+              url: processedUrl,
+              type: visionIntelligence.categorizeImageType(processedUrl, index)
+            };
+          });
 
         // Get or perform visual analysis
         visualAnalysis = await visionIntelligence.analyzeListingImages(
@@ -382,8 +390,11 @@ export class EnhancedListingScorer {
     profile: BuyerProfile
   ): EnhancedCategorizedListings {
     
-    const topPicks = listings.filter(l => l.match_score >= 70); // 70/100 score
-    const otherMatches = listings.filter(l => l.match_score >= 55 && l.match_score < 70); // 55-70/100
+    // Debug: Log actual scores - these are already in 0-100 scale!
+    console.log(`📊 Enhanced score distribution: ${listings.slice(0, 10).map(l => l.match_score.toFixed(1)).join(', ')}`);
+    
+    const topPicks = listings.filter(l => l.match_score >= 35); // 35/100 score (0-100 scale)
+    const otherMatches = listings.filter(l => l.match_score >= 25 && l.match_score < 35); // 25-35/100 (0-100 scale)
     const visualAnalysisCount = listings.filter(l => l.visualAnalysis).length;
 
     return {

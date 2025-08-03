@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Search, Star, MapPin, DollarSign, Home, AlertCircle, Loader2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { getDisplayScore, validateScoreBreakdown } from '@/lib/score-utils';
+import ChatLinkGenerator from '@/components/chat-link-generator';
 
 interface ScoredListing {
   listing: {
@@ -73,6 +74,17 @@ interface ListingSearchProps {
 export default function ListingSearch({ profileId, profileName }: ListingSearchProps) {
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [showChatBlocks, setShowChatBlocks] = useState(false);
+
+  // Get buyer profile details for chat link generation
+  const { data: buyerProfile } = useQuery({
+    queryKey: ["/api/buyer-profiles", profileId],
+    queryFn: async () => {
+      const response = await fetch(`/api/buyer-profiles/${profileId}`);
+      if (!response.ok) throw new Error("Failed to fetch profile");
+      return response.json();
+    },
+    enabled: !!profileId
+  });
   const queryClient = useQueryClient();
 
   const searchMutation = useMutation({
@@ -301,6 +313,13 @@ export default function ListingSearch({ profileId, profileName }: ListingSearchP
               </div>
             </CardContent>
           </Card>
+
+          {/* Chat Link Generator */}
+          <ChatLinkGenerator 
+            profileId={profileId}
+            profileName={buyerProfile?.name || profileName}
+            propertyCount={searchResults.search_summary.total_found}
+          />
 
           {searchResults.top_picks.length > 0 && (
             <div>

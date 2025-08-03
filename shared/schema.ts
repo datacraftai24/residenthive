@@ -1,11 +1,27 @@
-import { pgTable, text, serial, integer, json, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, numeric, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Agent schema for agent management
+export const agents = pgTable("agents", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash"),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  brokerageName: text("brokerage_name").notNull(),
+  inviteToken: text("invite_token").unique(),
+  isActivated: boolean("is_activated").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
 
 export const buyerProfiles = pgTable("buyer_profiles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull(),
+  phone: text("phone"),
+  location: text("location").notNull(),
+  agentId: integer("agent_id").references(() => agents.id),
   
   // Basic Requirements
   budget: text("budget").notNull(),
@@ -179,6 +195,7 @@ export const searchTransactions = pgTable("search_transactions", {
   id: serial("id").primaryKey(),
   transactionId: text("transaction_id").notNull().unique(), // UUID for this search transaction
   profileId: integer("profile_id").notNull().references(() => buyerProfiles.id),
+  agentId: integer("agent_id").references(() => agents.id),
   sessionId: text("session_id"), // For grouping related searches
   
   // Search Input Context
@@ -357,6 +374,11 @@ export const insertCachedSearchResultsSchema = createInsertSchema(cachedSearchRe
   lastAccessedAt: true
 });
 
+export const insertAgentSchema = createInsertSchema(agents).omit({
+  id: true,
+  createdAt: true
+});
+
 // Repliers Listings table for local testing data
 export const repliersListings = pgTable("repliers_listings", {
   id: text("id").primaryKey(),
@@ -381,7 +403,119 @@ export const repliersListings = pgTable("repliers_listings", {
   createdAt: text("created_at").notNull().default('now()')
 });
 
+// ===============================================
+// CHAT SERVICE TABLES - Multi-Agent AI System
+// ===============================================
+
+// Chat sessions - tracks each client's conversation journey
+export const chatSessions = pgTable("chat_sessions", {
+  id: text("id").primaryKey(), // UUID string
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  agentId: integer("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  sessionStart: text("session_start").notNull(),
+  lastActivity: text("last_activity").notNull(),
+  totalQuestions: integer("total_questions").notNull().default(0),
+  engagementScore: numeric("engagement_score", { precision: 3, scale: 1 }).notNull().default('0.0'), // 0-10 scale
+  returnVisits: integer("return_visits").notNull().default(0),
+  decisionStage: text("decision_stage").notNull().default('browsing'), // browsing/comparing/deciding/ready
+  status: text("status").notNull().default('active'), // active/paused/completed
+  createdAt: text("created_at").notNull()
+});
+
+// Conversation analytics - every chat interaction tracked with AI analysis
+export const chatMessages = pgTable("chat_messages", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
+  message: text("message").notNull(), // Client's message
+  aiResponse: text("ai_response"), // AI bot's response
+  timestamp: text("timestamp").notNull(),
+  questionCategory: text("question_category"), // location/pricing/features/logistics/general
+  sentimentScore: numeric("sentiment_score", { precision: 3, scale: 2 }), // -1.00 to 1.00 (negative to positive)
+  propertyMentioned: text("property_mentioned"), // Listing ID that was discussed
+  intentClassification: text("intent_classification"), // browsing/comparing/deciding/scheduling
+  agentPath: text("agent_path"), // Which AI agents processed (e.g., "1->2->3")
+  searchTransactionId: text("search_transaction_id"), // Links to searchTransactions table for context
+  createdAt: text("created_at").notNull()
+});
+
+// Property notes - client's personal notes on properties during chat
+export const propertyNotes = pgTable("property_notes", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
+  listingId: text("listing_id").notNull(), // Property ID from Repliers API
+  noteText: text("note_text").notNull(), // Client's note content
+  noteType: text("note_type").notNull().default('personal'), // personal/agent/showing/reminder
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+// Property interactions - likes, dislikes, favorites during chat
+export const propertyInteractions = pgTable("property_interactions", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
+  listingId: text("listing_id").notNull(), // Property ID from Repliers API
+  interactionType: text("interaction_type").notNull(), // like/dislike/favorite/viewed/shared/saved
+  rating: integer("rating"), // 1-5 stars for likes
+  reason: text("reason"), // Why they liked/disliked
+  emotionalResponse: text("emotional_response"), // excited/concerned/interested/disappointed
+  createdAt: text("created_at").notNull()
+});
+
+// AI-generated insights for real estate agents from chat analysis
+export const chatAgentInsights = pgTable("chat_agent_insights", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  agentId: integer("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  insightType: text("insight_type").notNull(), // hot_lead/follow_up_needed/ready_to_view/budget_adjustment/preferences_changed
+  insightMessage: text("insight_message").notNull(), // Human-readable insight for agent
+  confidenceScore: numeric("confidence_score", { precision: 3, scale: 2 }).notNull(), // 0.00-1.00 AI confidence
+  priority: text("priority").notNull().default('medium'), // low/medium/high/urgent
+  actionSuggested: text("action_suggested"), // Specific action recommended
+  status: text("status").notNull().default('new'), // new/acknowledged/acted_upon/dismissed
+  generatedAt: text("generated_at").notNull(),
+  createdAt: text("created_at").notNull()
+});
+
+// Chat conversation context - links chat to search results for seamless experience
+export const chatSearchContext = pgTable("chat_search_context", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().references(() => chatSessions.id, { onDelete: "cascade" }),
+  searchTransactionId: text("search_transaction_id").notNull().references(() => searchTransactions.transactionId, { onDelete: "cascade" }),
+  contextType: text("context_type").notNull(), // initial_search/refined_search/follow_up_search
+  isActive: boolean("is_active").notNull().default(true), // Current search context
+  createdAt: text("created_at").notNull()
+});
+
 export const insertRepliersListingSchema = createInsertSchema(repliersListings).omit({
+  createdAt: true
+});
+
+// Chat Service Insert Schemas
+export const insertChatSessionSchema = createInsertSchema(chatSessions).omit({
+  createdAt: true
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  createdAt: true
+});
+
+export const insertPropertyNoteSchema = createInsertSchema(propertyNotes).omit({
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPropertyInteractionSchema = createInsertSchema(propertyInteractions).omit({
+  createdAt: true
+});
+
+export const insertChatAgentInsightSchema = createInsertSchema(chatAgentInsights).omit({
+  createdAt: true,
+  generatedAt: true
+});
+
+export const insertChatSearchContextSchema = createInsertSchema(chatSearchContext).omit({
+  id: true,
   createdAt: true
 });
 
@@ -390,6 +524,20 @@ export type BuyerProfile = typeof buyerProfiles.$inferSelect;
 export type InsertProfileTag = z.infer<typeof insertProfileTagSchema>;
 export type ProfileTag = typeof profileTags.$inferSelect;
 export type InsertProfilePersona = z.infer<typeof insertProfilePersonaSchema>;
+
+// Chat Service Types
+export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertPropertyNote = z.infer<typeof insertPropertyNoteSchema>;
+export type PropertyNote = typeof propertyNotes.$inferSelect;
+export type InsertPropertyInteraction = z.infer<typeof insertPropertyInteractionSchema>;
+export type PropertyInteraction = typeof propertyInteractions.$inferSelect;
+export type InsertChatAgentInsight = z.infer<typeof insertChatAgentInsightSchema>;
+export type ChatAgentInsight = typeof chatAgentInsights.$inferSelect;
+export type InsertChatSearchContext = z.infer<typeof insertChatSearchContextSchema>;
+export type ChatSearchContext = typeof chatSearchContext.$inferSelect;
 export type ProfilePersona = typeof profilePersona.$inferSelect;
 export type InsertAgentInsightFeedback = z.infer<typeof insertAgentInsightFeedbackSchema>;
 export type AgentInsightFeedback = typeof agentInsightFeedback.$inferSelect;
@@ -419,11 +567,14 @@ export type InsertCachedSearchResults = z.infer<typeof insertCachedSearchResults
 export type CachedSearchResults = typeof cachedSearchResults.$inferSelect;
 export type InsertRepliersListing = z.infer<typeof insertRepliersListingSchema>;
 export type RepliersListing = typeof repliersListings.$inferSelect;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Agent = typeof agents.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email is required"),
+  location: z.string().min(1, "Location is required"),
   budget: z.string().min(1, "Budget is required"),
   budgetMin: z.number().optional(),
   budgetMax: z.number().optional(),
@@ -448,6 +599,7 @@ export type BuyerFormData = z.infer<typeof buyerFormSchema>;
 export const extractedProfileSchema = z.object({
   name: z.string().describe("Buyer name(s) extracted from the input"),
   email: z.string().optional().describe("Buyer email address if mentioned"),
+  location: z.string().describe("Primary location or city where they want to buy"),
   budget: z.string().describe("Budget range in format like '$450K - $520K'"),
   budgetMin: z.number().optional().describe("Minimum budget as number"),
   budgetMax: z.number().optional().describe("Maximum budget as number"),
@@ -500,3 +652,26 @@ export const SPECIAL_NEEDS = [
   "Multiple Cars", "Rental Income Potential", "Guest Accommodation",
   "Child Safety Features", "Low Maintenance", "Energy Efficient"
 ] as const;
+
+// NLP Search Logs Table
+export const nlpSearchLogs = pgTable("nlp_search_logs", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  agentId: integer("agent_id").notNull().references(() => agents.id),
+  nlpQuery: text("nlp_query").notNull(),
+  nlpResponse: json("nlp_response").notNull(),
+  searchUrl: text("search_url").notNull(),
+  searchResults: json("search_results").notNull(),
+  executionTime: integer("execution_time").notNull(), // milliseconds
+  nlpId: text("nlp_id").notNull(), // Repliers NLP context ID
+  createdAt: text("created_at").notNull()
+});
+
+// Types for NLP Search Logs
+export type NLPSearchLog = typeof nlpSearchLogs.$inferSelect;
+export type InsertNLPSearchLog = typeof nlpSearchLogs.$inferInsert;
+
+export const insertNLPSearchLogSchema = createInsertSchema(nlpSearchLogs).omit({
+  id: true,
+  createdAt: true
+});

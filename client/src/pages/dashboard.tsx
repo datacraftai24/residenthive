@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
@@ -8,19 +8,78 @@ import ProfileDisplay from "@/components/profile-display";
 import ProfileViewer from "@/components/profile-viewer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Home, FormInput, Mic, BarChart3 } from "lucide-react";
-import { Link } from "wouter";
+import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
+import { Link, useLocation } from "wouter";
 
 type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
 
+interface Agent {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  brokerageName: string;
+  isActivated: boolean;
+}
+
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [extractedProfile, setExtractedProfile] = useState<ExtractedProfile | null>(null);
+  const [agent, setAgent] = useState<Agent | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<BuyerProfile[]>({
     queryKey: ["/api/buyer-profiles"],
+    queryFn: async () => {
+      const response = await fetch("/api/buyer-profiles", {
+        headers: {
+          'x-agent-id': agent?.id?.toString() || '29' // Send agent ID for isolation
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch profiles');
+      return response.json();
+    },
+    enabled: !!agent // Only fetch when agent is loaded
   });
+
+  // Load agent data from localStorage on component mount
+  useEffect(() => {
+    const savedAgent = localStorage.getItem("agent");
+    if (savedAgent) {
+      try {
+        const parsedAgent = JSON.parse(savedAgent);
+        console.log("Loaded agent from localStorage:", parsedAgent);
+        
+        // Validate agent ID is one of the existing agents (28 or 29)
+        if (parsedAgent.id !== 28 && parsedAgent.id !== 29) {
+          console.error(`Invalid agent ID ${parsedAgent.id}. Clearing localStorage and forcing re-login.`);
+          localStorage.removeItem("agent");
+          setLocation("/agent-login");
+          return;
+        }
+        
+        setAgent(parsedAgent);
+      } catch (error) {
+        console.error("Error parsing agent data:", error);
+        localStorage.removeItem("agent");
+        setLocation("/agent-login");
+      }
+    } else {
+      // This shouldn't happen due to ProtectedRoute, but safety fallback
+      setLocation("/agent-login");
+    }
+  }, [setLocation]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("agent");
+    setAgent(null);
+    setLocation("/agent-login");
+  };
+
+  const getAgentInitials = (agent: Agent) => {
+    return `${agent.firstName[0]}${agent.lastName[0]}`.toUpperCase();
+  };
 
   const handleProfileExtracted = (profile: ExtractedProfile) => {
     setExtractedProfile(profile);
@@ -85,9 +144,30 @@ export default function Dashboard() {
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
-              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-primary-foreground text-xs sm:text-sm font-medium">JD</span>
-              </div>
+              
+              {/* Agent Info & Logout - Always present for authenticated users */}
+              {agent ? (
+                <div className="flex items-center space-x-2">
+                  <div className="hidden sm:flex flex-col items-end">
+                    <span className="text-xs font-medium text-slate-700">{agent.firstName} {agent.lastName}</span>
+                    <span className="text-xs text-slate-500">{agent.brokerageName}</span>
+                  </div>
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs sm:text-sm font-medium">{getAgentInitials(agent)}</span>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                    title="Logout"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <div className="text-xs text-slate-500">Loading...</div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -102,6 +182,7 @@ export default function Dashboard() {
           ) : viewMode === 'extracted-profile' && extractedProfile ? (
             <ProfileDisplay 
               extractedProfile={extractedProfile}
+              agent={agent}
               onProfileSaved={handleProfileSaved}
             />
           ) : (

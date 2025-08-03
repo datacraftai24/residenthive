@@ -1,6 +1,69 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+.cache/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
+# Database files
+*.db
+*.sqlite
+database_backup.sql
+DATABASE_SCHEMA_EXPORT_COMPLETE.sql
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# OS generated files
 .DS_Store
-server/public
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+server/public/
 vite.config.ts.*
 *.tar.gz
+
+# Development artifacts and screenshots
+attached_assets/
+
+# Data profiling and test files
+quincy-ma-data-profile.md
+data-profiling-script.js
+test-nlp.js
+repliers_sample.json
+top-2-properties-analysis.md
+
+# Deployment artifacts
+deployment/
+Dockerfile

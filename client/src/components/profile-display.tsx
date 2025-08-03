@@ -20,12 +20,21 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ExtractedProfile, InsertBuyerProfile } from "@shared/schema";
 
+interface Agent {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  brokerageName: string;
+}
+
 interface ProfileDisplayProps {
   extractedProfile: ExtractedProfile;
+  agent: Agent | null;
   onProfileSaved: () => void;
 }
 
-export default function ProfileDisplay({ extractedProfile, onProfileSaved }: ProfileDisplayProps) {
+export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved }: ProfileDisplayProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -52,9 +61,22 @@ export default function ProfileDisplay({ extractedProfile, onProfileSaved }: Pro
   });
 
   const handleSave = () => {
+    if (!agent) {
+      toast({
+        title: "Save Failed",
+        description: "Agent session not found. Please log in again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("Saving profile for agent:", agent);
+
     const profileToSave: InsertBuyerProfile = {
       name: extractedProfile.name,
       email: extractedProfile.email || "noemail@provided.com",
+      agentId: agent.id, // Associate with current agent
+      location: extractedProfile.location || extractedProfile.preferredAreas?.[0] || "Location not specified", // Required field
       budget: extractedProfile.budget,
       budgetMin: extractedProfile.budgetMin,
       budgetMax: extractedProfile.budgetMax,

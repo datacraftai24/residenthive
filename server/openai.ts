@@ -19,6 +19,7 @@ export async function extractBuyerProfile(rawInput: string): Promise<ExtractedPr
 Analyze the input text and extract the following information:
 - name: Buyer name(s) - if not explicitly mentioned, use "Unknown Buyer"
 - email: Buyer email address if mentioned, otherwise null
+- location: Primary location or city where they want to buy (extract from text or use first preferred area)
 - budget: Budget range in format like "$450K - $520K" or "$450,000 - $520,000"
 - budgetMin: Minimum budget as number (optional)
 - budgetMax: Maximum budget as number (optional)
@@ -70,6 +71,7 @@ Respond with valid JSON in the exact format specified.`
     const cleanedData = {
       name: extractedData.name || "Unknown Buyer",
       email: extractedData.email === null ? undefined : extractedData.email,
+      location: extractedData.location || (Array.isArray(extractedData.preferredAreas) && extractedData.preferredAreas[0]) || "Location not specified",
       budget: extractedData.budget || "Not specified",
       budgetMin: extractedData.budgetMin === null ? undefined : extractedData.budgetMin,
       budgetMax: extractedData.budgetMax === null ? undefined : extractedData.budgetMax,
@@ -178,6 +180,7 @@ export async function enhanceFormProfile(formData: BuyerFormData): Promise<Extra
 Form Data:
 - Name: ${formData.name}
 - Email: ${formData.email}
+- Location: ${formData.location}
 - Budget: ${formData.budget}
 - Home Type: ${formData.homeType}
 - Bedrooms: ${formData.bedrooms}
@@ -249,6 +252,7 @@ Please analyze this form data and return a comprehensive buyer profile as JSON f
     const enhanced: ExtractedProfile = {
       name: formData.name,
       email: formData.email,
+      location: formData.location, // Add missing location field
       budget: formData.budget,
       budgetMin: formData.budgetMin || extractedData.budgetMin,
       budgetMax: formData.budgetMax || extractedData.budgetMax,

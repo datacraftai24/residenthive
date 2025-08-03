@@ -29,9 +29,8 @@ import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
-import ListingSearch from "./listing-search";
-import EnhancedListingSearch from "./enhanced-listing-search";
-import HybridListingSearch from "./hybrid-listing-search";
+import { NLPListingSearch } from "./nlp-listing-search";
+import { AgentDualViewSearch } from "./agent-dual-view-search";
 import ProfileShareButton from "./profile-share-button";
 
 interface ProfileViewerProps {
@@ -41,7 +40,7 @@ interface ProfileViewerProps {
 
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [searchMethod, setSearchMethod] = useState<'basic' | 'enhanced' | 'hybrid'>('hybrid');
+  // Remove old search method state - using NLP search now
 
   // Fetch basic profile
   const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
@@ -153,11 +152,16 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
             <span className="sm:hidden">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="agent-search" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Agent Search</span>
+            <span className="sm:hidden">Agent</span>
           </TabsTrigger>
           <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <Search className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -381,63 +385,13 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           )}
         </TabsContent>
 
-        <TabsContent value="listings" className="mt-6">
-          <div className="space-y-6">
-            {/* Search Method Selector */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Search className="h-5 w-5" />
-                  Property Search
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={() => setSearchMethod('hybrid')}
-                    variant={searchMethod === 'hybrid' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    ⚡ Hybrid Search
-                    <Badge variant="secondary" className="text-xs">Recommended</Badge>
-                  </Button>
-                  <Button
-                    onClick={() => setSearchMethod('enhanced')}
-                    variant={searchMethod === 'enhanced' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    🧠 Full AI Analysis
-                  </Button>
-                  <Button
-                    onClick={() => setSearchMethod('basic')}
-                    variant={searchMethod === 'basic' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    🏠 Basic Search
-                  </Button>
-                </div>
-                <div className="mt-3 text-sm text-gray-600">
-                  {searchMethod === 'hybrid' && 
-                    'Fast results with smart AI enhancement on top properties (Recommended)'
-                  }
-                  {searchMethod === 'enhanced' && 
-                    'Complete visual analysis of all properties (slower but comprehensive)'
-                  }
-                  {searchMethod === 'basic' && 
-                    'Quick traditional scoring without visual analysis'
-                  }
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="agent-search" className="space-y-6 mt-6">
+          <AgentDualViewSearch profile={profile} />
+        </TabsContent>
 
-            {/* Search Results */}
-            {searchMethod === 'hybrid' && <HybridListingSearch profileId={profileId} />}
-            {searchMethod === 'enhanced' && <EnhancedListingSearch profileId={profileId} />}
-            {searchMethod === 'basic' && <ListingSearch profileId={profileId} />}
-          </div>
+        <TabsContent value="listings" className="mt-6">
+          {/* New NLP-Powered Search */}
+          {profile && <NLPListingSearch profile={profile} />}
         </TabsContent>
       </Tabs>
     </div>

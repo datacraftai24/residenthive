@@ -24,6 +24,7 @@ import { eq, desc } from "drizzle-orm";
 export interface IStorage {
   getBuyerProfile(id: number): Promise<BuyerProfile | undefined>;
   getAllBuyerProfiles(): Promise<BuyerProfile[]>;
+  getBuyerProfilesByAgent(agentId: number): Promise<BuyerProfile[]>;
   createBuyerProfile(profile: InsertBuyerProfile): Promise<BuyerProfile>;
   updateBuyerProfile(id: number, profile: Partial<InsertBuyerProfile>): Promise<BuyerProfile>;
   deleteBuyerProfile(id: number): Promise<void>;
@@ -52,6 +53,15 @@ export class DatabaseStorage implements IStorage {
 
   async getAllBuyerProfiles(): Promise<BuyerProfile[]> {
     const profiles = await db.select().from(buyerProfiles).orderBy(desc(buyerProfiles.createdAt));
+    return profiles;
+  }
+
+  async getBuyerProfilesByAgent(agentId: number): Promise<BuyerProfile[]> {
+    const profiles = await db
+      .select()
+      .from(buyerProfiles)
+      .where(eq(buyerProfiles.agentId, agentId))
+      .orderBy(desc(buyerProfiles.createdAt));
     return profiles;
   }
 

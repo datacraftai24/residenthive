@@ -153,7 +153,16 @@ export class RepliersAPIService {
     // Always include location
     if (searchParams.location) baseParams.append('city', searchParams.location);
 
-    const response = await fetch(`${this.baseURL}/listings?${baseParams}`, {
+    const fullURL = `${this.baseURL}/listings?${baseParams}`;
+    console.log(`🌐 REPLIERS API CALL: ${fullURL}`);
+    console.log(`📋 Request Headers:`, {
+      'REPLIERS-API-KEY': this.apiKey ? '[PRESENT]' : '[MISSING]',
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'method': 'POST'
+    });
+    
+    const response = await fetch(fullURL, {
       method: 'POST',
       headers: {
         'REPLIERS-API-KEY': this.apiKey,

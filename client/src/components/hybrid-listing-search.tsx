@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, Eye, Share2, Copy, MessageSquare, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getDisplayScore, validateScoreBreakdown } from "@/lib/score-utils";
+import ChatLinkGenerator from "@/components/chat-link-generator";
 
 interface ScoredListing {
   listing: {
@@ -83,6 +84,17 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
   const [analysisProgress, setAnalysisProgress] = useState<{ completed: number; total: number; currentProperty?: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Get buyer profile details for name
+  const { data: buyerProfile } = useQuery({
+    queryKey: ["/api/buyer-profiles", profileId],
+    queryFn: async () => {
+      const response = await fetch(`/api/buyer-profiles/${profileId}`);
+      if (!response.ok) throw new Error("Failed to fetch profile");
+      return response.json();
+    },
+    enabled: !!profileId
+  });
 
   // Cache status query
   const { data: cacheStatus } = useQuery<CacheStatus>({
@@ -459,6 +471,13 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
               </div>
             </CardContent>
           </Card>
+
+          {/* Chat Link Generator */}
+          <ChatLinkGenerator 
+            profileId={profileId}
+            profileName={buyerProfile?.name || "Client"}
+            propertyCount={(hybridResults.top_picks?.length || 0) + (hybridResults.other_matches?.length || 0)}
+          />
 
           {/* Listings */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>

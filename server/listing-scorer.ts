@@ -597,9 +597,9 @@ export class ListingScorer {
       !item.listing.images || item.listing.images.length === 0
     );
 
-    // Categorize properties WITH images using score thresholds (0-100 scale)
-    const topPicks = propertiesWithImages.filter(item => item.match_score >= 70); // 70/100
-    const otherMatches = propertiesWithImages.filter(item => item.match_score >= 55 && item.match_score < 70); // 55-70/100
+    // Categorize properties WITH images using score thresholds (0-1 scale)
+    const topPicks = propertiesWithImages.filter(item => item.match_score >= 0.35); // 35%
+    const otherMatches = propertiesWithImages.filter(item => item.match_score >= 0.25 && item.match_score < 0.35); // 25-35%
 
     // Sort all categories by score descending
     topPicks.sort((a, b) => b.match_score - a.match_score);

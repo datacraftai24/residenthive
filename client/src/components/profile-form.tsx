@@ -57,28 +57,16 @@ export default function ProfileForm({ onProfileExtracted }: ProfileFormProps) {
   };
 
   const handleExtract = () => {
-    if (!inputText.trim()) {
-      toast({
-        title: "Input Required",
-        description: "Please provide buyer information via text or voice input.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Collect missing fields
+    const missing = [];
+    if (!inputText.trim()) missing.push("buyer requirements description");
+    if (!buyerName.trim()) missing.push("buyer name");
+    if (!buyerEmail.trim()) missing.push("email address");
 
-    if (!buyerName.trim()) {
+    if (missing.length > 0) {
       toast({
-        title: "Name Required",
-        description: "Please provide the buyer name for unique identification.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!buyerEmail.trim()) {
-      toast({
-        title: "Email Required",
-        description: "Please provide the buyer email address for unique identification.",
+        title: "Required Fields Missing",
+        description: `Please fill in: ${missing.join(", ")}`,
         variant: "destructive",
       });
       return;
@@ -152,12 +140,24 @@ export default function ProfileForm({ onProfileExtracted }: ProfileFormProps) {
         <div className="pt-4">
           <Button 
             onClick={handleExtract}
-            disabled={extractMutation.isPending || isRecording || !inputText.trim() || !buyerName.trim() || !buyerEmail.trim()}
-            className="bg-primary hover:bg-primary/90"
+            disabled={extractMutation.isPending || isRecording}
+            className="bg-primary hover:bg-primary/90 w-full"
           >
             <Sparkles className="h-4 w-4 mr-2" />
             {extractMutation.isPending ? "Extracting..." : "Extract Buyer Profile"}
           </Button>
+          
+          {/* Validation hints */}
+          {(!inputText.trim() || !buyerName.trim() || !buyerEmail.trim()) && (
+            <div className="mt-2 text-sm text-slate-500">
+              <p className="mb-1">Required fields:</p>
+              <ul className="list-disc list-inside space-y-1">
+                {!buyerName.trim() && <li>Buyer Name</li>}
+                {!buyerEmail.trim() && <li>Email Address</li>}
+                {!inputText.trim() && <li>Buyer requirements description</li>}
+              </ul>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

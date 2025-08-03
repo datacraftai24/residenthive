@@ -4,8 +4,58 @@ import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } 
 import { tagEngine } from "./tag-engine";
 import { parseProfileChanges, applyChangesToProfile, generateQuickEditSuggestions } from "./conversational-edit";
 import { transactionLogger } from "./transaction-logger";
-import { insertBuyerProfileSchema, buyerFormSchema } from "@shared/schema";
+import { agentSearchService } from "./agent-search-service";
+import { 
+  insertBuyerProfileSchema, 
+  buyerFormSchema, 
+  agents, 
+  buyerProfiles, 
+  searchTransactions, 
+  searchTransactionResults, 
+  type InsertAgent 
+} from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { db } from "./db.js";
+import { eq } from "drizzle-orm";
+import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
+
+// Helper function to create NLP prompt from buyer profile
+function createNLPPromptFromProfile(profile: any): string {
+  const components = [];
+  
+  // Budget
+  if (profile.budgetMin && profile.budgetMax) {
+    components.push(`budget between $${profile.budgetMin.toLocaleString()} and $${profile.budgetMax.toLocaleString()}`);
+  }
+  
+  // Property type and bedrooms
+  if (profile.homeType && profile.bedrooms) {
+    components.push(`${profile.bedrooms}-bedroom ${profile.homeType} home`);
+  }
+  
+  // Bathrooms
+  if (profile.bathrooms) {
+    components.push(`at least ${profile.bathrooms} bathroom`);
+  }
+  
+  // Location
+  if (profile.preferredAreas && profile.preferredAreas.length > 0) {
+    components.push(`in ${profile.preferredAreas.join(' or ')}`);
+  }
+  
+  // Must-have features
+  if (profile.mustHaveFeatures && profile.mustHaveFeatures.length > 0) {
+    components.push(`with ${profile.mustHaveFeatures.join(', ')}`);
+  }
+  
+  // Special needs
+  if (profile.specialNeeds && profile.specialNeeds.length > 0) {
+    components.push(`suitable for ${profile.specialNeeds.join(', ')}`);
+  }
+  
+  return `Find a ${components.join(' ')}`;
+}
 
 const extractRequestSchema = z.object({
   input: z.string().min(1, "Input text is required")
@@ -19,6 +69,58 @@ const enhancedExtractionSchema = z.object({
   input: z.string().min(1, "Input text is required"),
   inputMethod: z.enum(['voice', 'text']).default('text')
 });
+
+// Agent-related schemas
+const agentSetupSchema = z.object({
+  token: z.string().min(1, "Setup token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+
+const agentLoginSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(1, "Password is required")
+});
+
+const inviteAgentSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  brokerageName: z.string().min(1, "Brokerage name is required")
+});
+
+// Chat validation schemas
+const validateContextSchema = z.object({
+  buyer_id: z.number().int().positive("buyer_id must be a positive integer"),
+  agent_id: z.number().int().positive("agent_id must be a positive integer")
+});
+
+// Chat API key validation middleware
+function validateChatApiKey(req: any, res: any, next: any) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader) {
+    return res.status(401).json({
+      success: false,
+      preview: "Authentication required - missing Authorization header",
+      error: "unauthorized",
+      ready: false
+    });
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const expectedApiKey = 'rh_integration_2025_secure_key_847392';
+  
+  if (token !== expectedApiKey) {
+    return res.status(401).json({
+      success: false,
+      preview: "Invalid API key provided",
+      error: "unauthorized", 
+      ready: false
+    });
+  }
+
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<void> {
   // Extract buyer profile from raw text input
@@ -60,6 +162,8 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const profileData = insertBuyerProfileSchema.parse(req.body);
       
+      console.log(`Attempting to save profile for agent ID: ${profileData.agentId}`);
+      
       const savedProfile = await storage.createBuyerProfile(profileData);
       
       res.json(savedProfile);
@@ -72,10 +176,16 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Get all buyer profiles
+  // Get all buyer profiles (agent-specific)
   app.get("/api/buyer-profiles", async (req, res) => {
     try {
-      const profiles = await storage.getAllBuyerProfiles();
+      // In development, use default agent for testing
+      // In production, this should be extracted from session/JWT
+      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 29; // Default to Ranjan for testing
+      
+      console.log(`Fetching profiles for agent ID: ${agentId}`);
+      
+      const profiles = await storage.getBuyerProfilesByAgent(agentId);
       res.json(profiles);
     } catch (error) {
       console.error("Error in /api/buyer-profiles GET:", error);
@@ -2199,6 +2309,554 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.status(500).json({ 
         error: 'Failed to proxy image',
         details: (error as Error).message 
+      });
+    }
+  });
+
+  // Agent Management Endpoints
+  
+  // Process agent invites from YAML file
+  app.post("/api/agents/process-invites", async (req, res) => {
+    try {
+      const result = await processAgentInvites();
+      res.json({
+        success: true,
+        message: "Agent invites processed successfully",
+        ...result
+      });
+    } catch (error) {
+      console.error("Error processing agent invites:", error);
+      res.status(500).json({
+        error: "Failed to process agent invites",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Manual agent invite (can be used by admin interface later)
+  app.post("/api/agents/invite", async (req, res) => {
+    try {
+      const agentData = inviteAgentSchema.parse(req.body);
+      const result = await inviteAgent(agentData);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Error inviting agent:", error);
+      res.status(400).json({
+        error: "Failed to invite agent",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Agent setup password (token validation)
+  app.post("/api/agents/setup-password", async (req, res) => {
+    try {
+      const { token, password } = agentSetupSchema.parse(req.body);
+      
+      // Find agent by invite token
+      const agent = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.inviteToken, token))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(400).json({
+          error: "Invalid or expired setup token"
+        });
+      }
+
+      if (agent[0].isActivated) {
+        return res.status(400).json({
+          error: "Agent account is already activated"
+        });
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(password, saltRounds);
+
+      // Update agent with password and activate
+      await db
+        .update(agents)
+        .set({
+          passwordHash,
+          isActivated: true,
+          inviteToken: null // Clear the token after use
+        })
+        .where(eq(agents.inviteToken, token));
+
+      // Send welcome email after successful activation
+      try {
+        const { emailService } = await import('./email-service.js');
+        await emailService.sendWelcomeEmail({
+          email: agent[0].email,
+          firstName: agent[0].firstName,
+          lastName: agent[0].lastName,
+          brokerageName: agent[0].brokerageName
+        });
+      } catch (emailError) {
+        console.error('Failed to send welcome email:', emailError);
+        // Don't fail the request if email fails
+      }
+
+      res.json({
+        success: true,
+        message: "Password set successfully. You can now log in."
+      });
+    } catch (error) {
+      console.error("Error setting up agent password:", error);
+      res.status(400).json({
+        error: "Failed to set up password",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Agent login (activated agents only)
+  app.post("/api/agents/login", async (req, res) => {
+    console.log("=== AGENT LOGIN REQUEST START ===");
+    console.log("Request body:", req.body);
+    try {
+      const { email, password } = agentLoginSchema.parse(req.body);
+      
+      console.log(`Login attempt for email: ${email}`);
+      
+      // Find agent by email
+      const agent = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.email, email))
+        .limit(1);
+
+      if (agent.length === 0) {
+        console.log(`No agent found for email: ${email}`);
+        return res.status(401).json({
+          error: "Invalid email or password"
+        });
+      }
+
+      const agentRecord = agent[0];
+      console.log(`Found agent ID: ${agentRecord.id}, activated: ${agentRecord.isActivated}, hasPassword: ${!!agentRecord.passwordHash}`);
+
+      if (!agentRecord.isActivated) {
+        console.log(`Agent ${agentRecord.id} not activated`);
+        return res.status(401).json({
+          error: "Account not activated. Please use your setup link first."
+        });
+      }
+
+      if (!agentRecord.passwordHash) {
+        console.log(`Agent ${agentRecord.id} has no password hash`);
+        return res.status(401).json({
+          error: "Password not set. Please use your setup link."
+        });
+      }
+
+      // Verify password
+      console.log(`Comparing password for agent ${agentRecord.id}`);
+      const isValidPassword = await bcrypt.compare(password, agentRecord.passwordHash);
+      console.log(`Password valid: ${isValidPassword}`);
+      
+      if (!isValidPassword) {
+        console.log(`Invalid password for agent ${agentRecord.id}`);
+        return res.status(401).json({
+          error: "Invalid email or password"
+        });
+      }
+
+      // Return agent info (without password hash)
+      const { passwordHash, inviteToken, ...agentInfo } = agentRecord;
+      
+      res.json({
+        success: true,
+        message: "Login successful",
+        agent: agentInfo
+      });
+    } catch (error) {
+      console.error("Error during agent login:", error);
+      res.status(400).json({
+        error: "Login failed",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Get agent by token (for setup form)
+  app.get("/api/agents/setup/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      if (!token) {
+        return res.status(400).json({
+          error: "Setup token is required"
+        });
+      }
+
+      // Find agent by invite token
+      const agent = await db
+        .select({
+          id: agents.id,
+          email: agents.email,
+          firstName: agents.firstName,
+          lastName: agents.lastName,
+          brokerageName: agents.brokerageName,
+          isActivated: agents.isActivated
+        })
+        .from(agents)
+        .where(eq(agents.inviteToken, token))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(404).json({
+          error: "Invalid or expired setup token"
+        });
+      }
+
+      if (agent[0].isActivated) {
+        return res.status(400).json({
+          error: "Agent account is already activated"
+        });
+      }
+
+      res.json({
+        success: true,
+        agent: agent[0]
+      });
+    } catch (error) {
+      console.error("Error getting agent setup info:", error);
+      res.status(500).json({
+        error: "Failed to get setup information",
+        message: (error as Error).message
+      });
+    }
+  });
+
+  // Chat Service Integration - Validate Context API
+  app.post("/api/validate-context", validateChatApiKey, async (req, res) => {
+    try {
+      const { buyer_id, agent_id } = validateContextSchema.parse(req.body);
+      
+      // Validate agent exists and is activated
+      const agent = await db
+        .select({
+          id: agents.id,
+          firstName: agents.firstName,
+          lastName: agents.lastName,
+          isActivated: agents.isActivated
+        })
+        .from(agents)
+        .where(eq(agents.id, agent_id))
+        .limit(1);
+
+      if (agent.length === 0) {
+        return res.status(404).json({
+          success: false,
+          preview: "Agent not found in system",
+          error: "agent_not_found",
+          ready: false
+        });
+      }
+
+      if (!agent[0].isActivated) {
+        return res.status(400).json({
+          success: false,
+          preview: "Agent account not activated",
+          error: "agent_not_activated",
+          ready: false
+        });
+      }
+
+      // Validate buyer exists and belongs to agent
+      const buyer = await db
+        .select({
+          id: buyerProfiles.id,
+          name: buyerProfiles.name,
+          agentId: buyerProfiles.agentId
+        })
+        .from(buyerProfiles)
+        .where(eq(buyerProfiles.id, buyer_id))
+        .limit(1);
+
+      if (buyer.length === 0) {
+        return res.status(404).json({
+          success: false,
+          preview: "Buyer not found in system",
+          error: "buyer_not_found",
+          ready: false
+        });
+      }
+
+      // Check buyer-agent association (if agentId exists)
+      if (buyer[0].agentId && buyer[0].agentId !== agent_id) {
+        return res.status(403).json({
+          success: false,
+          preview: "Buyer does not belong to this agent",
+          error: "buyer_agent_mismatch",
+          ready: false
+        });
+      }
+
+      // Check if buyer has search transaction data
+      const buyerSearchTransactions = await db
+        .select({
+          id: searchTransactions.id,
+          transactionId: searchTransactions.transactionId
+        })
+        .from(searchTransactions)
+        .where(eq(searchTransactions.profileId, buyer_id))
+        .limit(1);
+
+      if (buyerSearchTransactions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          preview: `${buyer[0].name} has no property search data - complete a search first`,
+          error: "no_search_data",
+          ready: false
+        });
+      }
+
+      // Count available properties from search results
+      const searchResults = await db
+        .select({
+          topPicksData: searchTransactionResults.topPicksData,
+          otherMatchesData: searchTransactionResults.otherMatchesData
+        })
+        .from(searchTransactionResults)
+        .where(eq(searchTransactionResults.transactionId, buyerSearchTransactions[0].transactionId))
+        .limit(1);
+
+      let propertyCount = 0;
+      if (searchResults.length > 0) {
+        const topPicks = searchResults[0].topPicksData as any;
+        const otherMatches = searchResults[0].otherMatchesData as any;
+        
+        propertyCount = (Array.isArray(topPicks) ? topPicks.length : 0) + 
+                       (Array.isArray(otherMatches) ? otherMatches.length : 0);
+      }
+
+      // Generate chat URL - point to deployed chat service
+      const chatUrl = `https://real-estate-chatbot-info4334.replit.app/chat/p?buyer_id=${buyer_id}&agent_id=${agent_id}`;
+      
+      res.json({
+        success: true,
+        preview: `Chat link created for ${buyer[0].name} - ${propertyCount} properties found`,
+        chat_url: chatUrl,
+        ready: true
+      });
+
+    } catch (error) {
+      console.error("Error validating chat context:", error);
+      res.status(500).json({
+        success: false,
+        preview: "Internal server error during validation",
+        error: "server_error",
+        ready: false
+      });
+    }
+  });
+
+  // NEW: NLP-powered search endpoint (replaces complex parameter mapping)
+  app.post("/api/listings/search-nlp/:profileId", async (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+      const profileId = parseInt(req.params.profileId);
+      const { contextNlpId, refinementText } = req.body;
+      
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      // Get profile tags for enhanced context
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Import NLP search service
+      const { nlpSearchService } = await import('./nlp-search-service');
+
+      let searchResult;
+
+      if (refinementText && contextNlpId) {
+        // Conversational refinement
+        console.log(`🔄 NLP search refinement for profile ${profileId}`);
+        searchResult = await nlpSearchService.refineSearch(contextNlpId, refinementText, profile);
+      } else {
+        // Initial NLP search
+        console.log(`🧠 NLP search for profile ${profileId}: ${profile.name}`);
+        searchResult = await nlpSearchService.performNLPSearch(profile, tags, contextNlpId);
+      }
+
+      const totalTime = Date.now() - startTime;
+
+      // Format response similar to existing search endpoints
+      const response = {
+        search_type: 'nlp',
+        total_found: searchResult.searchResults.count,
+        execution_time: totalTime,
+        listings: searchResult.searchResults.listings,
+        nlp_summary: searchResult.nlpResponse.request.summary,
+        nlp_id: searchResult.nlpResponse.nlpId,
+        search_url: searchResult.searchResults.searchUrl || searchResult.nlpResponse.request.url,
+        search_log_id: searchResult.searchLog.profileId, // Reference for tracking
+        image_search_available: !!searchResult.nlpResponse.request.body?.imageSearchItems,
+        profile_data: {
+          id: profile.id,
+          name: profile.name,
+          location: profile.location
+        }
+      };
+
+      console.log(`✅ NLP search completed for ${profile.name} in ${totalTime}ms: ${searchResult.searchResults.count} listings`);
+
+      res.json(response);
+
+    } catch (error) {
+      console.error("Error in NLP search:", error);
+      res.status(500).json({ 
+        error: "Failed to perform NLP search",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Get NLP search history for a profile
+  app.get("/api/listings/nlp-history/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const { nlpSearchService } = await import('./nlp-search-service');
+      const searchHistory = await nlpSearchService.getSearchHistory(profileId, limit);
+
+      res.json({
+        profile_id: profileId,
+        search_count: searchHistory.length,
+        searches: searchHistory.map(log => ({
+          id: log.id,
+          query: log.nlpQuery,
+          summary: log.nlpResponse?.request?.summary,
+          results_count: log.searchResults?.count || 0,
+          execution_time: log.executionTime,
+          nlp_id: log.nlpId,
+          created_at: log.createdAt
+        }))
+      });
+
+    } catch (error) {
+      console.error("Error getting NLP search history:", error);
+      res.status(500).json({ 
+        error: "Failed to get search history",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // LEGACY: Repliers NLP API Test Endpoint (for debugging)
+  app.post("/api/test-nlp/:profileId", async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId);
+      
+      if (isNaN(profileId)) {
+        return res.status(400).json({ error: "Invalid profile ID" });
+      }
+
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      // Create natural language prompt from profile
+      const nlpPrompt = createNLPPromptFromProfile(profile);
+      
+      console.log(`🧠 Testing Repliers NLP API for ${profile.name}`);
+      console.log(`📝 NLP Prompt: ${nlpPrompt}`);
+
+      // Make request to Repliers NLP API
+      const response = await fetch('https://api.repliers.io/nlp', {
+        method: 'POST',
+        headers: {
+          'REPLIERS-API-KEY': process.env.REPLIERS_API_KEY!,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: nlpPrompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Repliers NLP API error: ${response.status} ${response.statusText}`);
+      }
+
+      const nlpResult = await response.json();
+      
+      console.log(`✅ NLP API Response:`, JSON.stringify(nlpResult, null, 2));
+
+      res.json({
+        profile: profile,
+        nlp_prompt: nlpPrompt,
+        nlp_response: nlpResult,
+        test_status: "success"
+      });
+
+    } catch (error) {
+      console.error("Error testing Repliers NLP API:", error);
+      res.status(500).json({ 
+        error: "Failed to test NLP API",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Agent Dual-View Search API (Profile-based)
+  app.post("/api/agent-search", async (req, res) => {
+    try {
+      const { profileId } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      console.log(`🔍 [API] Agent dual-view search for profile ${profileId}`);
+
+      // Get profile and tags
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const profileWithTags = await storage.getProfileWithTags(profileId);
+      const tags = profileWithTags?.tags || [];
+
+      // Import agent search service
+      const { agentSearchService } = await import('./services/agent-search-service');
+
+      // Execute dual-view search
+      const searchResults = await agentSearchService.performDualViewSearch(profile, tags);
+      
+      console.log(`✅ [API] Agent search completed for ${profile.name}`);
+      console.log(`📊 Results: View1=${searchResults.view1.totalFound}, View2=${searchResults.view2.totalFound}`);
+      
+      res.json(searchResults);
+    } catch (error) {
+      console.error('❌ [API] Agent search error:', error);
+      res.status(500).json({ 
+        error: "Agent search failed",
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
