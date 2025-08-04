@@ -714,7 +714,9 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Intelligent Listing Search API with Transaction Logging
+  // DEPRECATED: Use /api/agent-search instead
+  // Keeping temporarily for backward compatibility
+  /*
   app.post("/api/listings/search", async (req, res) => {
     const startTime = Date.now();
     let transactionId: string;
@@ -869,7 +871,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     }
   });
+  */
 
+  // DEPRECATED: Use /api/agent-search instead  
+  /*
   // Enhanced Visual Intelligence Listing Search with Caching and Manual Refresh
   app.post("/api/listings/search-enhanced", async (req, res) => {
     const startTime = Date.now();
@@ -971,7 +976,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     }
   });
+  */
 
+  // DEPRECATED: Use /api/agent-search instead
+  /*
   // Hybrid search endpoint - immediate results with async enhancement
   app.post("/api/listings/search-hybrid", async (req, res) => {
     const startTime = Date.now();
@@ -1210,6 +1218,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     }
   });
+  */
 
   // Update search outcomes with agent feedback
   app.post("/api/search-outcomes", async (req, res) => {
@@ -2822,8 +2831,11 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Agent Dual-View Search API (Profile-based) - Now with reactive enhancement
+  // Agent Dual-View Search API (Profile-based) - Now with reactive enhancement and full data persistence
   app.post("/api/agent-search", async (req, res) => {
+    const startTime = Date.now();
+    let transactionId: string;
+    
     try {
       const { profileId, forceEnhanced = false, useReactive = true } = req.body;
       
@@ -2842,6 +2854,20 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profileWithTags = await storage.getProfileWithTags(profileId);
       const tags = profileWithTags?.tags || [];
 
+      // Start transaction logging
+      transactionId = await transactionLogger.startSearchTransaction({
+        profileId,
+        profile,
+        searchParameters: {
+          searchType: 'agent_dual_view',
+          useReactive,
+          forceEnhanced,
+          tags: tags.map(t => t.value)
+        },
+        searchMethod: useReactive ? 'hybrid' : 'basic',
+        searchTrigger: 'agent_initiated'
+      });
+
       // Use reactive search by default for better UX
       if (useReactive) {
         const { agentSearchServiceReactive } = await import('./services/agent-search-service-reactive');
@@ -2853,6 +2879,45 @@ export async function registerRoutes(app: Express): Promise<void> {
           console.log(`🚀 Enhanced: ${searchResults.enhancedSearch.view1.totalFound} results`);
         }
         
+        // Save all search results for future use
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: [
+            ...(searchResults.initialSearch.view1.listings || []),
+            ...(searchResults.enhancedSearch?.view1.listings || [])
+          ],
+          scoredListings: searchResults.initialSearch.view2.listings || [],
+          categorizedResults: {
+            top_picks: searchResults.initialSearch.view2.listings.filter(l => l.matchScore >= 80) || [],
+            other_matches: searchResults.initialSearch.view2.listings.filter(l => l.matchScore < 80) || [],
+            properties_without_images: []
+          },
+          visualAnalysisData: searchResults.initialSearch.view2.listings
+            .filter(l => l.aiInsights?.visualAnalysis)
+            .map(l => ({
+              listingId: l.mlsNumber,
+              analysis: l.aiInsights
+            })) || null,
+          searchSummary: {
+            searchType: 'agent_dual_view_reactive',
+            initialResults: searchResults.initialSearch.totalFound,
+            enhancedTriggered: !!searchResults.enhancedSearch,
+            enhancedResults: searchResults.enhancedSearch?.view1.totalFound || 0,
+            adjustments: searchResults.enhancedSearch?.adjustments || [],
+            agentRecommendations: searchResults.agentRecommendations
+          },
+          chatBlocks: [
+            searchResults.enhancedSearch?.clientSummary,
+            searchResults.agentRecommendations?.message
+          ].filter(Boolean),
+          executionMetrics: {
+            totalTime: searchResults.totalExecutionTime,
+            apiCalls: 1,
+            visualAnalysisTime: 0
+          }
+        });
+        
+        console.log(`💾 [API] Search results persisted for transaction ${transactionId}`);
+        
         res.json(searchResults);
       } else {
         // Fallback to original service for backward compatibility
@@ -2861,6 +2926,37 @@ export async function registerRoutes(app: Express): Promise<void> {
         
         console.log(`✅ [API] Standard search completed for ${profile.name}`);
         console.log(`📊 Results: View1=${searchResults.view1.totalFound}, View2=${searchResults.view2.totalFound}`);
+        
+        // Save all search results for future use
+        await transactionLogger.saveSearchResults(transactionId, {
+          rawListings: searchResults.view1.listings || [],
+          scoredListings: searchResults.view2.listings || [],
+          categorizedResults: {
+            top_picks: searchResults.view2.listings.filter(l => l.matchScore >= 80) || [],
+            other_matches: searchResults.view2.listings.filter(l => l.matchScore < 80) || [],
+            properties_without_images: []
+          },
+          visualAnalysisData: searchResults.view2.listings
+            .filter(l => l.aiInsights?.visualAnalysis)
+            .map(l => ({
+              listingId: l.mlsNumber,
+              analysis: l.aiInsights
+            })) || null,
+          searchSummary: {
+            searchType: 'agent_dual_view',
+            view1Results: searchResults.view1.totalFound,
+            view2Results: searchResults.view2.totalFound,
+            aiAnalysis: searchResults.view2.aiAnalysis
+          },
+          chatBlocks: [],
+          executionMetrics: {
+            totalTime: searchResults.totalExecutionTime,
+            apiCalls: 1,
+            visualAnalysisTime: 0
+          }
+        });
+        
+        console.log(`💾 [API] Search results persisted for transaction ${transactionId}`);
         
         res.json(searchResults);
       }

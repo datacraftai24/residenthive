@@ -67,3 +67,22 @@ top-2-properties-analysis.md
 # Deployment artifacts
 deployment/
 Dockerfile
+
+# Local development
+postgres_data/
+*.log
+
+# Test files and logs
+test.txt
+test*.js
+ui-test.html
+cloudrun*.json
+cloudrun_logs.txt
+docker_app.log
+*.test.ts
+
+# Documentation files (can be regenerated)
+FULL_DATA_PERSISTENCE_STRATEGY.md
+
+# Local setup scripts (environment specific)
+setup-local.sh
