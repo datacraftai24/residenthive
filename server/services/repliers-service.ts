@@ -497,9 +497,9 @@ export class RepliersService {
       components.push(`in ${profile.preferredAreas[0]}`);
     }
     
-    // Must-have features
+    // Must-have features - make them preferences, not requirements
     if (profile.mustHaveFeatures?.length > 0) {
-      components.push(`with ${profile.mustHaveFeatures.join(', ')}`);
+      components.push(`preferably with ${profile.mustHaveFeatures.join(', ')}`);
     }
     
     return components.join(' ');
@@ -545,9 +545,9 @@ export class RepliersService {
       components.push(`in ${profile.location}`);
     }
     
-    // Must-have features
+    // Must-have features - soften the requirement
     if (profile.mustHaveFeatures?.length > 0) {
-      components.push(`must have ${profile.mustHaveFeatures.join(', ')}`);
+      components.push(`prefer ${profile.mustHaveFeatures.join(', ')}`);
     }
     
     // Special needs
