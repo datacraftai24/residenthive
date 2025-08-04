@@ -96,11 +96,14 @@ export class SearchWideningService {
       const adjustments = this.documentAdjustments(profile, adjustedCriteria, level);
       
       try {
-        // Use the existing searchListings method to maintain compatibility
-        const listings = await repliersService.searchListings({
+        // Create an adjusted profile with the widened criteria
+        const adjustedProfile = {
           ...profile,
           ...adjustedCriteria
-        });
+        };
+        
+        // Use broad search for widening (allows flexibility)
+        const listings = await repliersService.searchBroadListings(adjustedProfile);
         
         console.log(`📈 [SearchWidening] Level ${level.name} found ${listings.length} results`);
         
@@ -248,11 +251,19 @@ export class SearchWideningService {
    */
   private async performLocationOnlyFallback(profile: BuyerProfile): Promise<ProgressiveSearchResult> {
     try {
-      // Just search by location
-      const listings = await repliersService.searchListings({
-        location: profile.location,
-        limit: 50
-      });
+      // Create a minimal profile with just location for maximum results
+      const locationOnlyProfile = {
+        ...profile,
+        budgetMin: null,
+        budgetMax: null,
+        bedrooms: null,
+        bathrooms: null,
+        homeType: null,
+        mustHaveFeatures: [],
+        rawInput: `all properties in ${profile.location}`
+      };
+      
+      const listings = await repliersService.searchBroadListings(locationOnlyProfile);
       
       return {
         listings,

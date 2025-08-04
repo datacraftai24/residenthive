@@ -119,26 +119,35 @@ export class RepliersService {
    */
 
   /**
+   * Generic search method - delegates to broad search
+   * For backward compatibility
+   */
+  async searchListings(profile: any): Promise<RepliersListing[]> {
+    return this.searchBroadListings(profile);
+  }
+
+  /**
    * Search listings by profile - BROAD SEARCH
    * Returns more general results for market overview
+   * NOW USES NLP API
    */
   async searchBroadListings(profile: any): Promise<RepliersListing[]> {
-    console.log(`🔍 [RepliersService] Broad search for profile ${profile.id}`);
-    
-    const params = this.mapProfileToBroadParams(profile);
+    console.log(`🔍 [RepliersService] Broad search for profile ${profile.id} using NLP`);
     
     try {
-      // First try exact match
-      let listings = await this.performAPISearch(params);
+      // Create NLP prompt for broad search (with flexibility)
+      const nlpPrompt = this.createBroadNLPPrompt(profile);
       
-      // If no results, try broader location-only search
-      if (!listings || listings.length === 0) {
-        console.log(`⚡ [RepliersService] No exact matches, trying location fallback`);
-        listings = await this.performLocationFallbackSearch(params);
-      }
+      // Use NLP search service
+      const { nlpSearchService } = await import('../nlp-search-service');
+      const searchResult = await nlpSearchService.performNLPSearch(profile, [], undefined);
       
-      console.log(`✅ [RepliersService] Broad search completed: ${listings.length} listings`);
-      return listings;
+      // Extract and normalize listings
+      const listings = searchResult.searchResults.listings || [];
+      const normalizedListings = listings.map((listing: any) => this.normalizeListing(listing));
+      
+      console.log(`✅ [RepliersService] Broad search completed: ${normalizedListings.length} listings`);
+      return normalizedListings;
       
     } catch (error) {
       console.error(`❌ [RepliersService] Broad search failed:`, error);
@@ -149,16 +158,27 @@ export class RepliersService {
   /**
    * Search listings by profile - TARGETED SEARCH
    * Returns fewer but more precise results for AI analysis
+   * NOW USES NLP API
    */
   async searchTargetedListings(profile: any): Promise<RepliersListing[]> {
-    console.log(`🎯 [RepliersService] Targeted search for profile ${profile.id}`);
-    
-    const params = this.mapProfileToTargetedParams(profile);
+    console.log(`🎯 [RepliersService] Targeted search for profile ${profile.id} using NLP`);
     
     try {
-      const listings = await this.performAPISearch(params);
-      console.log(`✅ [RepliersService] Targeted search completed: ${listings.length} listings`);
-      return listings;
+      // Create NLP prompt for targeted search (exact requirements)
+      const nlpPrompt = this.createTargetedNLPPrompt(profile);
+      
+      // Use NLP search service
+      const { nlpSearchService } = await import('../nlp-search-service');
+      const searchResult = await nlpSearchService.performNLPSearch(profile, [], undefined);
+      
+      // Extract and normalize listings (limit to 25 for targeted)
+      const listings = searchResult.searchResults.listings || [];
+      const normalizedListings = listings
+        .slice(0, 25)
+        .map((listing: any) => this.normalizeListing(listing));
+      
+      console.log(`✅ [RepliersService] Targeted search completed: ${normalizedListings.length} listings`);
+      return normalizedListings;
       
     } catch (error) {
       console.error(`❌ [RepliersService] Targeted search failed:`, error);
@@ -435,6 +455,107 @@ export class RepliersService {
 
     console.log(`🔄 [RepliersService] Performing location fallback search`);
     return await this.performAPISearch(fallbackParams);
+  }
+
+  /**
+   * Create NLP prompt for broad search (with flexibility)
+   */
+  private createBroadNLPPrompt(profile: any): string {
+    // If profile was created with voice or text, use the raw input directly
+    if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
+      console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
+      // Add flexibility note to the raw input
+      return `${profile.rawInput} (flexible on exact requirements, show more options)`;
+    }
+    
+    // Otherwise, build prompt from structured fields
+    console.log(`📝 [RepliersService] Building NLP prompt from form fields`);
+    const components = [];
+    
+    // Budget with 10% flexibility
+    if (profile.budgetMax) {
+      const flexBudget = Math.ceil(profile.budgetMax * 1.1);
+      components.push(`under $${flexBudget.toLocaleString()}`);
+    }
+    
+    // Bedrooms with flexibility
+    if (profile.bedrooms && profile.bedrooms > 1) {
+      components.push(`${profile.bedrooms - 1}+ bedrooms`);
+    } else if (profile.bedrooms) {
+      components.push(`${profile.bedrooms} bedrooms`);
+    }
+    
+    // Property type
+    if (profile.homeType) {
+      components.push(profile.homeType);
+    }
+    
+    // Location
+    if (profile.location) {
+      components.push(`in ${profile.location}`);
+    } else if (profile.preferredAreas?.length > 0) {
+      components.push(`in ${profile.preferredAreas[0]}`);
+    }
+    
+    // Must-have features
+    if (profile.mustHaveFeatures?.length > 0) {
+      components.push(`with ${profile.mustHaveFeatures.join(', ')}`);
+    }
+    
+    return components.join(' ');
+  }
+
+  /**
+   * Create NLP prompt for targeted search (exact requirements)
+   */
+  private createTargetedNLPPrompt(profile: any): string {
+    // If profile was created with voice or text, use the raw input directly
+    if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
+      console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
+      // Keep exact requirements for targeted search
+      return profile.rawInput;
+    }
+    
+    // Otherwise, build prompt from structured fields
+    console.log(`📝 [RepliersService] Building NLP prompt from form fields`);
+    const components = [];
+    
+    // Exact budget
+    if (profile.budgetMin && profile.budgetMax) {
+      components.push(`$${profile.budgetMin.toLocaleString()}-$${profile.budgetMax.toLocaleString()}`);
+    }
+    
+    // Exact bedrooms
+    if (profile.bedrooms) {
+      components.push(`exactly ${profile.bedrooms} bedrooms`);
+    }
+    
+    // Exact bathrooms
+    if (profile.bathrooms) {
+      components.push(`${profile.bathrooms} bathrooms`);
+    }
+    
+    // Property type
+    if (profile.homeType) {
+      components.push(profile.homeType);
+    }
+    
+    // Location
+    if (profile.location) {
+      components.push(`in ${profile.location}`);
+    }
+    
+    // Must-have features
+    if (profile.mustHaveFeatures?.length > 0) {
+      components.push(`must have ${profile.mustHaveFeatures.join(', ')}`);
+    }
+    
+    // Special needs
+    if (profile.specialNeeds?.length > 0) {
+      components.push(`suitable for ${profile.specialNeeds.join(', ')}`);
+    }
+    
+    return components.join(' ');
   }
 }
 

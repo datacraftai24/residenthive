@@ -86,3 +86,6 @@ FULL_DATA_PERSISTENCE_STRATEGY.md
 
 # Local setup scripts (environment specific)
 setup-local.sh
+
+# AI Assistant context files
+CLAUDE.md
