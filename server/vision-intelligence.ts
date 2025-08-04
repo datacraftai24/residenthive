@@ -405,6 +405,7 @@ Example: "Hi Sarah, I found a property that I think you're going to love! The ph
       return response.choices[0].message.content || `Hi ${buyerName}, I found a property that matches several of your criteria. Let's discuss the details!`;
     } catch (error) {
       console.error("Error generating personal message:", error);
+      const buyerName = buyerProfile.name?.split(' ')[0] || 'there';
       return `Hi ${buyerName}, I found a property that might interest you. Let's review it together.`;
     }
   }
@@ -468,6 +469,24 @@ Example: "Hi Sarah, I found a property that I think you're going to love! The ph
     return preferenceWords.some(word => 
       tagWords.some(tagWord => tagWord.includes(word) || word.includes(tagWord))
     );
+  }
+
+  /**
+   * Get visual analysis from database by listing ID
+   */
+  async getVisualAnalysisFromDatabase(listingId: string): Promise<any> {
+    try {
+      const results = await db
+        .select()
+        .from(listingVisualAnalysis)
+        .where(eq(listingVisualAnalysis.listingId, listingId))
+        .limit(1);
+
+      return results[0] || null;
+    } catch (error) {
+      console.error("Error fetching visual analysis from database:", error);
+      return null;
+    }
   }
 
   /**

@@ -1304,7 +1304,10 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/cache/status/:profileId", async (req, res) => {
     try {
       const profileId = parseInt(req.params.profileId);
-      const searchMethod = req.query.searchMethod as string || 'enhanced';
+      const searchMethod = (req.query.searchMethod as string) || 'enhanced';
+      const validSearchMethods = ['enhanced', 'basic', 'hybrid'] as const;
+      const typedSearchMethod = validSearchMethods.includes(searchMethod as any) ? 
+        searchMethod as 'enhanced' | 'basic' | 'hybrid' : 'enhanced';
       
       if (isNaN(profileId)) {
         return res.status(400).json({ error: "Invalid profile ID" });
@@ -1319,7 +1322,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const tags = profileWithTags?.tags || [];
 
       const { cachedSearchService } = await import('./cached-search-service');
-      const cacheStatus = await cachedSearchService.getCacheStatus(profile, tags, searchMethod);
+      const cacheStatus = await cachedSearchService.getCacheStatus(profile, tags, typedSearchMethod);
 
       res.json(cacheStatus);
     } catch (error) {
@@ -1960,7 +1963,7 @@ export async function registerRoutes(app: Express): Promise<void> {
                     </div>
                     
                     <div class="listing-reason">
-                      💡 ${listing.enhancedReason || listing.reason}
+                      💡 ${(listing as any).enhancedReason || (listing as any).reason || 'Great property match'}
                     </div>
 
                     ${listing.matched_features?.length > 0 ? `
@@ -1969,9 +1972,9 @@ export async function registerRoutes(app: Express): Promise<void> {
                       </div>
                     ` : ''}
 
-                    ${listing.visualTagMatches?.length > 0 ? `
+                    ${(listing as any).visualTagMatches?.length > 0 ? `
                       <div class="features">
-                        ${listing.visualTagMatches.map(tag => `<span class="feature" style="background: #e8f5e8;">👁️ ${tag}</span>`).join('')}
+                        ${(listing as any).visualTagMatches.map((tag: string) => `<span class="feature" style="background: #e8f5e8;">👁️ ${tag}</span>`).join('')}
                       </div>
                     ` : ''}
                   </div>
@@ -1992,7 +1995,7 @@ export async function registerRoutes(app: Express): Promise<void> {
                         <div class="match-score" style="background: #ffc107; color: #333;">${Math.round(listing.match_score * 100)}% Match</div>
                       </div>
                       <div class="listing-reason">
-                        💡 ${listing.enhancedReason || listing.reason}
+                        💡 ${(listing as any).enhancedReason || (listing as any).reason || 'Alternative property option'}
                       </div>
                     </div>
                   `).join('')}
@@ -2716,7 +2719,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         listings: searchResult.searchResults.listings,
         nlp_summary: searchResult.nlpResponse.request.summary,
         nlp_id: searchResult.nlpResponse.nlpId,
-        search_url: searchResult.searchResults.searchUrl || searchResult.nlpResponse.request.url,
+        search_url: (searchResult.searchResults as any).searchUrl || searchResult.nlpResponse.request.url,
         search_log_id: searchResult.searchLog.profileId, // Reference for tracking
         image_search_available: !!searchResult.nlpResponse.request.body?.imageSearchItems,
         profile_data: {
@@ -2862,7 +2865,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           searchType: 'agent_dual_view',
           useReactive,
           forceEnhanced,
-          tags: tags.map(t => t.value)
+          tags: tags.map(t => t.tag)
         },
         searchMethod: useReactive ? 'hybrid' : 'basic',
         searchTrigger: 'agent_initiated'
@@ -2887,13 +2890,13 @@ export async function registerRoutes(app: Express): Promise<void> {
           ],
           scoredListings: searchResults.initialSearch.view2.listings || [],
           categorizedResults: {
-            top_picks: searchResults.initialSearch.view2.listings.filter(l => l.matchScore >= 80) || [],
-            other_matches: searchResults.initialSearch.view2.listings.filter(l => l.matchScore < 80) || [],
+            top_picks: searchResults.initialSearch.view2.listings.filter((l: any) => l.matchScore >= 80) || [],
+            other_matches: searchResults.initialSearch.view2.listings.filter((l: any) => l.matchScore < 80) || [],
             properties_without_images: []
           },
           visualAnalysisData: searchResults.initialSearch.view2.listings
-            .filter(l => l.aiInsights?.visualAnalysis)
-            .map(l => ({
+            .filter((l: any) => l.aiInsights?.visualAnalysis)
+            .map((l: any) => ({
               listingId: l.mlsNumber,
               analysis: l.aiInsights
             })) || null,
@@ -2902,13 +2905,13 @@ export async function registerRoutes(app: Express): Promise<void> {
             initialResults: searchResults.initialSearch.totalFound,
             enhancedTriggered: !!searchResults.enhancedSearch,
             enhancedResults: searchResults.enhancedSearch?.view1.totalFound || 0,
-            adjustments: searchResults.enhancedSearch?.adjustments || [],
+            adjustments: (searchResults.enhancedSearch as any)?.adjustments || [],
             agentRecommendations: searchResults.agentRecommendations
           },
           chatBlocks: [
             searchResults.enhancedSearch?.clientSummary,
             searchResults.agentRecommendations?.message
-          ].filter(Boolean),
+          ].filter((block): block is string => Boolean(block)),
           executionMetrics: {
             totalTime: searchResults.totalExecutionTime,
             apiCalls: 1,
