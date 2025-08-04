@@ -2822,16 +2822,16 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Agent Dual-View Search API (Profile-based)
+  // Agent Dual-View Search API (Profile-based) - Now with reactive enhancement
   app.post("/api/agent-search", async (req, res) => {
     try {
-      const { profileId } = req.body;
+      const { profileId, forceEnhanced = false, useReactive = true } = req.body;
       
       if (!profileId) {
         return res.status(400).json({ error: "Profile ID is required" });
       }
 
-      console.log(`🔍 [API] Agent dual-view search for profile ${profileId}`);
+      console.log(`🔍 [API] Agent search for profile ${profileId} (reactive: ${useReactive}, force enhanced: ${forceEnhanced})`);
 
       // Get profile and tags
       const profile = await storage.getBuyerProfile(profileId);
@@ -2842,20 +2842,64 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profileWithTags = await storage.getProfileWithTags(profileId);
       const tags = profileWithTags?.tags || [];
 
-      // Import agent search service
-      const { agentSearchService } = await import('./services/agent-search-service');
-
-      // Execute dual-view search
-      const searchResults = await agentSearchService.performDualViewSearch(profile, tags);
-      
-      console.log(`✅ [API] Agent search completed for ${profile.name}`);
-      console.log(`📊 Results: View1=${searchResults.view1.totalFound}, View2=${searchResults.view2.totalFound}`);
-      
-      res.json(searchResults);
+      // Use reactive search by default for better UX
+      if (useReactive) {
+        const { agentSearchServiceReactive } = await import('./services/agent-search-service-reactive');
+        const searchResults = await agentSearchServiceReactive.performReactiveSearch(profile, tags, forceEnhanced);
+        
+        console.log(`✅ [API] Reactive search completed for ${profile.name}`);
+        console.log(`📊 Initial: ${searchResults.initialSearch.totalFound} results`);
+        if (searchResults.enhancedSearch) {
+          console.log(`🚀 Enhanced: ${searchResults.enhancedSearch.view1.totalFound} results`);
+        }
+        
+        res.json(searchResults);
+      } else {
+        // Fallback to original service for backward compatibility
+        const { agentSearchService } = await import('./services/agent-search-service');
+        const searchResults = await agentSearchService.performDualViewSearch(profile, tags);
+        
+        console.log(`✅ [API] Standard search completed for ${profile.name}`);
+        console.log(`📊 Results: View1=${searchResults.view1.totalFound}, View2=${searchResults.view2.totalFound}`);
+        
+        res.json(searchResults);
+      }
     } catch (error) {
       console.error('❌ [API] Agent search error:', error);
       res.status(500).json({ 
         error: "Agent search failed",
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // New endpoint for manual enhanced search only
+  app.post("/api/agent-search/enhanced-only", async (req, res) => {
+    try {
+      const { profileId } = req.body;
+      
+      if (!profileId) {
+        return res.status(400).json({ error: "Profile ID is required" });
+      }
+
+      console.log(`🎯 [API] Manual enhanced search for profile ${profileId}`);
+
+      // Get profile
+      const profile = await storage.getBuyerProfile(profileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+
+      const { agentSearchServiceReactive } = await import('./services/agent-search-service-reactive');
+      const enhancedResults = await agentSearchServiceReactive.performEnhancedSearchOnly(profile);
+      
+      console.log(`✅ [API] Enhanced search completed: ${enhancedResults.results.totalFound} results`);
+      
+      res.json(enhancedResults);
+    } catch (error) {
+      console.error('❌ [API] Enhanced search error:', error);
+      res.status(500).json({ 
+        error: "Enhanced search failed",
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }

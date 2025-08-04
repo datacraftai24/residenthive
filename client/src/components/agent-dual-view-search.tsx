@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Search, 
@@ -18,7 +19,9 @@ import {
   Star,
   TrendingUp,
   Clock,
-  Home
+  Home,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import type { BuyerProfile } from '@shared/schema';
 
@@ -93,15 +96,43 @@ interface AIRecommendationListing extends MarketOverviewListing {
   };
 }
 
+interface SearchAdjustment {
+  field: string;
+  originalValue: any;
+  adjustedValue: any;
+  description: string;
+}
+
 interface AgentSearchResponse {
-  searchType: 'agent_dual_view';
+  searchType: 'agent_dual_view' | 'agent_dual_view_reactive';
   profileData: {
     id: number;
     name: string;
     location: string;
   };
-  view1: SearchView1Results;
-  view2: SearchView2Results;
+  // For reactive search
+  initialSearch?: {
+    view1: SearchView1Results;
+    view2: SearchView2Results;
+    totalFound: number;
+    sufficientResults: boolean;
+  };
+  enhancedSearch?: {
+    triggered: boolean;
+    reason: string;
+    view1: SearchView1Results;
+    adjustments: SearchAdjustment[];
+    adjustmentSummary: string;
+    clientSummary: string;
+  };
+  agentRecommendations?: {
+    shouldEnhance: boolean;
+    message: string;
+    suggestedActions: string[];
+  };
+  // For standard search (backward compatibility)
+  view1?: SearchView1Results;
+  view2?: SearchView2Results;
   totalExecutionTime: number;
   timestamp: string;
 }
@@ -109,15 +140,20 @@ interface AgentSearchResponse {
 export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [activeView, setActiveView] = useState<'view1' | 'view2'>('view1');
+  const [forceEnhanced, setForceEnhanced] = useState(false);
 
-  // Search query
+  // Search query with reactive search enabled
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
-    queryKey: ['/api/agent-search', profile.id],
+    queryKey: ['/api/agent-search', profile.id, forceEnhanced],
     queryFn: async () => {
       const response = await fetch('/api/agent-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileId: profile.id })
+        body: JSON.stringify({ 
+          profileId: profile.id,
+          useReactive: true,  // Enable reactive search
+          forceEnhanced
+        })
       });
       
       if (!response.ok) {
@@ -134,6 +170,12 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
   const handleSearch = () => {
     setHasSearched(true);
+    setForceEnhanced(false); // Reset force enhanced
+    refetch();
+  };
+
+  const handleEnhancedSearch = () => {
+    setForceEnhanced(true);
     refetch();
   };
 
@@ -209,6 +251,42 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
       {searchResults && !isLoading && (
         <div className="space-y-6">
+          {/* Enhanced Search Alert */}
+          {searchResults.enhancedSearch?.triggered && (
+            <Alert className="border-blue-200 bg-blue-50">
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900">Enhanced Search Activated</AlertTitle>
+              <AlertDescription className="text-blue-800">
+                {searchResults.enhancedSearch.reason}. {searchResults.enhancedSearch.adjustmentSummary}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Agent Recommendations */}
+          {searchResults.agentRecommendations && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                  Agent Recommendations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-700 mb-3">
+                  {searchResults.agentRecommendations.message}
+                </p>
+                <ul className="space-y-1">
+                  {searchResults.agentRecommendations.suggestedActions.map((action, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      <span>{action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           {/* View Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -218,7 +296,11 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                 className="flex items-center gap-2"
               >
                 <List className="h-4 w-4" />
-                Market Overview ({searchResults.view1.totalFound})
+                Market Overview ({
+                  searchResults.enhancedSearch?.triggered 
+                    ? searchResults.enhancedSearch.view1.totalFound 
+                    : (searchResults.initialSearch?.view1.totalFound || searchResults.view1?.totalFound || 0)
+                })
               </Button>
               <Button
                 variant={activeView === 'view2' ? 'default' : 'outline'}
@@ -226,7 +308,9 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                 className="flex items-center gap-2"
               >
                 <Star className="h-4 w-4" />
-                AI Recommendations ({searchResults.view2.totalFound})
+                AI Recommendations ({
+                  searchResults.initialSearch?.view2.totalFound || searchResults.view2?.totalFound || 0
+                })
               </Button>
             </div>
             
@@ -237,16 +321,71 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
           {/* View 1: Market Overview */}
           {activeView === 'view1' && (
-            <MarketOverviewView 
-              results={searchResults.view1}
-              formatPrice={formatPrice}
-            />
+            <>
+              {/* Show adjustments if enhanced search was triggered */}
+              {searchResults.enhancedSearch?.adjustments && searchResults.enhancedSearch.adjustments.length > 0 && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Search Criteria Adjustments</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 mb-4">
+                      {searchResults.enhancedSearch.adjustments.map((adj, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="font-medium capitalize">{adj.field}:</span>
+                          <span>
+                            <span className="text-gray-500 line-through mr-2">{adj.originalValue}</span>
+                            <span className="text-blue-700 font-medium">→ {adj.adjustedValue}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Client-ready summary */}
+                    <div className="p-3 bg-white rounded-lg border border-blue-200">
+                      <p className="text-xs font-medium text-gray-600 mb-1">Copy for Client:</p>
+                      <p className="text-sm text-gray-800 italic">
+                        "{searchResults.enhancedSearch.clientSummary}"
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <MarketOverviewView 
+                results={
+                  searchResults.enhancedSearch?.triggered 
+                    ? searchResults.enhancedSearch.view1 
+                    : (searchResults.initialSearch?.view1 || searchResults.view1!)
+                }
+                formatPrice={formatPrice}
+              />
+
+              {/* Manual Enhanced Search Button */}
+              {searchResults.initialSearch && 
+               searchResults.initialSearch.totalFound < 20 && 
+               !searchResults.enhancedSearch?.triggered && (
+                <div className="text-center pt-4">
+                  <Button 
+                    onClick={handleEnhancedSearch}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    Find More Options with Flexible Criteria
+                  </Button>
+                  <p className="text-sm text-gray-500 mt-2">
+                    This will expand budget by ±20% and include ±1 bedroom
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {/* View 2: AI Recommendations */}
           {activeView === 'view2' && (
             <AIRecommendationsView 
-              results={searchResults.view2}
+              results={searchResults.initialSearch?.view2 || searchResults.view2!}
               formatPrice={formatPrice}
               getScoreColor={getScoreColor}
             />
