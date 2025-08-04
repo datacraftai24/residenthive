@@ -461,6 +461,12 @@ export class RepliersService {
    * Create NLP prompt for broad search (with flexibility)
    */
   private createBroadNLPPrompt(profile: any): string {
+    // Check if this is a widened search
+    if (profile.searchWidened && profile.rawInput) {
+      console.log(`🔄 [RepliersService] Using widened search prompt: ${profile.wideningLevel}`);
+      return profile.rawInput;
+    }
+    
     // If profile was created with voice or text, use the raw input directly
     if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
       console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
@@ -472,14 +478,17 @@ export class RepliersService {
     console.log(`📝 [RepliersService] Building NLP prompt from form fields`);
     const components = [];
     
-    // Budget with 10% flexibility
+    // Budget - check for range if widening applied
     if (profile.budgetMax) {
-      const flexBudget = Math.ceil(profile.budgetMax * 1.1);
-      components.push(`under $${flexBudget.toLocaleString()}`);
+      components.push(`under $${profile.budgetMax.toLocaleString()}`);
+    } else if (profile.budgetMin) {
+      components.push(`starting at $${profile.budgetMin.toLocaleString()}`);
     }
     
-    // Bedrooms with flexibility
-    if (profile.bedrooms && profile.bedrooms > 1) {
+    // Bedrooms - check for range if widening applied
+    if (profile.bedroomsMin && profile.bedroomsMax) {
+      components.push(`${profile.bedroomsMin}-${profile.bedroomsMax} bedrooms`);
+    } else if (profile.bedrooms && profile.bedrooms > 1) {
       components.push(`${profile.bedrooms - 1}+ bedrooms`);
     } else if (profile.bedrooms) {
       components.push(`${profile.bedrooms} bedrooms`);

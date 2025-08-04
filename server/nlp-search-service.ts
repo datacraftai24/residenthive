@@ -207,7 +207,7 @@ class NLPSearchService {
   ): Promise<{
     nlpResponse: NLPSearchResponse;
     searchResults: SearchExecutionResult;
-    searchLog: NLPSearchLog;
+    searchLog: NLPSearchLog | null;
   }> {
     const overallStartTime = Date.now();
 
@@ -227,24 +227,32 @@ class NLPSearchService {
         nlpResponse.request.body
       );
 
-      // Step 4: Create search log
-      const searchLog: NLPSearchLog = {
-        profileId: profile.id,
-        agentId: profile.agentId,
-        nlpQuery: nlpPrompt,
-        nlpResponse,
-        searchUrl: nlpResponse.request.url,
-        searchResults,
-        executionTime: Date.now() - overallStartTime,
-        timestamp: new Date().toISOString(),
-        nlpId: nlpResponse.nlpId
-      };
-
-      // Step 5: Persist search log (will be implemented with database storage)
-      await this.persistSearchLog(searchLog);
-
-      console.log(`🎯 Complete NLP search workflow finished in ${searchLog.executionTime}ms`);
+      console.log(`🎯 Complete NLP search workflow finished in ${Date.now() - overallStartTime}ms`);
       console.log(`📊 Results: ${searchResults.count} listings for ${profile.name}`);
+
+      // Declare searchLog in outer scope
+      let searchLog: NLPSearchLog | null = null;
+
+      // Only create and persist search log if agent is associated
+      if (profile.agentId) {
+        // Step 4: Create search log
+        searchLog = {
+          profileId: profile.id,
+          agentId: profile.agentId,
+          nlpQuery: nlpPrompt,
+          nlpResponse,
+          searchUrl: nlpResponse.request.url,
+          searchResults,
+          executionTime: Date.now() - overallStartTime,
+          timestamp: new Date().toISOString(),
+          nlpId: nlpResponse.nlpId
+        };
+
+        // Step 5: Persist search log
+        await this.persistSearchLog(searchLog);
+      } else {
+        console.log(`⚠️ Search log not persisted - no agent associated with profile ${profile.id}`);
+      }
 
       return {
         nlpResponse,
@@ -268,7 +276,7 @@ class NLPSearchService {
   ): Promise<{
     nlpResponse: NLPSearchResponse;
     searchResults: SearchExecutionResult;
-    searchLog: NLPSearchLog;
+    searchLog: NLPSearchLog | null;
   }> {
     console.log(`🔄 Refining search with context ID: ${nlpId}`);
     console.log(`📝 Refinement: ${refinementText}`);
@@ -288,23 +296,31 @@ class NLPSearchService {
         nlpResponse.request.body
       );
 
-      // Create search log for refinement
-      const searchLog: NLPSearchLog = {
-        profileId: originalProfile.id,
-        agentId: originalProfile.agentId,
-        nlpQuery: refinementText,
-        nlpResponse,
-        searchUrl: nlpResponse.request.url,
-        searchResults,
-        executionTime: Date.now() - overallStartTime,
-        timestamp: new Date().toISOString(),
-        nlpId: nlpResponse.nlpId
-      };
-
-      await this.persistSearchLog(searchLog);
-
-      console.log(`🎯 Search refinement completed in ${searchLog.executionTime}ms`);
+      console.log(`🎯 Search refinement completed in ${Date.now() - overallStartTime}ms`);
       console.log(`📊 Refined results: ${searchResults.count} listings`);
+
+      // Declare searchLog in outer scope
+      let searchLog: NLPSearchLog | null = null;
+
+      // Only create and persist search log if agent is associated
+      if (originalProfile.agentId) {
+        // Create search log for refinement
+        searchLog = {
+          profileId: originalProfile.id,
+          agentId: originalProfile.agentId,
+          nlpQuery: refinementText,
+          nlpResponse,
+          searchUrl: nlpResponse.request.url,
+          searchResults,
+          executionTime: Date.now() - overallStartTime,
+          timestamp: new Date().toISOString(),
+          nlpId: nlpResponse.nlpId
+        };
+
+        await this.persistSearchLog(searchLog);
+      } else {
+        console.log(`⚠️ Refinement log not persisted - no agent associated with profile ${originalProfile.id}`);
+      }
 
       return {
         nlpResponse,

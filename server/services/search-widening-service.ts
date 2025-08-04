@@ -27,6 +27,8 @@ export interface WideningLevel {
     bedrooms?: { range: [number, number] };
     bathrooms?: { flexible: boolean };
     budget?: { percentage: number };
+    removeFeatures?: boolean;
+    locationOnly?: boolean;
   };
 }
 
@@ -43,14 +45,18 @@ export interface ProgressiveSearchResult {
 }
 
 export interface AdjustedSearchCriteria {
-  budgetMin?: number;
-  budgetMax?: number;
-  bedrooms?: number;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  bedrooms?: number | null;
   bedroomsMin?: number;
   bedroomsMax?: number;
-  bathrooms?: string;
+  bathrooms?: string | null;
   location?: string;
-  homeType?: string;
+  homeType?: string | null;
+  mustHaveFeatures?: string[];
+  rawInput?: string;
+  searchWidened?: boolean;
+  wideningLevel?: string;
 }
 
 export class SearchWideningService {
@@ -65,20 +71,34 @@ export class SearchWideningService {
       adjustments: {}
     },
     {
+      name: 'no_features',
+      description: 'Removing feature requirements (garage, modern kitchen)',
+      adjustments: {
+        removeFeatures: true
+      }
+    },
+    {
       name: 'flexible_beds',
-      description: 'Flexible on bedrooms and bathrooms',
+      description: 'Flexible on bedrooms (±1) and no features',
       adjustments: {
         bedrooms: { range: [-1, 1] },
-        bathrooms: { flexible: true }
+        removeFeatures: true
       }
     },
     {
       name: 'flexible_budget',
-      description: 'Expanded budget range and flexible bedrooms',
+      description: 'Expanding budget by 20% with flexible bedrooms',
       adjustments: {
         budget: { percentage: 20 },
         bedrooms: { range: [-1, 1] },
-        bathrooms: { flexible: true }
+        removeFeatures: true
+      }
+    },
+    {
+      name: 'location_only',
+      description: 'All listings in Quincy, MA - no other filters',
+      adjustments: {
+        locationOnly: true
       }
     }
   ];
@@ -135,8 +155,32 @@ export class SearchWideningService {
   /**
    * Apply adjustments based on widening level
    */
-  private applyCriteriaAdjustments(profile: BuyerProfile, level: WideningLevel): AdjustedSearchCriteria {
-    const adjusted: AdjustedSearchCriteria = {};
+  private applyCriteriaAdjustments(profile: BuyerProfile, level: WideningLevel): any {
+    // Location-only search - return minimal criteria
+    if (level.adjustments.locationOnly) {
+      return {
+        ...profile,
+        budgetMin: null,
+        budgetMax: null,
+        bedrooms: null,
+        bathrooms: null,
+        homeType: null,
+        mustHaveFeatures: [],
+        // Override rawInput for NLP to understand we want all properties
+        rawInput: `all properties in ${profile.location}`,
+        // Mark this as a widened search
+        searchWidened: true,
+        wideningLevel: level.name
+      };
+    }
+    
+    // Create adjusted profile
+    const adjusted = { ...profile };
+    
+    // Remove features if specified
+    if (level.adjustments.removeFeatures) {
+      adjusted.mustHaveFeatures = [];
+    }
     
     // Budget adjustments
     if (level.adjustments.budget) {
@@ -147,42 +191,21 @@ export class SearchWideningService {
       if (profile.budgetMax) {
         adjusted.budgetMax = Math.ceil(profile.budgetMax * (1 + percentage));
       }
-    } else {
-      adjusted.budgetMin = profile.budgetMin;
-      adjusted.budgetMax = profile.budgetMax;
     }
     
     // Bedroom adjustments
     if (level.adjustments.bedrooms && profile.bedrooms) {
       const [minAdjust, maxAdjust] = level.adjustments.bedrooms.range;
-      adjusted.bedroomsMin = Math.max(1, profile.bedrooms + minAdjust);
-      adjusted.bedroomsMax = profile.bedrooms + maxAdjust;
-      // For compatibility with existing search
-      adjusted.bedrooms = adjusted.bedroomsMin;
-    } else {
-      adjusted.bedrooms = profile.bedrooms;
+      // Add properties that will be used by NLP prompt generation
+      (adjusted as any).bedroomsMin = Math.max(1, profile.bedrooms + minAdjust);
+      (adjusted as any).bedroomsMax = profile.bedrooms + maxAdjust;
+      // Update bedrooms to reflect range
+      adjusted.bedrooms = (adjusted as any).bedroomsMin;
     }
     
-    // Bathroom adjustments
-    if (level.adjustments.bathrooms?.flexible && profile.bathrooms) {
-      // Convert strict bathroom requirement to flexible
-      if (profile.bathrooms.includes('+')) {
-        adjusted.bathrooms = profile.bathrooms;
-      } else {
-        const bathNum = parseInt(profile.bathrooms);
-        if (!isNaN(bathNum) && bathNum > 1) {
-          adjusted.bathrooms = `${bathNum - 1}+`;
-        } else {
-          adjusted.bathrooms = profile.bathrooms;
-        }
-      }
-    } else {
-      adjusted.bathrooms = profile.bathrooms;
-    }
-    
-    // Keep location and homeType unchanged
-    adjusted.location = profile.location;
-    adjusted.homeType = profile.homeType;
+    // Mark as widened search
+    (adjusted as any).searchWidened = true;
+    (adjusted as any).wideningLevel = level.name;
     
     return adjusted;
   }
@@ -196,6 +219,27 @@ export class SearchWideningService {
     level: WideningLevel
   ): SearchAdjustment[] {
     const adjustments: SearchAdjustment[] = [];
+    
+    // Location-only search
+    if (level.adjustments.locationOnly) {
+      adjustments.push({
+        field: 'all_criteria',
+        originalValue: 'Full buyer criteria',
+        adjustedValue: 'Location only',
+        description: `Showing all properties in ${profile.location}`
+      });
+      return adjustments;
+    }
+    
+    // Feature removal
+    if (level.adjustments.removeFeatures && profile.mustHaveFeatures?.length > 0) {
+      adjustments.push({
+        field: 'features',
+        originalValue: profile.mustHaveFeatures.join(', '),
+        adjustedValue: 'None',
+        description: 'Removed feature requirements to expand results'
+      });
+    }
     
     // Budget adjustments
     if (adjusted.budgetMin !== profile.budgetMin || adjusted.budgetMax !== profile.budgetMax) {
@@ -218,15 +262,12 @@ export class SearchWideningService {
         adjustedValue: `${adjusted.bedroomsMin}-${adjusted.bedroomsMax}`,
         description: 'Including homes with ±1 bedroom'
       });
-    }
-    
-    // Bathroom adjustments
-    if (adjusted.bathrooms !== profile.bathrooms) {
+    } else if (adjusted.bedrooms === null && profile.bedrooms) {
       adjustments.push({
-        field: 'bathrooms',
-        originalValue: profile.bathrooms,
-        adjustedValue: adjusted.bathrooms,
-        description: 'More flexible bathroom count'
+        field: 'bedrooms',
+        originalValue: profile.bedrooms,
+        adjustedValue: 'Any',
+        description: 'Removed bedroom requirement'
       });
     }
     
@@ -327,15 +368,30 @@ export class SearchWideningService {
    * Get copy-paste ready summary for agents to share with clients
    */
   generateClientSummary(result: ProgressiveSearchResult, profile: BuyerProfile): string {
-    const { totalFound, adjustments, searchLevel } = result;
+    const { totalFound, adjustments, searchLevel, levelDescription } = result;
     
     if (searchLevel === 'exact') {
       return `Great news! I found ${totalFound} properties that exactly match your criteria in ${profile.location}.`;
     }
     
-    const adjustmentText = this.generateAdjustmentSummary(adjustments);
-    
-    return `I searched for properties matching your criteria in ${profile.location}. ${adjustmentText}. This gives us ${totalFound} total options to consider!`;
+    // Create specific messages for each widening level
+    switch (searchLevel) {
+      case 'no_features':
+        return `I found ${totalFound} properties by focusing on your core needs (location, budget, bedrooms) and temporarily setting aside specific feature preferences like garage or modern kitchen. We can filter these results together based on what matters most to you.`;
+        
+      case 'flexible_beds':
+        return `To expand your options, I've included properties with ${profile.bedrooms ? profile.bedrooms - 1 : 'flexible'} to ${profile.bedrooms ? profile.bedrooms + 1 : 'any'} bedrooms. This gives us ${totalFound} properties to consider in ${profile.location}.`;
+        
+      case 'flexible_budget':
+        return `I've expanded the search to include properties up to 20% above your target budget. This broader search found ${totalFound} properties. Some may be negotiable or worth the extra investment.`;
+        
+      case 'location_only':
+        return `Here are all ${totalFound} available properties in ${profile.location}. This complete view of the market helps us understand all options and refine based on your priorities.`;
+        
+      default:
+        const adjustmentText = this.generateAdjustmentSummary(adjustments);
+        return `I searched for properties in ${profile.location}. ${adjustmentText}. This gives us ${totalFound} total options to consider!`;
+    }
   }
 }
 

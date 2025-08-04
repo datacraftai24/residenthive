@@ -89,3 +89,4 @@ setup-local.sh
 
 # AI Assistant context files
 CLAUDE.md
+REQUIRED_CHANGES.md
