@@ -538,15 +538,15 @@ export class RepliersService {
       components.push(`${profile.bedrooms} bedrooms`);
     }
     
-    // Property type - avoid "single-family" as it returns 0 results
+    // Property type - skip single-family entirely, only add specific types like condo/townhouse
     if (profile.homeType) {
-      // Replace problematic terms
-      if (profile.homeType.toLowerCase().includes('single-family') || 
-          profile.homeType.toLowerCase().includes('single family')) {
-        components.push('homes');
-      } else {
+      // Skip single-family as it causes issues and "homes" already covers it
+      if (!profile.homeType.toLowerCase().includes('single-family') && 
+          !profile.homeType.toLowerCase().includes('single family')) {
+        // Only add specific property types that work with the API
         components.push(profile.homeType);
       }
+      // For single-family, we already have "homes for sale" which covers it
     }
     
     // Must-have features - make them preferences, not requirements
@@ -591,15 +591,15 @@ export class RepliersService {
       components.push(`${profile.bathrooms} bathrooms`);
     }
     
-    // Property type - avoid "single-family" as it returns 0 results
+    // Property type - skip single-family entirely, only add specific types like condo/townhouse
     if (profile.homeType) {
-      // Replace problematic terms
-      if (profile.homeType.toLowerCase().includes('single-family') || 
-          profile.homeType.toLowerCase().includes('single family')) {
-        components.push('homes');
-      } else {
+      // Skip single-family as it causes issues and "homes" already covers it
+      if (!profile.homeType.toLowerCase().includes('single-family') && 
+          !profile.homeType.toLowerCase().includes('single family')) {
+        // Only add specific property types that work with the API
         components.push(profile.homeType);
       }
+      // For single-family, we already have "homes for sale" which covers it
     }
     
     // Location with state abbreviation
