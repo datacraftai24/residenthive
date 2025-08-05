@@ -81,18 +81,18 @@ class NLPSearchService {
       components.push(`with ${profile.mustHaveFeatures.join(', ')}`);
     }
     
-    // Special needs and lifestyle drivers
-    const preferences = [];
-    if (profile.specialNeeds && profile.specialNeeds.length > 0) {
-      preferences.push(...profile.specialNeeds);
-    }
-    if (profile.lifestyleDrivers && profile.lifestyleDrivers.length > 0) {
-      preferences.push(...profile.lifestyleDrivers);
-    }
-    
-    if (preferences.length > 0) {
-      components.push(`suitable for ${preferences.join(', ')}`);
-    }
+    // Special needs and lifestyle drivers - commented out as they may be too restrictive
+    // const preferences = [];
+    // if (profile.specialNeeds && profile.specialNeeds.length > 0) {
+    //   preferences.push(...profile.specialNeeds);
+    // }
+    // if (profile.lifestyleDrivers && profile.lifestyleDrivers.length > 0) {
+    //   preferences.push(...profile.lifestyleDrivers);
+    // }
+    // 
+    // if (preferences.length > 0) {
+    //   components.push(`suitable for ${preferences.join(', ')}`);
+    // }
     
     // Add behavioral tags for context
     if (tags.length > 0) {

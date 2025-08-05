@@ -166,8 +166,10 @@ export class SearchWideningService {
         bathrooms: null,
         homeType: null,
         mustHaveFeatures: [],
+        specialNeeds: [],
+        lifestyleDrivers: [],
         // Override rawInput for NLP to understand we want all properties
-        rawInput: `all properties in ${profile.location}`,
+        rawInput: `all homes for sale in ${profile.location}`,
         // Mark this as a widened search
         searchWidened: true,
         wideningLevel: level.name

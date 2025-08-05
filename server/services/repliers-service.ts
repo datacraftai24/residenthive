@@ -458,6 +458,37 @@ export class RepliersService {
   }
 
   /**
+   * Convert full state names to abbreviations
+   */
+  private convertStateToAbbreviation(location: string): string {
+    const stateMap: Record<string, string> = {
+      'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+      'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+      'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+      'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+      'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+      'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+      'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+      'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+      'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+      'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+      'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+      'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+      'Wisconsin': 'WI', 'Wyoming': 'WY'
+    };
+    
+    // Replace full state names with abbreviations
+    let result = location;
+    for (const [fullName, abbr] of Object.entries(stateMap)) {
+      // Use word boundary to avoid partial matches
+      const regex = new RegExp(`\\b${fullName}\\b`, 'gi');
+      result = result.replace(regex, abbr);
+    }
+    
+    return result;
+  }
+
+  /**
    * Create NLP prompt for broad search (with flexibility)
    */
   private createBroadNLPPrompt(profile: any): string {
@@ -470,13 +501,26 @@ export class RepliersService {
     // If profile was created with voice or text, use the raw input directly
     if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
       console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
-      // Add flexibility note to the raw input
-      return `${profile.rawInput} (flexible on exact requirements, show more options)`;
+      // Convert state names and add flexibility note
+      const convertedInput = this.convertStateToAbbreviation(profile.rawInput);
+      return `${convertedInput} (flexible on exact requirements, show more options)`;
     }
     
     // Otherwise, build prompt from structured fields
     console.log(`📝 [RepliersService] Building NLP prompt from form fields`);
     const components = [];
+    
+    // Always start with "homes for sale" to avoid rentals
+    components.push('homes for sale');
+    
+    // Location with state abbreviation conversion
+    if (profile.location) {
+      const location = this.convertStateToAbbreviation(profile.location);
+      components.push(`in ${location}`);
+    } else if (profile.preferredAreas?.length > 0) {
+      const location = this.convertStateToAbbreviation(profile.preferredAreas[0]);
+      components.push(`in ${location}`);
+    }
     
     // Budget - check for range if widening applied
     if (profile.budgetMax) {
@@ -494,16 +538,15 @@ export class RepliersService {
       components.push(`${profile.bedrooms} bedrooms`);
     }
     
-    // Property type
+    // Property type - avoid "single-family" as it returns 0 results
     if (profile.homeType) {
-      components.push(profile.homeType);
-    }
-    
-    // Location
-    if (profile.location) {
-      components.push(`in ${profile.location}`);
-    } else if (profile.preferredAreas?.length > 0) {
-      components.push(`in ${profile.preferredAreas[0]}`);
+      // Replace problematic terms
+      if (profile.homeType.toLowerCase().includes('single-family') || 
+          profile.homeType.toLowerCase().includes('single family')) {
+        components.push('homes');
+      } else {
+        components.push(profile.homeType);
+      }
     }
     
     // Must-have features - make them preferences, not requirements
@@ -521,13 +564,17 @@ export class RepliersService {
     // If profile was created with voice or text, use the raw input directly
     if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
       console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
-      // Keep exact requirements for targeted search
-      return profile.rawInput;
+      // Convert state names in raw input
+      const convertedInput = this.convertStateToAbbreviation(profile.rawInput);
+      return convertedInput;
     }
     
     // Otherwise, build prompt from structured fields
     console.log(`📝 [RepliersService] Building NLP prompt from form fields`);
     const components = [];
+    
+    // Always start with "homes for sale"
+    components.push('homes for sale');
     
     // Exact budget
     if (profile.budgetMin && profile.budgetMax) {
@@ -544,24 +591,26 @@ export class RepliersService {
       components.push(`${profile.bathrooms} bathrooms`);
     }
     
-    // Property type
+    // Property type - avoid "single-family" as it returns 0 results
     if (profile.homeType) {
-      components.push(profile.homeType);
+      // Replace problematic terms
+      if (profile.homeType.toLowerCase().includes('single-family') || 
+          profile.homeType.toLowerCase().includes('single family')) {
+        components.push('homes');
+      } else {
+        components.push(profile.homeType);
+      }
     }
     
-    // Location
+    // Location with state abbreviation
     if (profile.location) {
-      components.push(`in ${profile.location}`);
+      const location = this.convertStateToAbbreviation(profile.location);
+      components.push(`in ${location}`);
     }
     
     // Must-have features - soften the requirement
     if (profile.mustHaveFeatures?.length > 0) {
       components.push(`prefer ${profile.mustHaveFeatures.join(', ')}`);
-    }
-    
-    // Special needs
-    if (profile.specialNeeds?.length > 0) {
-      components.push(`suitable for ${profile.specialNeeds.join(', ')}`);
     }
     
     return components.join(' ');
