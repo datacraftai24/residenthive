@@ -83,16 +83,93 @@ export default function ClientDashboard() {
     enabled: !!shareableProfile?.profileId
   });
 
-  // Fetch matching listings
+  // Fetch matching listings with AI recommendations
   const { data: listings, isLoading: isLoadingListings } = useQuery({
-    queryKey: ["/api/listings/search", shareableProfile?.profileId],
+    queryKey: ["/api/agent-search", shareableProfile?.profileId],
     queryFn: async () => {
-      const response = await fetch(`/api/listings/search?profileId=${shareableProfile?.profileId}`);
+      // Use agent search endpoint to get AI-powered results
+      const response = await fetch('/api/agent-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          profileId: parseInt(shareableProfile?.profileId as string),
+          reactive: false // Use basic search without enhanced features
+        })
+      });
+      
       if (!response.ok) throw new Error("Failed to fetch listings");
-      const data = await response.json();
-      console.log('Client Dashboard API Response:', data);
-      console.log('First top pick images:', data?.top_picks?.[0]?.listing?.images);
-      return data;
+      const agentData = await response.json();
+      
+      console.log('Client Dashboard AI Response:', agentData);
+      
+      // Transform agent search response to match expected format
+      // Agent search returns view1/view2, we need top_picks/other_matches
+      const transformedData = {
+        top_picks: agentData.view2?.listings
+          ?.filter((l: any) => l.matchScore >= 80)
+          .slice(0, 5)
+          .map((listing: any) => ({
+            listing: {
+              id: listing.mlsNumber,
+              mls_number: listing.mlsNumber,
+              price: listing.listPrice,
+              bedrooms: listing.bedrooms,
+              bathrooms: listing.bathrooms,
+              property_type: listing.propertyType,
+              address: listing.address,
+              city: listing.city,
+              state: listing.state,
+              zip_code: listing.zip,
+              square_feet: listing.sqft,
+              description: listing.description,
+              images: listing.images,
+              status: listing.status
+            },
+            match_score: listing.matchScore / 100,
+            label: listing.matchLabel,
+            matched_features: listing.matchReasons || [],
+            dealbreaker_flags: listing.dealbreakers || [],
+            reason: listing.aiInsights?.agentSummary || listing.matchLabel
+          })) || [],
+        other_matches: agentData.view2?.listings
+          ?.filter((l: any) => l.matchScore < 80)
+          .map((listing: any) => ({
+            listing: {
+              id: listing.mlsNumber,
+              mls_number: listing.mlsNumber,
+              price: listing.listPrice,
+              bedrooms: listing.bedrooms,
+              bathrooms: listing.bathrooms,
+              property_type: listing.propertyType,
+              address: listing.address,
+              city: listing.city,
+              state: listing.state,
+              zip_code: listing.zip,
+              square_feet: listing.sqft,
+              description: listing.description,
+              images: listing.images,
+              status: listing.status
+            },
+            match_score: listing.matchScore / 100,
+            label: listing.matchLabel,
+            matched_features: listing.matchReasons || [],
+            dealbreaker_flags: listing.dealbreakers || [],
+            reason: listing.aiInsights?.agentSummary || listing.matchLabel
+          })) || [],
+        search_summary: {
+          total_found: agentData.view1?.totalFound || 0,
+          top_picks_count: agentData.view2?.listings?.filter((l: any) => l.matchScore >= 80).length || 0,
+          other_matches_count: agentData.view2?.listings?.filter((l: any) => l.matchScore < 80).length || 0,
+          search_criteria: agentData.view1?.searchCriteria || {}
+        }
+      };
+      
+      console.log('Transformed data:', transformedData);
+      console.log('First top pick:', transformedData.top_picks[0]);
+      
+      return transformedData;
     },
     enabled: !!shareableProfile?.profileId
   });
