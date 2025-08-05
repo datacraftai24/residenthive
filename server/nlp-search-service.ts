@@ -2,6 +2,8 @@ import type { BuyerProfile, ProfileTag, InsertNLPSearchLog } from "@shared/schem
 import { nlpSearchLogs } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
+import { convertStateToAbbreviation } from "./utils/state-converter";
+import { normalizePropertyType } from "./utils/search-query-normalizer";
 
 export interface NLPSearchRequest {
   prompt: string;
@@ -61,10 +63,10 @@ class NLPSearchService {
     
     // Location with state abbreviation
     if (profile.location) {
-      const location = this.convertStateToAbbreviation(profile.location);
+      const location = convertStateToAbbreviation(profile.location);
       components.push(`in ${location}`);
     } else if (profile.preferredAreas && profile.preferredAreas.length > 0) {
-      const location = this.convertStateToAbbreviation(profile.preferredAreas[0]);
+      const location = convertStateToAbbreviation(profile.preferredAreas[0]);
       components.push(`in ${location}`);
     }
     
@@ -95,24 +97,6 @@ class NLPSearchService {
     return components.join(' ');
   }
   
-  /**
-   * Convert state names to abbreviations
-   */
-  private convertStateToAbbreviation(location: string): string {
-    const stateMap: Record<string, string> = {
-      'Massachusetts': 'MA', 'New York': 'NY', 'California': 'CA', 'Texas': 'TX',
-      'Florida': 'FL', 'Illinois': 'IL', 'Pennsylvania': 'PA', 'Ohio': 'OH'
-      // Add more as needed
-    };
-    
-    let result = location;
-    for (const [fullName, abbr] of Object.entries(stateMap)) {
-      const regex = new RegExp(`\\b${fullName}\\b`, 'gi');
-      result = result.replace(regex, abbr);
-    }
-    
-    return result;
-  }
 
   /**
    * Call Repliers NLP API to convert natural language to search URL

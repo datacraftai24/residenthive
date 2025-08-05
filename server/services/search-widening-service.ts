@@ -12,6 +12,7 @@
 
 import type { BuyerProfile } from '@shared/schema';
 import { repliersService } from './repliers-service';
+import { normalizeSearchQuery } from '../utils/search-query-normalizer';
 
 export interface SearchAdjustment {
   field: string;
@@ -169,7 +170,7 @@ export class SearchWideningService {
         specialNeeds: [],
         lifestyleDrivers: [],
         // Override rawInput for NLP to understand we want all properties
-        rawInput: `all homes for sale in ${profile.location}`,
+        rawInput: normalizeSearchQuery(`all homes for sale in ${profile.location || ''}`),
         // Mark this as a widened search
         searchWidened: true,
         wideningLevel: level.name
@@ -303,7 +304,7 @@ export class SearchWideningService {
         bathrooms: null,
         homeType: null,
         mustHaveFeatures: [],
-        rawInput: `all properties in ${profile.location}`
+        rawInput: normalizeSearchQuery(`all properties in ${profile.location || ''}`)
       };
       
       const listings = await repliersService.searchBroadListings(locationOnlyProfile);

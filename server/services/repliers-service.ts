@@ -7,6 +7,9 @@
  * Used by: Basic Search, Enhanced Search, NLP Search, Hybrid Search
  */
 
+import { normalizeSearchQuery } from '../utils/search-query-normalizer';
+import { convertStateToAbbreviation } from '../utils/state-converter';
+
 interface RepliersSearchParams {
   price_min?: number;
   price_max?: number;
@@ -457,36 +460,6 @@ export class RepliersService {
     return await this.performAPISearch(fallbackParams);
   }
 
-  /**
-   * Convert full state names to abbreviations
-   */
-  private convertStateToAbbreviation(location: string): string {
-    const stateMap: Record<string, string> = {
-      'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
-      'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
-      'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
-      'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
-      'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
-      'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
-      'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
-      'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
-      'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
-      'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
-      'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
-      'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
-      'Wisconsin': 'WI', 'Wyoming': 'WY'
-    };
-    
-    // Replace full state names with abbreviations
-    let result = location;
-    for (const [fullName, abbr] of Object.entries(stateMap)) {
-      // Use word boundary to avoid partial matches
-      const regex = new RegExp(`\\b${fullName}\\b`, 'gi');
-      result = result.replace(regex, abbr);
-    }
-    
-    return result;
-  }
 
   /**
    * Create NLP prompt for broad search (with flexibility)
@@ -495,16 +468,16 @@ export class RepliersService {
     // Check if this is a widened search
     if (profile.searchWidened && profile.rawInput) {
       console.log(`🔄 [RepliersService] Using widened search prompt: ${profile.wideningLevel}`);
-      // Still need to convert state names in widened searches
-      return this.convertStateToAbbreviation(profile.rawInput);
+      // Normalize the search query (state names + property types)
+      return normalizeSearchQuery(profile.rawInput);
     }
     
     // If profile was created with voice or text, use the raw input directly
     if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
       console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
       // Convert state names and add flexibility note
-      const convertedInput = this.convertStateToAbbreviation(profile.rawInput);
-      return `${convertedInput} (flexible on exact requirements, show more options)`;
+      const normalizedInput = normalizeSearchQuery(profile.rawInput);
+      return `${normalizedInput} (flexible on exact requirements, show more options)`;
     }
     
     // Otherwise, build prompt from structured fields
@@ -516,10 +489,10 @@ export class RepliersService {
     
     // Location with state abbreviation conversion
     if (profile.location) {
-      const location = this.convertStateToAbbreviation(profile.location);
+      const location = convertStateToAbbreviation(profile.location);
       components.push(`in ${location}`);
     } else if (profile.preferredAreas?.length > 0) {
-      const location = this.convertStateToAbbreviation(profile.preferredAreas[0]);
+      const location = convertStateToAbbreviation(profile.preferredAreas[0]);
       components.push(`in ${location}`);
     }
     
@@ -566,8 +539,8 @@ export class RepliersService {
     if ((profile.inputMethod === 'voice' || profile.inputMethod === 'text') && profile.rawInput) {
       console.log(`🎤 [RepliersService] Using raw ${profile.inputMethod} input for NLP`);
       // Convert state names in raw input
-      const convertedInput = this.convertStateToAbbreviation(profile.rawInput);
-      return convertedInput;
+      const normalizedInput = normalizeSearchQuery(profile.rawInput);
+      return normalizedInput;
     }
     
     // Otherwise, build prompt from structured fields
@@ -605,7 +578,7 @@ export class RepliersService {
     
     // Location with state abbreviation
     if (profile.location) {
-      const location = this.convertStateToAbbreviation(profile.location);
+      const location = convertStateToAbbreviation(profile.location);
       components.push(`in ${location}`);
     }
     
