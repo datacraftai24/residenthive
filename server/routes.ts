@@ -1473,9 +1473,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
       
       const { repliersAPI } = await import('./repliers-api');
-      const listings = await repliersAPI.searchListings(profile);
+      const rawListings = await repliersAPI.searchListings(profile);
       
-      if (!listings || listings.length === 0) {
+      if (!rawListings || rawListings.length === 0) {
         return res.json({
           top_picks: [],
           other_matches: [],
@@ -1496,9 +1496,33 @@ export async function registerRoutes(app: Express): Promise<void> {
         });
       }
 
-      // Use original listings with Repliers CDN URLs (no proxy needed)
+      // Parse listings to capture ALL data including descriptions
+      const { listingParser } = await import('./services/listing-parser');
+      const parsedListings = rawListings.map((rawListing: any) => {
+        const parsed = listingParser.parse(rawListing, 'repliers');
+        // Return listing in format expected by scorer, but with all parsed data
+        return {
+          ...rawListing,
+          // Add parsed descriptions
+          description: parsed.data.descriptions.main || parsed.data.descriptions.public_remarks,
+          public_remarks: parsed.data.descriptions.public_remarks,
+          // Add parsed features
+          features: parsed.data.features.all || rawListing.features || [],
+          interior_features: parsed.data.features.interior,
+          exterior_features: parsed.data.features.exterior,
+          // Add financial details
+          taxes_annual: parsed.data.financial.taxes?.annual_amount,
+          hoa_fee: parsed.data.financial.hoa?.fee,
+          // Add quality score
+          data_quality_score: parsed.parse_quality_score,
+          // Keep square_feet if it was parsed
+          square_feet: parsed.square_feet || rawListing.square_feet
+        };
+      });
+
+      // Use parsed listings with all data
       const { hybridListingScorer } = await import('./hybrid-listing-scorer');
-      const response = await hybridListingScorer.scoreListingsHybrid(listings, profile, tags);
+      const response = await hybridListingScorer.scoreListingsHybrid(parsedListings, profile, tags);
 
       res.json(response);
     } catch (error) {

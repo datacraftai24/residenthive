@@ -162,6 +162,13 @@ export default function ListingSearch({ profileId, profileName }: ListingSearchP
             </div>
           )}
           
+          {listing.description && (
+            <div className="mb-3">
+              <h4 className="font-medium text-sm mb-1">Description:</h4>
+              <p className="text-sm text-gray-600 line-clamp-3">{listing.description}</p>
+            </div>
+          )}
+          
           {matched_features.length > 0 && (
             <div className="mb-3">
               <h4 className="font-medium text-sm mb-2">✅ Matched Features:</h4>
@@ -179,13 +186,6 @@ export default function ListingSearch({ profileId, profileName }: ListingSearchP
             <h4 className="font-medium text-sm mb-1">🤖 Why we picked this:</h4>
             <p className="text-sm text-gray-600">{reason}</p>
           </div>
-          
-          {listing.description && (
-            <div className="mb-3">
-              <h4 className="font-medium text-sm mb-1">Description:</h4>
-              <p className="text-sm text-gray-600 line-clamp-2">{listing.description}</p>
-            </div>
-          )}
           
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer hover:text-gray-700">Score Breakdown</summary>

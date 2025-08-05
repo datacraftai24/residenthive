@@ -468,6 +468,12 @@ function PropertyCard({
               <span>{listing.bedrooms || 0} bds</span>
               <span>•</span>
               <span>{listing.bathrooms || 0} ba</span>
+              {listing.square_feet && (
+                <>
+                  <span>•</span>
+                  <span>{listing.square_feet.toLocaleString()} sqft</span>
+                </>
+              )}
               <span>•</span>
               <span className="text-green-600 font-medium">Active</span>
             </div>
@@ -483,6 +489,15 @@ function PropertyCard({
             <p className="text-xs text-gray-500 mt-1">MLS #{listing.mls_number}</p>
           )}
         </div>
+
+        {/* Property Description - NEW! */}
+        {listing.description && (
+          <div className="mb-3">
+            <p className="text-xs sm:text-sm text-gray-600 line-clamp-3">
+              {listing.description}
+            </p>
+          </div>
+        )}
 
         {/* Match reasoning */}
         <div className="mb-4 p-2 sm:p-3 bg-blue-50 rounded-lg border border-blue-100">
