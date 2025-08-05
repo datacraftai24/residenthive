@@ -495,7 +495,8 @@ export class RepliersService {
     // Check if this is a widened search
     if (profile.searchWidened && profile.rawInput) {
       console.log(`🔄 [RepliersService] Using widened search prompt: ${profile.wideningLevel}`);
-      return profile.rawInput;
+      // Still need to convert state names in widened searches
+      return this.convertStateToAbbreviation(profile.rawInput);
     }
     
     // If profile was created with voice or text, use the raw input directly

@@ -56,57 +56,62 @@ class NLPSearchService {
   private createNLPPrompt(profile: BuyerProfile, tags: ProfileTag[] = []): string {
     const components = [];
     
+    // Always start with "homes for sale"
+    components.push('homes for sale');
+    
+    // Location with state abbreviation
+    if (profile.location) {
+      const location = this.convertStateToAbbreviation(profile.location);
+      components.push(`in ${location}`);
+    } else if (profile.preferredAreas && profile.preferredAreas.length > 0) {
+      const location = this.convertStateToAbbreviation(profile.preferredAreas[0]);
+      components.push(`in ${location}`);
+    }
+    
     // Budget
-    if (profile.budgetMin && profile.budgetMax) {
-      components.push(`budget between $${profile.budgetMin.toLocaleString()} and $${profile.budgetMax.toLocaleString()}`);
+    if (profile.budgetMax) {
+      components.push(`under $${profile.budgetMax.toLocaleString()}`);
     }
     
-    // Property type and bedrooms
-    if (profile.homeType && profile.bedrooms) {
-      components.push(`${profile.bedrooms}-bedroom ${profile.homeType} home`);
+    // Bedrooms - use flexible count
+    if (profile.bedrooms && profile.bedrooms > 1) {
+      components.push(`${profile.bedrooms - 1}+ bedrooms`);
+    } else if (profile.bedrooms) {
+      components.push(`${profile.bedrooms} bedrooms`);
     }
     
-    // Bathrooms
-    if (profile.bathrooms) {
-      components.push(`at least ${profile.bathrooms} bathroom${profile.bathrooms !== '1' ? 's' : ''}`);
+    // Skip property type if it's single-family (causes 0 results)
+    if (profile.homeType && 
+        !profile.homeType.toLowerCase().includes('single-family') && 
+        !profile.homeType.toLowerCase().includes('single family')) {
+      components.push(profile.homeType);
     }
     
-    // Location
-    if (profile.preferredAreas && profile.preferredAreas.length > 0) {
-      components.push(`in ${profile.preferredAreas.join(' or ')}`);
-    }
-    
-    // Must-have features
+    // Features - make them preferences
     if (profile.mustHaveFeatures && profile.mustHaveFeatures.length > 0) {
-      components.push(`with ${profile.mustHaveFeatures.join(', ')}`);
+      components.push(`preferably with ${profile.mustHaveFeatures.join(', ')}`);
     }
     
-    // Special needs and lifestyle drivers - commented out as they may be too restrictive
-    // const preferences = [];
-    // if (profile.specialNeeds && profile.specialNeeds.length > 0) {
-    //   preferences.push(...profile.specialNeeds);
-    // }
-    // if (profile.lifestyleDrivers && profile.lifestyleDrivers.length > 0) {
-    //   preferences.push(...profile.lifestyleDrivers);
-    // }
-    // 
-    // if (preferences.length > 0) {
-    //   components.push(`suitable for ${preferences.join(', ')}`);
-    // }
+    return components.join(' ');
+  }
+  
+  /**
+   * Convert state names to abbreviations
+   */
+  private convertStateToAbbreviation(location: string): string {
+    const stateMap: Record<string, string> = {
+      'Massachusetts': 'MA', 'New York': 'NY', 'California': 'CA', 'Texas': 'TX',
+      'Florida': 'FL', 'Illinois': 'IL', 'Pennsylvania': 'PA', 'Ohio': 'OH'
+      // Add more as needed
+    };
     
-    // Add behavioral tags for context
-    if (tags.length > 0) {
-      const behavioralTags = tags
-        .filter(tag => tag.confidence > 0.7)
-        .map(tag => tag.tag)
-        .slice(0, 3); // Top 3 most confident tags
-      
-      if (behavioralTags.length > 0) {
-        components.push(`with preferences for ${behavioralTags.join(', ')}`);
-      }
+    let result = location;
+    for (const [fullName, abbr] of Object.entries(stateMap)) {
+      const regex = new RegExp(`\\b${fullName}\\b`, 'gi');
+      result = result.replace(regex, abbr);
     }
     
-    return `Find a ${components.join(' ')}`;
+    return result;
   }
 
   /**
