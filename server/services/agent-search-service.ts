@@ -102,11 +102,15 @@ export class AgentSearchService {
     console.log(`🚀 [AgentSearch] Starting dual-view search for profile ${profile.id}: ${profile.name}`);
     
     try {
-      // Execute both searches in parallel for better performance
-      const [view1Results, view2Results] = await Promise.all([
-        this.executeView1BroadSearch(profile),
-        this.executeView2AIRecommendations(profile, tags)
-      ]);
+      // Execute View 1 first to get listings
+      const view1Results = await this.executeView1BroadSearch(profile);
+      
+      // Pass View 1 listings to View 2 to avoid duplicate API calls
+      const view2Results = await this.executeView2AIRecommendations(
+        profile, 
+        tags,
+        view1Results.listings // Reuse listings from View 1
+      );
 
       const totalExecutionTime = Date.now() - startTime;
 
@@ -194,14 +198,43 @@ export class AgentSearchService {
    * VIEW 2: AI Recommendations
    * Shows scored and analyzed properties with AI insights
    */
-  private async executeView2AIRecommendations(profile: BuyerProfile, tags: ProfileTag[]): Promise<SearchView2Results> {
+  private async executeView2AIRecommendations(
+    profile: BuyerProfile, 
+    tags: ProfileTag[],
+    view1Listings?: MarketOverviewListing[]
+  ): Promise<SearchView2Results> {
     const startTime = Date.now();
     
     console.log(`🎯 [AgentSearch] Executing View 2: AI Recommendations`);
     
     try {
-      // Get targeted listings from Repliers
-      const rawListings = await repliersService.searchTargetedListings(profile);
+      // If we have View 1 listings, reuse them to avoid duplicate API calls
+      let rawListings: any[];
+      
+      if (view1Listings && view1Listings.length > 0) {
+        console.log(`🔄 [AgentSearch] Reusing ${view1Listings.length} listings from View 1`);
+        // Convert back to listing format for scoring
+        rawListings = view1Listings.map(listing => ({
+          id: listing.mlsNumber,
+          mls_number: listing.mlsNumber,
+          price: listing.listPrice,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          property_type: listing.propertyType,
+          address: listing.address,
+          city: listing.city,
+          state: listing.state,
+          zip_code: listing.zip,
+          square_feet: listing.sqft,
+          status: listing.status,
+          listing_date: this.calculateListingDate(listing.daysOnMarket),
+          images: listing.images
+        }));
+      } else {
+        // Fallback: Get targeted listings from Repliers (shouldn't happen now)
+        console.log(`⚠️ [AgentSearch] No View 1 listings, calling API`);
+        rawListings = await repliersService.searchTargetedListings(profile);
+      }
       
       // Import scoring services
       const { listingScorer } = await import('../listing-scorer');
@@ -217,12 +250,41 @@ export class AgentSearchService {
         .sort((a, b) => b.match_score - a.match_score)
         .slice(0, 20); // Top 20 for detailed analysis
 
-      // Apply enhanced analysis to top 3 matches (with visual analysis)
+      // TEMPORARILY DISABLED: Visual analysis causing 89s delays
+      // TODO: Re-enable after optimization
+      /*
       const enhancedResults = await enhancedListingScorer.scoreListingsWithVisualIntelligence(
         topMatches.map(scored => scored.listing),
         profile,
         tags
       );
+      */
+      
+      // For now, create mock enhanced results without visual analysis
+      const enhancedResults = {
+        top_picks: topMatches.slice(0, 5).map(scored => ({
+          ...scored,
+          visualAnalysis: undefined,
+          visualTagMatches: [],
+          visualFlags: [],
+          enhancedReason: scored.reason
+        })),
+        other_matches: topMatches.slice(5).map(scored => ({
+          ...scored,
+          visualAnalysis: undefined,
+          visualTagMatches: [],
+          visualFlags: [],
+          enhancedReason: scored.reason
+        })),
+        chat_blocks: [],
+        search_summary: {
+          total_found: topMatches.length,
+          top_picks_count: Math.min(5, topMatches.length),
+          other_matches_count: Math.max(0, topMatches.length - 5),
+          visual_analysis_count: 0,
+          search_criteria: profile
+        }
+      };
 
       // Combine enhanced and basic results
       const listings: AIRecommendationListing[] = topMatches.map(scored => {
@@ -314,6 +376,14 @@ export class AgentSearchService {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     return diffDays > 0 ? diffDays : undefined;
+  }
+
+  private calculateListingDate(daysOnMarket?: number): string | undefined {
+    if (!daysOnMarket) return undefined;
+    
+    const now = new Date();
+    const listingDate = new Date(now.getTime() - (daysOnMarket * 24 * 60 * 60 * 1000));
+    return listingDate.toISOString();
   }
 }
 

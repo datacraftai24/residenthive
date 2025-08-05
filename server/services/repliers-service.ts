@@ -316,13 +316,120 @@ export class RepliersService {
     // Process images using CDN URLs (same logic as existing repliers-api.ts)
     const processedImages = this.extractImages(rawListing.images || []);
 
+    // Extract details properly
+    const details = rawListing.details || {};
+
     return {
-      ...rawListing,
+      // CRITICAL: Set ID from mlsNumber
+      id: rawListing.mlsNumber || rawListing.id || `listing_${Date.now()}`,
+      
+      // Extract core fields from proper locations
+      price: rawListing.listPrice || rawListing.price || 0,
+      bedrooms: this.parseNumber(details.numBedrooms) || 
+                this.parseNumber(details.numBedroomsPlus) || 
+                this.parseNumber(rawListing.bedrooms) || 0,
+      bathrooms: this.parseNumber(details.numBathrooms) || 
+                 this.parseNumber(details.numBathroomsPlus) || 
+                 this.parseNumber(rawListing.bathrooms) || 0,
+      property_type: this.normalizePropertyType(details.propertyType || details.style || rawListing.property_type || 'Residential'),
+      
+      // Address fields
       address,
       city,
       state,
       zip_code: zip,
-      images: processedImages
+      
+      // Extract from details
+      square_feet: this.parseNumber(details.sqft) || this.parseNumber(details.squareFeet),
+      lot_size: details.lotSize,
+      year_built: this.parseNumber(details.yearBuilt),
+      description: details.description || rawListing.description || '',
+      features: this.extractFeatures(details),
+      
+      // Images
+      images: processedImages,
+      
+      // Listing info
+      listing_agent: this.extractAgent(rawListing.agents || rawListing.listingAgent),
+      mls_number: rawListing.mlsNumber,
+      listing_date: rawListing.listDate,
+      status: rawListing.status || rawListing.lastStatus || 'active'
+    };
+  }
+
+  /**
+   * Parse number from various formats
+   */
+  private parseNumber(value: any): number | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value.replace(/[^0-9.]/g, ''));
+      return isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  }
+
+  /**
+   * Normalize property type
+   */
+  private normalizePropertyType(type: string): string {
+    if (!type) return 'Residential';
+    const normalized = type.toLowerCase();
+    if (normalized.includes('single family')) return 'Single Family';
+    if (normalized.includes('condo')) return 'Condo';
+    if (normalized.includes('townhouse')) return 'Townhouse';
+    if (normalized.includes('multi')) return 'Multi-Family';
+    return type;
+  }
+
+  /**
+   * Extract features from details
+   */
+  private extractFeatures(details: any): string[] {
+    const features: string[] = [];
+    
+    if (details.airConditioning && details.airConditioning !== 'None') {
+      features.push('Air Conditioning');
+    }
+    if (details.numGarageSpaces && details.numGarageSpaces > 0) {
+      features.push('Garage');
+    }
+    if (details.numFireplaces && parseInt(details.numFireplaces) > 0) {
+      features.push('Fireplace');
+    }
+    if (details.basement1 && !details.basement1.toLowerCase().includes('none')) {
+      features.push('Basement');
+    }
+    if (details.patio) {
+      features.push(details.patio);
+    }
+    if (details.swimmingPool) {
+      features.push('Pool');
+    }
+    if (details.extras) {
+      const extras = details.extras.split(',').map((e: string) => e.trim());
+      features.push(...extras);
+    }
+    
+    return features;
+  }
+
+  /**
+   * Extract agent info
+   */
+  private extractAgent(agent: any): any {
+    if (!agent) return undefined;
+    
+    // Handle array of agents
+    if (Array.isArray(agent) && agent.length > 0) {
+      agent = agent[0];
+    }
+    
+    return {
+      name: agent.name || agent.agentName || '',
+      phone: agent.phone || agent.agentPhone || '',
+      email: agent.email || agent.agentEmail || ''
     };
   }
 
