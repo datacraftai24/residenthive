@@ -19,6 +19,7 @@ import {
   Star,
   TrendingUp,
   Clock,
+  Calendar,
   Home,
   AlertCircle,
   CheckCircle
@@ -86,10 +87,18 @@ interface AIRecommendationListing extends MarketOverviewListing {
   matchLabel: string;
   matchReasons: string[];
   dealbreakers: string[];
+  reason?: string; // Add this for backward compatibility
   aiInsights?: {
     visualAnalysis?: string;
     styleMatch?: string;
     qualityScore?: number;
+    personalizedAnalysis?: {
+      summary: string;
+      hiddenGems: string[];
+      missingInfo: string[];
+      agentTasks: string[];
+    };
+    agentSummary?: string;
   };
   scoreBreakdown: {
     featureMatch: number;

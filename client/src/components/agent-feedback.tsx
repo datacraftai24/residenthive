@@ -34,13 +34,9 @@ export default function AgentFeedback({ profile, tags = [], persona }: AgentFeed
   // Log disagreement with a tag
   const disagreeTagMutation = useMutation({
     mutationFn: async (tagName: string) => {
-      return apiRequest("/api/insights/disagree", {
-        method: "POST",
-        body: JSON.stringify({
-          profileId: profile.id,
-          tagName
-        }),
-        headers: { "Content-Type": "application/json" }
+      return apiRequest("POST", "/api/insights/disagree", {
+        profileId: profile.id,
+        tagName
       });
     },
     onSuccess: () => {
@@ -62,13 +58,9 @@ export default function AgentFeedback({ profile, tags = [], persona }: AgentFeed
   // Log disagreement with persona field
   const disagreePersonaMutation = useMutation({
     mutationFn: async (personaField: string) => {
-      return apiRequest("/api/insights/disagree", {
-        method: "POST",
-        body: JSON.stringify({
-          profileId: profile.id,
-          personaField
-        }),
-        headers: { "Content-Type": "application/json" }
+      return apiRequest("POST", "/api/insights/disagree", {
+        profileId: profile.id,
+        personaField
       });
     },
     onSuccess: () => {
@@ -82,13 +74,9 @@ export default function AgentFeedback({ profile, tags = [], persona }: AgentFeed
   // Save agent note
   const saveNoteMutation = useMutation({
     mutationFn: async (noteText: string) => {
-      return apiRequest("/api/agent-notes", {
-        method: "POST",
-        body: JSON.stringify({
-          profileId: profile.id,
-          note: noteText
-        }),
-        headers: { "Content-Type": "application/json" }
+      return apiRequest("POST", "/api/agent-notes", {
+        profileId: profile.id,
+        note: noteText
       });
     },
     onSuccess: () => {
@@ -103,13 +91,9 @@ export default function AgentFeedback({ profile, tags = [], persona }: AgentFeed
   // Toggle insights lock
   const toggleLockMutation = useMutation({
     mutationFn: async (locked: boolean) => {
-      return apiRequest("/api/insights/lock", {
-        method: "POST",
-        body: JSON.stringify({
-          profileId: profile.id,
-          isLocked: locked
-        }),
-        headers: { "Content-Type": "application/json" }
+      return apiRequest("POST", "/api/insights/lock", {
+        profileId: profile.id,
+        isLocked: locked
       });
     },
     onSuccess: (_, locked) => {
