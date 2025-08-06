@@ -10,6 +10,9 @@
 
 import { repliersService } from './repliers-service';
 import type { BuyerProfile, ProfileTag } from '@shared/schema';
+import { AIPropertyAnalyzer } from './ai-property-analyzer';
+
+const aiAnalyzer = new AIPropertyAnalyzer();
 
 interface SearchView1Results {
   viewType: 'broad';
@@ -68,6 +71,12 @@ interface AIRecommendationListing extends MarketOverviewListing {
     visualAnalysis?: string;
     styleMatch?: string;
     qualityScore?: number;
+    personalizedAnalysis?: {
+      summary: string;
+      hiddenGems: string[];
+      missingInfo: string[];
+      agentTasks: string[];
+    };
   };
   scoreBreakdown: {
     featureMatch: number;
@@ -248,7 +257,7 @@ export class AgentSearchService {
       // Sort by score and take top matches
       const topMatches = scoredListings
         .sort((a, b) => b.match_score - a.match_score)
-        .slice(0, 20); // Top 20 for detailed analysis
+        .slice(0, 30); // Top 30 for AI to analyze and find hidden gems
 
       // TEMPORARILY DISABLED: Visual analysis causing 89s delays
       // TODO: Re-enable after optimization
@@ -286,10 +295,35 @@ export class AgentSearchService {
         }
       };
 
+      // Get AI analysis for ALL properties in a single batch
+      console.log(`🤖 [AgentSearch] Generating AI analysis for ${topMatches.length} properties in batch`);
+      
+      // Prepare listings for batch analysis
+      const batchListings = topMatches.map(scored => ({
+        listing: scored.listing,
+        matchScore: Math.round(scored.match_score * 100),
+        id: scored.listing.id
+      }));
+      
+      // Call batch analysis - AI will analyze all properties at once
+      const aiAnalysisMap = await aiAnalyzer.analyzeBatchForBuyer(batchListings, profile);
+      
+      // Log any hidden gems found
+      aiAnalysisMap.forEach((analysis, listingId) => {
+        const scored = topMatches.find(s => s.listing.id === listingId);
+        if (scored && analysis.recommendationStrength === 'strong' && scored.match_score < 0.7) {
+          console.log(`💎 [AgentSearch] Hidden gem found! ${scored.listing.address} - AI says strong despite ${Math.round(scored.match_score * 100)}% score`);
+        }
+      });
+      
+      console.log(`✅ [AgentSearch] AI batch analysis complete for ${aiAnalysisMap.size} properties`);
+
       // Combine enhanced and basic results
       const listings: AIRecommendationListing[] = topMatches.map(scored => {
         const enhanced = enhancedResults.top_picks.find((e: any) => e.listing.id === scored.listing.id) ||
                         enhancedResults.other_matches.find((e: any) => e.listing.id === scored.listing.id);
+        
+        const aiAnalysis = aiAnalysisMap.get(scored.listing.id);
 
         return {
           mlsNumber: scored.listing.mls_number || scored.listing.id,
@@ -310,11 +344,17 @@ export class AgentSearchService {
           matchLabel: scored.label,
           matchReasons: scored.matched_features,
           dealbreakers: scored.dealbreaker_flags,
-          aiInsights: enhanced ? {
-            visualAnalysis: enhanced.visual_analysis,
-            styleMatch: enhanced.style_match,
-            qualityScore: enhanced.quality_score
-          } : undefined,
+          aiInsights: {
+            visualAnalysis: enhanced?.visual_analysis,
+            styleMatch: enhanced?.style_match,
+            qualityScore: enhanced?.quality_score,
+            personalizedAnalysis: aiAnalysis ? {
+              summary: aiAnalysis.personalizedSummary,
+              hiddenGems: aiAnalysis.matchAnalysis.hiddenGems,
+              missingInfo: [...(aiAnalysis.missingInformation.critical || []), ...(aiAnalysis.missingInformation.helpful || [])],
+              agentTasks: aiAnalysis.agentResearchNeeded
+            } : undefined
+          },
           scoreBreakdown: {
             featureMatch: Math.round((scored.score_breakdown?.feature_match || 0)),
             budgetMatch: Math.round((scored.score_breakdown?.budget_match || 0)),

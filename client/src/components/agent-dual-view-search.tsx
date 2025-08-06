@@ -657,8 +657,66 @@ function AIRecommendationsView({
                   <h4 className="font-semibold text-gray-900">Agent's AI-Powered Analysis</h4>
                 </div>
                 
-                {/* AI Generated Summary - Show if available */}
-                {(property.aiInsights?.agentSummary || property.aiInsights?.visualAnalysis) && (
+                {/* AI Generated Personalized Analysis */}
+                {property.aiInsights?.personalizedAnalysis && (
+                  <div className="space-y-3 mb-4">
+                    {/* Personal Summary */}
+                    <div className="p-3 bg-white rounded-lg">
+                      <p className="text-sm text-gray-800 font-medium mb-1">Why I Selected This Property:</p>
+                      <p className="text-sm text-gray-700">
+                        {property.aiInsights.personalizedAnalysis.summary}
+                      </p>
+                    </div>
+                    
+                    {/* Hidden Gems */}
+                    {property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
+                      <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <p className="text-sm font-medium text-green-900 mb-2">💎 Hidden Gems Found:</p>
+                        <ul className="text-sm text-green-800 space-y-1">
+                          {property.aiInsights.personalizedAnalysis.hiddenGems.map((gem, idx) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-green-600 mt-0.5">•</span>
+                              <span>{gem}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Missing Information */}
+                    {property.aiInsights.personalizedAnalysis.missingInfo.length > 0 && (
+                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                        <p className="text-sm font-medium text-amber-900 mb-2">ℹ️ Information Needed:</p>
+                        <ul className="text-sm text-amber-800 space-y-1">
+                          {property.aiInsights.personalizedAnalysis.missingInfo.slice(0, 3).map((info, idx) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-amber-600 mt-0.5">•</span>
+                              <span>{info}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Agent Research Tasks */}
+                    {property.aiInsights.personalizedAnalysis.agentTasks.length > 0 && (
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <p className="text-sm font-medium text-blue-900 mb-2">📋 Agent To-Do:</p>
+                        <ul className="text-sm text-blue-800 space-y-1">
+                          {property.aiInsights.personalizedAnalysis.agentTasks.map((task, idx) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <input type="checkbox" className="mt-1" />
+                              <span>{task}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Fallback to old display if no personalized analysis */}
+                {!property.aiInsights?.personalizedAnalysis && (property.aiInsights?.agentSummary || property.aiInsights?.visualAnalysis) && (
                   <div className="mb-4 p-3 bg-white rounded-lg">
                     <p className="text-sm text-gray-800 whitespace-pre-line">
                       {property.aiInsights.agentSummary || property.aiInsights.visualAnalysis || property.reason}
