@@ -516,6 +516,76 @@ function AIRecommendationsView({
 }) {
   return (
     <div className="space-y-6">
+      {/* 10-Second Overview for Agent */}
+      <Card className="border-2 border-blue-200 bg-blue-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-blue-600" />
+              <span className="text-lg">10-Second Agent Overview</span>
+            </div>
+            <Badge variant="outline" className="bg-white">
+              {results.listings.length} Properties Analyzed
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Quick Status Overview */}
+          <div className="flex items-center gap-6 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm font-medium">
+                {results.listings.filter(p => p.matchScore >= 80).length} Strong Matches
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <span className="text-sm font-medium">
+                {results.listings.filter(p => p.matchScore >= 60 && p.matchScore < 80).length} Good Options
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+              <span className="text-sm font-medium">
+                {results.listings.filter(p => p.aiInsights?.personalizedAnalysis?.hiddenGems && p.aiInsights.personalizedAnalysis.hiddenGems.length > 0).length} Hidden Gems
+              </span>
+            </div>
+          </div>
+
+          {/* Visual Property Grid */}
+          <div className="grid grid-cols-10 gap-1">
+            {results.listings.slice(0, 30).map((property, idx) => (
+              <div
+                key={property.mlsNumber}
+                className={`relative w-8 h-8 rounded flex items-center justify-center text-xs font-semibold cursor-pointer group
+                  ${property.matchScore >= 80 ? 'bg-green-500 text-white' : 
+                    property.matchScore >= 60 ? 'bg-yellow-500 text-white' : 
+                    'bg-gray-400 text-white'}
+                  ${property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 ? 'ring-2 ring-purple-600 ring-offset-1' : ''}
+                `}
+                title={`${property.address} - ${property.matchScore}% match`}
+              >
+                {idx + 1}
+                {property.matchScore >= 85 && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-600 rounded-full"></div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-3 text-xs text-gray-600 flex items-center gap-4">
+            <span>Click number to jump to property</span>
+            <span className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-purple-600 rounded-full"></div> AI Recommended
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="w-4 h-4 border-2 border-purple-600 rounded"></div> Hidden Gem
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* AI Analysis Summary */}
       <Card>
         <CardHeader>
@@ -733,48 +803,81 @@ function AIRecommendationsView({
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* Market Analysis */}
-                  <div className="flex items-start gap-3">
-                    <TrendingUp className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">Market Position</div>
-                      <div className="text-sm text-gray-700">
-                        Priced {Math.random() > 0.5 ? `${Math.floor(Math.random() * 10 + 1)}% below` : 'competitively with'} neighborhood average
-                      </div>
+                {/* 10-Second Agent Summary */}
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  {/* Quick Match Status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {property.matchScore >= 80 ? (
+                        <div className="flex items-center gap-1 text-green-700 font-semibold">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          STRONG MATCH
+                        </div>
+                      ) : property.matchScore >= 60 ? (
+                        <div className="flex items-center gap-1 text-yellow-700 font-semibold">
+                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                          GOOD MATCH
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-600 font-semibold">
+                          <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                          CONSIDER
+                        </div>
+                      )}
+                      <span className="text-sm text-gray-600">({property.matchScore}%)</span>
                     </div>
+                    {property.matchScore >= 85 && (
+                      <Badge className="bg-purple-100 text-purple-800">AI RECOMMENDED</Badge>
+                    )}
                   </div>
 
-                  {/* Location Benefits */}
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">Location Benefits</div>
-                      <div className="text-sm text-gray-700">
-                        {property.matchReasons.find(r => r.toLowerCase().includes('location')) || 'Prime neighborhood location'}
-                      </div>
+                  {/* Key Highlights in One Line */}
+                  <div className="text-sm space-y-1">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* What Works */}
+                      {property.matchReasons.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-green-800">{property.matchReasons.slice(0, 2).join(', ')}</span>
+                        </div>
+                      )}
+                      
+                      {/* Hidden Gems */}
+                      {property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 text-yellow-600" />
+                          <span className="text-yellow-800">
+                            {property.aiInsights.personalizedAnalysis.hiddenGems.length} hidden gem{property.aiInsights.personalizedAnalysis.hiddenGems.length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Concerns */}
+                      {property.dealbreakers.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          <span className="text-red-800">{property.dealbreakers[0]}</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Investment Insight */}
-                  <div className="flex items-start gap-3">
-                    <DollarSign className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">Investment Insight</div>
-                      <div className="text-sm text-gray-700">
-                        Similar homes appreciated {Math.floor(Math.random() * 8 + 5)}% last year
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Lifestyle Match */}
-                  <div className="flex items-start gap-3">
-                    <Star className="h-5 w-5 text-yellow-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">Lifestyle Match</div>
-                      <div className="text-sm text-gray-700">
-                        {property.matchReasons[0] || 'Aligns with buyer preferences'}
-                      </div>
+                    {/* Action Tags */}
+                    <div className="flex gap-2 mt-2">
+                      {property.matchScore >= 80 && (
+                        <Badge variant="default" className="bg-green-600">SHOW FIRST</Badge>
+                      )}
+                      {property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
+                        <Badge variant="default" className="bg-purple-600">HIDDEN GEM</Badge>
+                      )}
+                      {property.aiInsights?.personalizedAnalysis?.agentTasks && property.aiInsights.personalizedAnalysis.agentTasks.length > 0 && (
+                        <Badge variant="default" className="bg-orange-600">NEEDS RESEARCH</Badge>
+                      )}
+                      {property.matchScore < 60 && property.dealbreakers.length === 0 && (
+                        <Badge variant="default" className="bg-gray-600">BACKUP OPTION</Badge>
+                      )}
+                      {property.dealbreakers.length > 2 && (
+                        <Badge variant="default" className="bg-red-600">SKIP</Badge>
+                      )}
                     </div>
                   </div>
                 </div>
