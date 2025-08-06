@@ -33,8 +33,9 @@ export class AIPropertyAnalyzer {
     profile: BuyerProfile
   ): Promise<Map<string, PropertyAnalysis>> {
     try {
-      const prompt = `You are an expert real estate agent analyzing multiple properties for your client.
-Compare ALL properties and find the best matches, including hidden gems the scoring might have missed.
+      const prompt = `You are an expert real estate agent who personally reviews every property before sharing with clients.
+
+YOUR TASK: Analyze each property thoroughly and explain WHY you selected it for this specific buyer.
 
 CLIENT PROFILE:
 Name: ${profile.name}
@@ -44,46 +45,71 @@ Location: ${profile.location}
 Must-haves: ${JSON.stringify(profile.mustHaveFeatures)}
 Dealbreakers: ${JSON.stringify(profile.dealbreakers)}
 Moving reason: ${profile.buyerBrief || 'Not specified'}
+Timeline: ${profile.preferredMovingDate || 'Flexible'}
+
+ANALYSIS PROCESS:
+1. Check basic requirements (price, beds, baths, location)
+2. Read ALL descriptions and remarks to find relevant details
+3. Match property features to buyer's specific needs
+4. Identify any concerns or missing information
 
 PROPERTIES TO ANALYZE:
 ${listings.map((item, idx) => `
-Property ${idx + 1} [ID: ${item.id}, Score: ${item.matchScore}%]:
+Property ${idx + 1} [ID: ${item.id}, System Score: ${item.matchScore}%]:
 ${JSON.stringify(item.listing, null, 2)}
 `).join('\n---\n')}
 
-Analyze EACH property and return a JSON object with this structure:
+For EACH property, provide:
 {
   "properties": [
     {
       "id": "property id",
-      "personalizedSummary": "2-3 sentences explaining why this works for them",
+      "personalizedSummary": "2-3 sentences explaining WHY you selected this for ${profile.name}. Be specific about how it matches THEIR needs. Show you understand their situation.",
       "matchAnalysis": {
-        "perfectMatches": ["exact matches to their needs"],
-        "partialMatches": ["partial matches"],
-        "hiddenGems": ["valuable features found in descriptions"],
-        "concerns": ["issues or potential dealbreakers"]
+        "perfectMatches": ["Features that EXACTLY match what they asked for"],
+        "partialMatches": ["Features that somewhat work"],
+        "hiddenGems": ["Important details found ONLY in descriptions that match their needs - include exact quotes"],
+        "concerns": ["Specific issues based on THEIR requirements"]
       },
       "missingInformation": {
-        "critical": ["must-know missing info"],
-        "helpful": ["nice-to-have missing info"]
+        "critical": ["Must-know info missing based on THEIR needs"],
+        "helpful": ["Would be nice to know"]
       },
-      "extractedFromDescription": ["key points from description text"],
-      "agentResearchNeeded": ["what agent should investigate"],
-      "negotiationInsights": "based on days on market, price history",
+      "extractedFromDescription": ["EXACT quotes from listing text that matter to THIS buyer + why"],
+      "agentResearchNeeded": ["Specific things to investigate for THIS buyer"],
+      "negotiationInsights": "Personalized negotiation advice based on market time and buyer's timeline",
       "recommendationStrength": "strong|moderate|weak",
       "showingPriority": "high|medium|low"
     }
   ]
 }
 
-Focus on finding hidden gems - properties that might score lower but are actually perfect for this buyer.`;
+IMPORTANT RULES:
+1. personalizedSummary MUST:
+   - Address the buyer by name
+   - Reference their SPECIFIC needs (not generic "this is a nice home")
+   - Explain YOUR reasoning as their agent
+   - Show you spent time analyzing this property for THEM
+   
+   GOOD: "${profile.name}, I selected this because it has the dedicated home office you need for remote work, plus it's in the quiet neighborhood you wanted for your kids."
+   BAD: "This is a beautiful home with many nice features."
+
+2. Hidden gems are ONLY:
+   - Found in text descriptions (not structured data)
+   - DIRECTLY relevant to buyer's stated needs
+   - Include the EXACT quote
+   
+3. Recommendation strength:
+   - STRONG: Solves their main problem + meets most needs
+   - MODERATE: Good option with some compromises
+   - WEAK: Has issues but might work as backup`;
 
       const response = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: 'You are a detail-oriented real estate agent who reads between the lines and finds opportunities others miss. Be specific and actionable.'
+            content: 'You are a top-performing real estate agent known for understanding clients deeply and finding properties others miss. Be specific, personal, and show your expertise.'
           },
           {
             role: 'user',
@@ -95,6 +121,10 @@ Focus on finding hidden gems - properties that might score lower but are actuall
         max_tokens: 4000
       });
 
+      // Log for debugging
+      console.log(`📝 [AI Analysis] Prompt length: ${prompt.length} chars`);
+      console.log(`📊 [AI Analysis] Token usage:`, response.usage);
+      
       const result = JSON.parse(response.choices[0].message.content || '{}');
       const analysisMap = new Map<string, PropertyAnalysis>();
       
