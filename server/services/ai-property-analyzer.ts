@@ -59,7 +59,7 @@ Property ${idx + 1} [ID: ${item.id}, System Score: ${item.matchScore}%]:
 ${JSON.stringify(item.listing, null, 2)}
 `).join('\n---\n')}
 
-For EACH property, provide:
+For EACH property, provide a JSON response with this structure:
 {
   "properties": [
     {
@@ -109,7 +109,7 @@ IMPORTANT RULES:
         messages: [
           {
             role: 'system',
-            content: 'You are a top-performing real estate agent known for understanding clients deeply and finding properties others miss. Be specific, personal, and show your expertise.'
+            content: 'You are a top-performing real estate agent known for understanding clients deeply and finding properties others miss. Be specific, personal, and show your expertise. Always respond with valid JSON format.'
           },
           {
             role: 'user',
@@ -151,6 +151,17 @@ IMPORTANT RULES:
 
     } catch (error) {
       console.error('AI batch analysis failed:', error);
+      
+      // If it's a specific OpenAI error, log more details
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+      }
+      
+      // Return empty map so the rest of the flow continues
       return new Map();
     }
   }
