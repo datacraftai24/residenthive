@@ -109,7 +109,7 @@ IMPORTANT RULES:
         messages: [
           {
             role: 'system',
-            content: 'You are a top-performing real estate agent known for understanding clients deeply and finding properties others miss. Be specific, personal, and show your expertise. Always respond with valid JSON format.'
+            content: 'You are a top-performing real estate agent known for understanding clients deeply and finding properties others miss. Be specific, personal, and show your expertise. Always respond with valid JSON format containing the analysis data.'
           },
           {
             role: 'user',
