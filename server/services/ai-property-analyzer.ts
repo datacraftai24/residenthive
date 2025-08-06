@@ -1,5 +1,9 @@
-import { openai } from '../openai';
+import OpenAI from 'openai';
 import type { BuyerProfile } from '@shared/schema';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
+});
 
 interface PropertyAnalysis {
   personalizedSummary: string;
