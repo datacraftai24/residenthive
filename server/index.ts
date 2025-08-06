@@ -47,8 +47,8 @@ app.use((req, res, next) => {
   next();
 });
 app.get('/ip', async (_req, res) => {
-  const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
   try {
+    const { default: fetch } = await import('node-fetch');
     const response = await fetch('https://api.ipify.org');
     const ip = await response.text();
     res.send(`Outbound IP is: ${ip}`);
