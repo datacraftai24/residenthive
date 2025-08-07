@@ -1,3 +1,8 @@
+Insert space and write text here
+### Development Guidelines
+
+- **Change Management**: Ensure all code changes are reviewed and approved before merging into the main branch. Implement proper version control protocols to track and manage code alterations effectively.
+
 # Real Estate Buyer Profile Management System
 
 ## Overview

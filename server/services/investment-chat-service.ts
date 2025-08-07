@@ -19,7 +19,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-interface InvestorContext {
+export interface InvestorContext {
   buyerType: 'investor';
   investorType?: 'rental_income' | 'flip' | 'house_hack' | 'multi_unit';
   investmentCapital?: number;
