@@ -27,7 +27,7 @@ router.post('/api/investment-chat', async (req, res) => {
     const response = await investmentChatService.processMessage(message, context);
     
     // If ready to analyze, trigger strategy generation
-    if (response.type === 'ready_to_analyze' && response.strategyId) {
+    if (response.type === 'ready_to_analyze' && response.strategyId && response.context) {
       const profile = investmentChatService.buildInvestorProfile(response.context);
       
       // Create or update buyer profile

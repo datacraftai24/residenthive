@@ -177,10 +177,10 @@ export function getSearchCriteria(investorType: string, capital: number) {
   
   const criteria = { ...config.searchCriteria };
   
-  // Calculate price range based on capital and leverage
-  const multiplier = criteria.priceMultiplier || 4;
-  criteria.maxPrice = capital * multiplier;
-  criteria.minPrice = capital * multiplier * 0.5; // Allow for range
+  // Calculate price range based on capital and leverage  
+  const multiplier = (criteria as any).priceMultiplier || 4;
+  (criteria as any).maxPrice = capital * multiplier;
+  (criteria as any).minPrice = capital * multiplier * 0.5; // Allow for range
   
   return criteria;
 }

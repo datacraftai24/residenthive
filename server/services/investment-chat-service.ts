@@ -206,7 +206,7 @@ export class InvestmentChatService {
       investorType: context.investorType,
       investmentCapital: context.investmentCapital,
       targetMonthlyReturn: context.targetMonthlyReturn,
-      targetCapRate: context.targetCapRate,
+      targetCapRate: context.targetCapRate?.toString(),
       location: context.location,
       investmentStrategy: context.investmentStrategy || context.goals,
       
@@ -215,11 +215,11 @@ export class InvestmentChatService {
       email: context.email || 'investor@example.com',
       budget: this.calculateBudgetString(context.investmentCapital),
       budgetMin: context.investmentCapital ? Math.floor(context.investmentCapital * 0.8) : undefined,
-      budgetMax: context.investmentCapital ? Math.floor(context.investmentCapital * (config?.searchCriteria.priceMultiplier || 4)) : undefined,
+      budgetMax: context.investmentCapital ? Math.floor(context.investmentCapital * ((config?.searchCriteria as any)?.priceMultiplier || 4)) : undefined,
       
       // Use config for defaults
       homeType: context.investorType === 'multi_unit' ? 'other' : 'single-family',
-      bedrooms: config?.searchCriteria.minBedrooms || 3,
+      bedrooms: (config?.searchCriteria as any)?.minBedrooms || 3,
       bathrooms: context.investorType === 'multi_unit' ? '8+' : '2+',
       
       // Get features from knowledge base
