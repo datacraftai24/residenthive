@@ -3028,6 +3028,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // Investment Strategy Routes
+  const investmentRoutes = await import('./routes/investment-routes');
+  app.use(investmentRoutes.default);
+
   // Routes registered successfully - no need to return custom server
   return;
 }

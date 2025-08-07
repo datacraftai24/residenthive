@@ -23,6 +23,9 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   location: text("location").notNull(),
   agentId: integer("agent_id").references(() => agents.id),
   
+  // Buyer Type - flexible for future buyer types
+  buyerType: text("buyer_type").notNull().default("traditional"), // traditional, investor, first_time, luxury, etc.
+  
   // Basic Requirements
   budget: text("budget").notNull(),
   budgetMin: integer("budget_min"),
@@ -30,6 +33,13 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   homeType: text("home_type").notNull(),
   bedrooms: integer("bedrooms").notNull(),
   bathrooms: text("bathrooms").notNull(),
+  
+  // Investment-specific fields (null for non-investor buyer types)
+  investorType: text("investor_type"), // rental_income, flip, house_hack, multi_unit
+  investmentCapital: integer("investment_capital"), // Available cash for down payment
+  targetMonthlyReturn: integer("target_monthly_return"), // Target cash flow per month
+  targetCapRate: numeric("target_cap_rate", { precision: 4, scale: 2 }), // Target cap rate percentage
+  investmentStrategy: text("investment_strategy"), // Free text for detailed strategy
   
   // Features & Preferences
   mustHaveFeatures: json("must_have_features").$type<string[]>().notNull().default([]),
@@ -667,6 +677,30 @@ export const nlpSearchLogs = pgTable("nlp_search_logs", {
   createdAt: text("created_at").notNull()
 });
 
+// Investment Strategies Table - AI-generated comprehensive strategies
+export const investmentStrategies = pgTable("investment_strategies", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => buyerProfiles.id, { onDelete: "cascade" }),
+  sessionId: text("session_id").notNull().unique(), // For tracking strategy generation
+  
+  // Strategy Data
+  strategyJson: json("strategy_json").notNull(), // Complete strategy data
+  marketAnalysis: json("market_analysis").notNull(), // Market intelligence from Tavily
+  propertyRecommendations: json("property_recommendations").notNull(), // Top properties with analysis
+  financialProjections: json("financial_projections").notNull(), // ROI, cash flow calculations
+  
+  // Generation Metadata
+  generationTime: integer("generation_time").notNull(), // milliseconds
+  dataSourcesUsed: json("data_sources_used").notNull(), // ['repliers', 'tavily', 'market_stats']
+  
+  // Strategy Status
+  status: text("status").notNull().default("generating"), // generating, complete, failed
+  documentUrl: text("document_url"), // Path to saved strategy document
+  
+  createdAt: text("created_at").notNull(),
+  completedAt: text("completed_at")
+});
+
 // Types for NLP Search Logs
 export type NLPSearchLog = typeof nlpSearchLogs.$inferSelect;
 export type InsertNLPSearchLog = typeof nlpSearchLogs.$inferInsert;
@@ -674,4 +708,14 @@ export type InsertNLPSearchLog = typeof nlpSearchLogs.$inferInsert;
 export const insertNLPSearchLogSchema = createInsertSchema(nlpSearchLogs).omit({
   id: true,
   createdAt: true
+});
+
+// Types for Investment Strategies
+export type InvestmentStrategy = typeof investmentStrategies.$inferSelect;
+export type InsertInvestmentStrategy = typeof investmentStrategies.$inferInsert;
+
+export const insertInvestmentStrategySchema = createInsertSchema(investmentStrategies).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true
 });
