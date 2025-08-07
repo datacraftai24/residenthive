@@ -200,7 +200,7 @@ export class InvestmentStrategyGenerator {
     
     // Use OpenAI Responses API with Tavily MCP
     const response = await openai.responses.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       tools: [
         {
           type: "mcp",
