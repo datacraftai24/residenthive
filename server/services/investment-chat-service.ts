@@ -49,6 +49,8 @@ export class InvestmentChatService {
    */
   async processMessage(message: string, existingContext: InvestorContext | any = {}): Promise<ChatResponse> {
     try {
+      console.log('📨 Processing investment chat message:', { message, existingContext });
+      
       // Initialize context if needed
       const context: InvestorContext = {
         buyerType: 'investor',
@@ -58,19 +60,23 @@ export class InvestmentChatService {
       
       // Extract investment information from the message
       const extractedInfo = await this.extractInvestmentInfo(message, context);
+      console.log('🔍 Extracted info:', extractedInfo);
       
       // Merge with existing context
       const updatedContext = {
         ...context,
         ...extractedInfo
       };
+      console.log('📋 Updated context:', updatedContext);
       
       // Check what information is still missing
       const missingFields = this.checkMissingInfo(updatedContext);
+      console.log('❓ Missing fields:', missingFields);
       
       if (missingFields.length > 0) {
         // Get next question from knowledge base
         const nextQuestion = await this.generateNextQuestion(missingFields[0], updatedContext);
+        console.log('💬 Next question:', nextQuestion);
         
         return {
           type: 'need_info',
@@ -82,6 +88,7 @@ export class InvestmentChatService {
       
       // All information collected - ready to generate strategy
       const strategyId = uuidv4();
+      console.log('✅ Ready to generate strategy:', { strategyId, context: updatedContext });
       
       return {
         type: 'ready_to_analyze',
@@ -91,7 +98,7 @@ export class InvestmentChatService {
       };
       
     } catch (error) {
-      console.error('Error processing investment chat:', error);
+      console.error('❌ Error processing investment chat:', error);
       return {
         type: 'error',
         message: 'I encountered an error processing your message. Please try again.'

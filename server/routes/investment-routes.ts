@@ -60,9 +60,14 @@ router.post('/api/investment-chat', async (req, res) => {
         });
       
       // Trigger async strategy generation
+      console.log('🚀 Triggering strategy generation for profile:', savedProfile.id);
       investmentStrategyGenerator.generateStrategy(savedProfile, response.strategyId)
+        .then(() => {
+          console.log('✅ Strategy generation completed successfully');
+        })
         .catch(error => {
-          console.error('Strategy generation failed:', error);
+          console.error('❌ Strategy generation failed:', error);
+          console.error('Stack trace:', error.stack);
         });
     }
     

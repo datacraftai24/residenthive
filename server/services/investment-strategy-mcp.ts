@@ -9,6 +9,7 @@
  */
 
 import OpenAI from 'openai';
+import { hostedMcpTool } from '@openai/agents';
 import { repliersService } from './repliers-service';
 import { db } from '../db';
 import { investmentStrategies } from '@shared/schema';
@@ -198,18 +199,26 @@ export class InvestmentStrategyGenerator {
     properties: any[]
   ): Promise<InvestmentStrategy> {
     
+    // Define Tavily MCP tool
+    console.log('🔧 Setting up Tavily MCP tool...');
+    const tavilyTool = hostedMcpTool({
+      serverLabel: "tavily",
+      serverUrl: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`,
+      requireApproval: "never",
+    });
+    
     // Use OpenAI Responses API with Tavily MCP
-    const response = await openai.responses.create({
-      model: "gpt-4o",
-      tools: [
-        {
-          type: "mcp",
-          server_label: "tavily",
-          server_url: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`,
-          require_approval: "never",
-        }
-      ],
-      input: `
+    console.log('🤖 Generating strategy with OpenAI + Tavily MCP...');
+    
+    let response: any;
+    
+    try {
+      // Check if responses API is available (SDK v5.0.0+)
+      if ('responses' in openai) {
+        response = await (openai as any).responses.create({
+          model: "gpt-4o",
+          tools: [tavilyTool],
+          input: `
         You are an expert real estate investment advisor. Create a comprehensive investment strategy.
         
         INVESTOR PROFILE:
@@ -269,17 +278,50 @@ export class InvestmentStrategyGenerator {
         - nextSteps: Specific action items
         - additionalInsights: Array of discoveries beyond our static knowledge
       `
-    });
+        });
+        
+        // Parse the response
+        const strategyContent = response.output_text;
+        console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
+      } else {
+        // Fallback to regular chat completions if responses API not available
+        console.log('⚠️ Responses API not available, falling back to chat completions');
+        const chatResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert real estate investment advisor. Always respond with valid JSON."
+            },
+            {
+              role: "user",
+              content: `Create a comprehensive investment strategy for this profile: ${JSON.stringify(profile)}\n\nProperties: ${JSON.stringify(properties.slice(0, 20))}\n\nReturn JSON with: executiveSummary, purchasingPower, marketAnalysis, propertyRecommendations, financialProjections, nextSteps, additionalInsights`
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.7
+        });
+        
+        response = { output_text: chatResponse.choices[0].message.content };
+      }
+    } catch (error) {
+      console.error('❌ Error calling OpenAI API:', error);
+      throw error;
+    }
     
     // Parse the response
     const strategyContent = response.output_text;
+    console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
+    
     let strategy: InvestmentStrategy;
     
     try {
       strategy = JSON.parse(strategyContent);
+      console.log('✅ Successfully parsed strategy JSON');
     } catch (error) {
       // If not valid JSON, extract key information
-      console.error('Failed to parse strategy JSON, extracting manually');
+      console.error('⚠️ Failed to parse strategy JSON:', error);
+      console.log('📝 Raw strategy content (first 500 chars):', strategyContent?.substring(0, 500));
       strategy = this.extractStrategyFromText(strategyContent, profile, properties);
     }
     
@@ -420,8 +462,8 @@ Always consult with real estate professionals before making investment decisions
    */
   private async saveStrategyDocument(sessionId: string, content: string): Promise<string> {
     // For MVP, save to file system
-    const fs = require('fs').promises;
-    const path = require('path');
+    const { promises: fs } = await import('fs');
+    const path = await import('path');
     
     const dir = path.join(process.cwd(), 'strategies');
     await fs.mkdir(dir, { recursive: true });
@@ -430,6 +472,8 @@ Always consult with real estate professionals before making investment decisions
     const filepath = path.join(dir, filename);
     
     await fs.writeFile(filepath, content);
+    
+    console.log(`✅ Strategy document saved to: ${filepath}`);
     
     return `/strategies/${filename}`;
   }
