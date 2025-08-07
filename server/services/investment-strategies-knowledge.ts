@@ -127,6 +127,8 @@ export const INVESTMENT_KNOWLEDGE = {
     
     goals: "What's your primary investment goal - monthly cash flow, long-term appreciation, or quick profits?",
     
+    targetMonthlyReturn: "What monthly cash flow target are you aiming for? This helps me find properties that meet your income goals.",
+    
     experience: "Have you invested in real estate before, or is this your first investment property?"
   },
   

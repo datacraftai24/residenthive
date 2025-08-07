@@ -110,7 +110,11 @@ export class InvestmentChatService {
       New message: "${message}"
       
       Extract the following information if mentioned:
-      - investorType: Is this for rental_income, flip, house_hack, or multi_unit?
+      - investorType: Map their goals to type:
+        * "monthly cash flow" or "passive income" or "rental" → "rental_income"
+        * "quick profits" or "flip" or "renovation" → "flip"  
+        * "house hack" or "live in one unit" → "house_hack"
+        * "multi-unit" or "apartment building" or "multiple units" → "multi_unit"
       - investmentCapital: How much capital do they have available? (extract number only)
       - location: What location(s) are they interested in?
       - targetMonthlyReturn: What monthly cash flow are they targeting? (number only)
@@ -119,6 +123,7 @@ export class InvestmentChatService {
       - experience: Are they new or experienced investors?
       - goals: What are their specific investment goals?
       
+      IMPORTANT: If they mention investment goals like "monthly cash flow", map it to the appropriate investorType.
       If they mention dollar amounts, extract the number (e.g., "$2 million" = 2000000).
       
       Return ONLY a JSON object with the extracted fields. If a field is not mentioned, don't include it.
@@ -150,8 +155,8 @@ export class InvestmentChatService {
       if (config) {
         // Check if we need specific return targets
         if ((context.investorType === 'rental_income' || context.investorType === 'multi_unit') 
-            && !context.targetMonthlyReturn && !context.targetCapRate) {
-          missing.push('goals'); // Will ask about return expectations
+            && !context.targetMonthlyReturn && !context.targetCapRate && !context.goals) {
+          missing.push('targetMonthlyReturn'); // Ask for specific return targets instead of goals
         }
       }
     }
