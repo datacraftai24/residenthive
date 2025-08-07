@@ -32,6 +32,7 @@ import AgentFeedback from "./agent-feedback";
 import { NLPListingSearch } from "./nlp-listing-search";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
 import ProfileShareButton from "./profile-share-button";
+import InvestmentStrategy from "./investment-strategy";
 
 interface ProfileViewerProps {
   profileId: number;
@@ -152,7 +153,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
@@ -162,6 +163,11 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Agent Search</span>
             <span className="sm:hidden">Agent</span>
+          </TabsTrigger>
+          <TabsTrigger value="investment" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Investment Strategy</span>
+            <span className="sm:hidden">Invest</span>
           </TabsTrigger>
           <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <Search className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -387,6 +393,10 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
         <TabsContent value="agent-search" className="space-y-6 mt-6">
           <AgentDualViewSearch profile={profile} />
+        </TabsContent>
+
+        <TabsContent value="investment" className="mt-6">
+          <InvestmentStrategy profile={profile} />
         </TabsContent>
 
         <TabsContent value="listings" className="mt-6">
