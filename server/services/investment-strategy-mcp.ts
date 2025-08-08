@@ -431,15 +431,32 @@ export class InvestmentStrategyGenerator {
     // Cash flow
     const monthlyCashFlow = estimatedRent - monthlyPayment - operatingExpenses;
     
+    // Principal paydown calculation
+    const monthlyPrincipal = monthlyPayment - (loanAmount * monthlyRate);
+    
+    // Total monthly return (cash flow + principal paydown)
+    const totalMonthlyReturn = monthlyCashFlow + monthlyPrincipal;
+    
+    // Estimated appreciation (3% annually for Boston)
+    const monthlyAppreciation = (price * 0.03) / 12;
+    
+    // Total economic benefit (cash flow + principal + appreciation)
+    const totalEconomicBenefit = monthlyCashFlow + monthlyPrincipal + monthlyAppreciation;
+    
     // Cash-on-cash return
     const cashOnCashReturn = ((monthlyCashFlow * 12) / downPayment) * 100;
+    
+    // Total return on equity (including all benefits)
+    const totalReturnOnEquity = ((totalEconomicBenefit * 12) / downPayment) * 100;
     
     // Meets minimum criteria check (more realistic for Boston market)
     const targetReturn = profile.targetMonthlyReturn || 200;
     const minCapRate = 3.5; // Realistic for Boston market
     
     console.log(`💰 Property Analysis: ${property.address || 'Unknown'}`);
-    console.log(`📊 Price: $${price.toLocaleString()}, Est Rent: $${estimatedRent}, Cash Flow: $${Math.round(monthlyCashFlow)}, Cap Rate: ${capRate.toFixed(1)}%`);
+    console.log(`📊 Price: $${price.toLocaleString()}, Est Rent: $${estimatedRent}`);
+    console.log(`💵 Cash Flow: $${Math.round(monthlyCashFlow)}, Principal: $${Math.round(monthlyPrincipal)}, Appreciation: $${Math.round(monthlyAppreciation)}`);
+    console.log(`🎯 Total Economic Benefit: $${Math.round(totalEconomicBenefit)}/month, Total ROE: ${totalReturnOnEquity.toFixed(1)}%`);
     
     // Boston Market Reality: Most properties require higher down payments for cash flow
     const alternativeCashFlow = this.calculateAlternativeScenarios(property, estimatedRent, price);
@@ -453,9 +470,14 @@ export class InvestmentStrategyGenerator {
       monthlyPayment,
       operatingExpenses,
       monthlyCashFlow,
+      monthlyPrincipal,
+      monthlyAppreciation,
+      totalMonthlyReturn,
+      totalEconomicBenefit,
       annualCashFlow: monthlyCashFlow * 12,
       capRate,
       cashOnCashReturn,
+      totalReturnOnEquity,
       downPayment,
       noi,
       meetsMinimumCriteria: meetsCriteria,
@@ -556,21 +578,34 @@ export class InvestmentStrategyGenerator {
   private lastAnalyzedProperties: any[] = [];
 
   /**
-   * Get best available properties when strict criteria aren't met
+   * Get top 10 properties sorted by total economic benefit (even with negative cash flow)
    */
   private getBestAvailableProperties(): any[] {
     return this.lastAnalyzedProperties
-      .sort((a, b) => b.financialAnalysis.capRate - a.financialAnalysis.capRate)
-      .slice(0, 5);
+      .sort((a, b) => {
+        // Sort by total economic benefit (cash flow + principal + appreciation)
+        const aTotal = a.financialAnalysis.totalEconomicBenefit;
+        const bTotal = b.financialAnalysis.totalEconomicBenefit;
+        return bTotal - aTotal;
+      })
+      .slice(0, 10);
   }
 
   /**
-   * Rank properties by ROI and investment criteria
+   * Rank properties by total economic benefit (cash flow + principal + appreciation)
    */
   private rankPropertiesByROI(properties: any[], profile: Partial<BuyerProfile>): any[] {
     return properties
-      .sort((a, b) => b.financialAnalysis.investmentScore - a.financialAnalysis.investmentScore)
-      .slice(0, 5); // Top 5 recommendations
+      .sort((a, b) => {
+        // Primary sort: Total economic benefit
+        const aTotal = a.financialAnalysis.totalEconomicBenefit;
+        const bTotal = b.financialAnalysis.totalEconomicBenefit;
+        if (Math.abs(aTotal - bTotal) > 50) return bTotal - aTotal;
+        
+        // Secondary sort: Total return on equity
+        return b.financialAnalysis.totalReturnOnEquity - a.financialAnalysis.totalReturnOnEquity;
+      })
+      .slice(0, 10); // Top 10 recommendations
   }
 
   /**
@@ -584,13 +619,10 @@ export class InvestmentStrategyGenerator {
   ): InvestmentStrategy {
     const totalInvestment = profile.investmentCapital || 0;
     
-    // If no properties meet strict criteria, use best available properties for Boston market reality
-    if (topProperties.length === 0) {
-      console.log('🏠 No properties met strict criteria, providing best available options for Boston market');
-      // Get the top properties by cap rate regardless of cash flow
-      const allAnalyzed = this.getBestAvailableProperties();
-      topProperties = allAnalyzed.slice(0, 3); // Top 3 by cap rate
-    }
+    // Always provide top 10 properties sorted by total economic benefit
+    console.log('🏠 Generating top 10 properties report sorted by total economic benefit');
+    const allAnalyzed = this.getBestAvailableProperties();
+    topProperties = allAnalyzed; // Top 10 by total economic benefit
     
     const avgCashFlow = topProperties.length > 0 
       ? topProperties.reduce((sum, p) => sum + p.financialAnalysis.monthlyCashFlow, 0) / topProperties.length
@@ -629,23 +661,43 @@ export class InvestmentStrategyGenerator {
         bedrooms: property.bedrooms,
         bathrooms: property.bathrooms,
         propertyType: property.property_type,
+        
+        // Cash Flow Analysis
         estimatedRent: property.financialAnalysis.estimatedRent,
         monthlyCashFlow: property.financialAnalysis.monthlyCashFlow,
+        
+        // Principal & Appreciation
+        monthlyPrincipal: property.financialAnalysis.monthlyPrincipal,
+        monthlyAppreciation: property.financialAnalysis.monthlyAppreciation,
+        totalEconomicBenefit: property.financialAnalysis.totalEconomicBenefit,
+        
+        // Returns
         capRate: property.financialAnalysis.capRate,
         cashOnCashReturn: property.financialAnalysis.cashOnCashReturn,
+        totalReturnOnEquity: property.financialAnalysis.totalReturnOnEquity,
+        
         downPayment: property.financialAnalysis.downPayment,
-        whyRecommended: property.financialAnalysis.monthlyCashFlow < 0 
-          ? `Boston appreciation play with ${property.financialAnalysis.capRate.toFixed(1)}% cap rate. Consider higher down payment for cash flow.`
-          : `Positive cash flow property with ${property.financialAnalysis.capRate.toFixed(1)}% cap rate and $${Math.round(property.financialAnalysis.monthlyCashFlow)} monthly cash flow`,
+        
+        // Analysis Summary  
+        whyRecommended: property.financialAnalysis.totalEconomicBenefit > 0 
+          ? `Total economic benefit of $${Math.round(property.financialAnalysis.totalEconomicBenefit)}/month (Cash Flow: $${Math.round(property.financialAnalysis.monthlyCashFlow)} + Principal: $${Math.round(property.financialAnalysis.monthlyPrincipal)} + Appreciation: $${Math.round(property.financialAnalysis.monthlyAppreciation)}). Total ROE: ${property.financialAnalysis.totalReturnOnEquity.toFixed(1)}%`
+          : `Total economic benefit: $${Math.round(property.financialAnalysis.totalEconomicBenefit)}/month. Despite negative cash flow ($${Math.round(property.financialAnalysis.monthlyCashFlow)}), principal paydown ($${Math.round(property.financialAnalysis.monthlyPrincipal)}) + appreciation ($${Math.round(property.financialAnalysis.monthlyAppreciation)}) create positive total return of ${property.financialAnalysis.totalReturnOnEquity.toFixed(1)}% ROE.`,
+        
+        // Investment Status
+        isPositiveEconomic: property.financialAnalysis.totalEconomicBenefit > 0,
+        investmentType: property.financialAnalysis.monthlyCashFlow >= 0 ? 'Cash Flow' : 'Appreciation + Principal',
+        
         actionItems: [
           'Schedule property inspection',
           'Verify rental comparables in area',
-          'Consider 30-40% down payment for better cash flow',
-          'Analyze appreciation potential in neighborhood'
+          property.financialAnalysis.monthlyCashFlow < 0 ? 'Consider 30-40% down for cash flow' : 'Analyze cash flow optimization',
+          'Review neighborhood appreciation trends'
         ],
+        
         concerns: property.financialAnalysis.monthlyCashFlow < 0 
-          ? ['Negative cash flow with 25% down', 'Consider higher down payment']
+          ? [`Negative cash flow of $${Math.abs(Math.round(property.financialAnalysis.monthlyCashFlow))} monthly`]
           : [],
+          
         investmentScore: property.financialAnalysis.investmentScore,
         alternativeScenarios: property.financialAnalysis.alternativeScenarios
       })),
