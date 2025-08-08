@@ -216,13 +216,13 @@ export class InvestmentStrategyGenerator {
     let response: any;
     
     try {
-      console.log('✅ Using OpenAI Chat Completions API with structured output');
+      console.log('✅ Using OpenAI Chat Completions API with Tavily MCP');
       const chatResponse = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: "You are an expert real estate investment advisor. Create comprehensive investment strategies with detailed market analysis and property recommendations."
+            content: "You are an expert real estate investment advisor. Use Tavily MCP to research current market conditions and create comprehensive investment strategies with detailed market analysis and property recommendations."
           },
           {
             role: "user", 
@@ -250,192 +250,26 @@ ${JSON.stringify(properties.slice(0, 10).map(p => ({
   type: p.property_type
 })), null, 2)}
 
-Provide market analysis, detailed property recommendations with financial projections, and actionable next steps.`
+RESEARCH TASKS - Use Tavily MCP to search for:
+1. "${profile.location} real estate investment market analysis 2025"
+2. "${profile.location} ${profile.investorType} investment opportunities"
+3. "${profile.location} rental market vacancy rates cap rates"
+4. "${profile.location} new development construction projects"
+5. "${profile.location} employment growth major employers"
+
+Use this real-time market data to enhance your analysis and provide current market insights beyond the static knowledge base.
+
+Return a comprehensive investment strategy JSON with: executiveSummary, purchasingPower, marketAnalysis, propertyRecommendations, financialProjections, nextSteps, additionalInsights`
           }
         ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-              name: "RealEstateStrategy",
-              strict: true,
-              schema: {
-                type: "object",
-                required: [
-                  "executiveSummary",
-                  "purchasingPower",
-                  "marketAnalysis",
-                  "propertyRecommendations",
-                  "financialProjections",
-                  "nextSteps",
-                  "additionalInsights"
-                ],
-                properties: {
-                  executiveSummary: { type: "string" },
-                  purchasingPower: {
-                    type: "object",
-                    required: ["availableCapital", "maxPurchasePrice", "downPaymentPercent", "monthlyBudget"],
-                    properties: {
-                      availableCapital: { type: "number" },
-                      maxPurchasePrice: { type: "number" },
-                      downPaymentPercent: { type: "number" },
-                      monthlyBudget: { type: "number" }
-                    }
-                  },
-                  marketAnalysis: {
-                    type: "object",
-                    required: ["location", "marketConditions", "opportunities", "risks", "emergingTrends"],
-                    properties: {
-                      location: { type: "string" },
-                      marketConditions: { type: "string" },
-                      opportunities: { type: "array", items: { type: "string" } },
-                      risks: { type: "array", items: { type: "string" } },
-                      emergingTrends: { type: "array", items: { type: "string" } }
-                    }
-                  },
-                  propertyRecommendations: { 
-                    type: "array", 
-                    items: {
-                      type: "object",
-                      required: ["address", "price", "propertyType", "whyRecommended", "actionItems"],
-                      properties: {
-                        address: { type: "string" },
-                        price: { type: "number" },
-                        propertyType: { type: "string" },
-                        units: { type: "number" },
-                        monthlyIncome: { type: "number" },
-                        monthlyExpenses: { type: "number" },
-                        netCashFlow: { type: "number" },
-                        capRate: { type: "number" },
-                        whyRecommended: { type: "string" },
-                        actionItems: { type: "array", items: { type: "string" } },
-                        concerns: { type: "array", items: { type: "string" } }
-                      }
-                    }
-                  },
-                  financialProjections: { 
-                    type: "object",
-                    required: ["totalInvestment", "expectedMonthlyIncome", "expectedMonthlyExpenses", "netMonthlyCashFlow", "averageCapRate"],
-                    properties: {
-                      totalInvestment: { type: "number" },
-                      expectedMonthlyIncome: { type: "number" },
-                      expectedMonthlyExpenses: { type: "number" },
-                      netMonthlyCashFlow: { type: "number" },
-                      averageCapRate: { type: "number" },
-                      fiveYearProjection: { type: "object" }
-                    }
-                  },
-                  nextSteps: { type: "array", items: { type: "string" } },
-                  additionalInsights: { type: "array", items: { type: "string" } }
-                },
-                additionalProperties: false
-              }
-            }
-          },
-          input: [
-            { 
-              role: "system", 
-              content: "You are an expert real estate investment advisor. Create a comprehensive investment strategy and return it as valid JSON."
-            },
-            {
-              role: "user",
-              content: `
-        You are an expert real estate investment advisor. Create a comprehensive investment strategy.
-        
-        INVESTOR PROFILE:
-        - Type: ${profile.investorType}
-        - Available Capital: $${profile.investmentCapital}
-        - Target Location: ${profile.location}
-        - Goals: ${profile.investmentStrategy || 'Maximum returns'}
-        ${profile.targetMonthlyReturn ? `- Target Monthly Cash Flow: $${profile.targetMonthlyReturn}` : ''}
-        ${profile.targetCapRate ? `- Target Cap Rate: ${profile.targetCapRate}%` : ''}
-        
-        BASE STRATEGY FROM KNOWLEDGE BASE:
-        ${JSON.stringify(config, null, 2)}
-        
-        AVAILABLE PROPERTIES (Top 20):
-        ${JSON.stringify(properties.slice(0, 20).map(p => ({
-          address: p.address,
-          price: p.price,
-          bedrooms: p.bedrooms,
-          bathrooms: p.bathrooms,
-          sqft: p.square_feet,
-          type: p.property_type,
-          description: p.description?.substring(0, 200)
-        })), null, 2)}
-        
-        TASKS:
-        1. Use Tavily to search for:
-           - "${profile.location} real estate investment market analysis 2024"
-           - "${profile.location} ${profile.investorType} investment opportunities"
-           - "${profile.location} rental market vacancy rates" 
-           - "${profile.location} new development construction projects"
-           - "${profile.location} employment growth major employers"
-           
-        2. Analyze the properties considering:
-           - Current market conditions from your research
-           - Investment potential based on the knowledge base criteria
-           - Hidden opportunities not obvious from basic data
-           
-        3. For each recommended property, calculate:
-           - Estimated monthly rental income
-           - Operating expenses (taxes, insurance, maintenance)
-           - Net cash flow
-           - Cap rate
-           - Why this specific property fits their strategy
-           
-        4. Identify insights BEYOND the static knowledge base:
-           - Local market factors we didn't consider
-           - Emerging opportunities specific to ${profile.location}
-           - Creative strategies for this investor
-           - Risks unique to this market
-        
-        Return a comprehensive investment strategy as a JSON object with these sections:
-        - executiveSummary: 2-3 paragraph overview
-        - purchasingPower: {availableCapital, maxPurchasePrice, downPaymentPercent, monthlyBudget}
-        - marketAnalysis: {location, marketConditions, opportunities[], risks[], emergingTrends[]}
-        - propertyRecommendations: Array of top 5-10 properties with full analysis
-        - financialProjections: 5-year projections
-        - nextSteps: Specific action items
-        - additionalInsights: Array of discoveries beyond our static knowledge
-      `
-            }
-          ]
-        });
-        
-        // Parse the response correctly from Responses API with new structure
-        const content = response.output?.[0]?.content ?? [];
-        const jsonPart = content.find?.((c: any) => 'json' in c);
-        
-        if (jsonPart?.json) {
-          // Already structured JSON from text.format
-          response.strategy = jsonPart.json;
-          console.log('✅ Got structured JSON directly from response');
-        } else {
-          // Fallback to output_text if no json part found
-          response.strategyContent = response.output_text || '';
-          console.log('⚠️ No JSON part found, falling back to output_text');
-        }
-      } else {
-        // Fallback to regular chat completions if responses API not available
-        console.log('⚠️ Responses API not available, falling back to chat completions');
-        const chatResponse = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert real estate investment advisor. Always respond with valid JSON."
-            },
-            {
-              role: "user",
-              content: `Create a comprehensive investment strategy for this profile: ${JSON.stringify(profile)}\n\nProperties: ${JSON.stringify(properties.slice(0, 20))}\n\nReturn JSON with: executiveSummary, purchasingPower, marketAnalysis, propertyRecommendations, financialProjections, nextSteps, additionalInsights`
-            }
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.7
-        });
-        
-        response = { output_text: chatResponse.choices[0].message.content };
-      }
+        tools: [tavilyTool],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      });
+      
+      // Extract the response content
+      response = chatResponse.choices[0].message.content;
+
     } catch (error) {
       console.error('❌ Error calling OpenAI API:', error);
       throw error;
@@ -444,55 +278,19 @@ Provide market analysis, detailed property recommendations with financial projec
     // Parse the response
     let strategy: InvestmentStrategy;
     
-    // If we already got structured JSON from response_format
-    if (response.strategy) {
-      strategy = response.strategy;
-      console.log('✅ Using pre-parsed strategy from response_format');
-    } else {
-      // Need to parse from text
-      const strategyContent = response.output_text || response.strategyContent || '';
-      console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
-      
-      try {
-        strategy = JSON.parse(strategyContent);
-        console.log('✅ Successfully parsed strategy JSON');
-      } catch (error) {
-        // Try to extract JSON from markdown or mixed content
-        console.error('⚠️ Failed to parse strategy JSON:', error);
-        console.log('📝 Raw strategy content (first 500 chars):', strategyContent?.substring(0, 500));
-        
-        const jsonMatch = strategyContent.match(/```json\s*([\s\S]*?)```/i) || 
-                         strategyContent.match(/{[\s\S]*}/);
-        if (jsonMatch) {
-          try {
-            strategy = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-            console.log('✅ Extracted JSON from text content');
-          } catch {
-            strategy = this.extractStrategyFromText(strategyContent, profile, properties);
-          }
-        } else {
-          strategy = this.extractStrategyFromText(strategyContent, profile, properties);
-        }
-      }
+    try {
+      strategy = JSON.parse(response);
+      console.log('✅ Successfully parsed strategy JSON from MCP response');
+    } catch (error) {
+      console.error('⚠️ Failed to parse strategy JSON:', error);
+      console.log('📝 Raw response (first 500 chars):', response?.substring(0, 500));
+      strategy = this.extractStrategyFromText(response, profile, properties);
     }
     
     // With json_schema, additionalInsights should always be an array
-    // But keep safety check for fallback scenarios
-    if (!Array.isArray(strategy.additionalInsights)) {
-      strategy.additionalInsights = strategy.additionalInsights 
-        ? [String(strategy.additionalInsights)] 
-        : [];
+    if (strategy.additionalInsights && !Array.isArray(strategy.additionalInsights)) {
+      strategy.additionalInsights = [strategy.additionalInsights as string];
     }
-    
-    console.log('🔍 Strategy structure:', {
-      hasExecutiveSummary: !!strategy.executiveSummary,
-      hasPurchasingPower: !!strategy.purchasingPower,
-      hasMarketAnalysis: !!strategy.marketAnalysis,
-      propertyCount: strategy.propertyRecommendations?.length || 0,
-      hasFinancials: !!strategy.financialProjections,
-      hasNextSteps: !!strategy.nextSteps,
-      additionalInsightsCount: strategy.additionalInsights.length
-    });
     
     return strategy;
   }
