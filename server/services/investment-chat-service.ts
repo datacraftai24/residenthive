@@ -124,8 +124,8 @@ export class InvestmentChatService {
         * "multi-unit" or "apartment building" or "multiple units" → "multi_unit"
       - investmentCapital: How much capital do they have available? (extract number only)
       - location: What location(s) are they interested in?
-      - targetMonthlyReturn: What monthly cash flow are they targeting? (number only, should be realistic like 400-2000)
-      - targetCapRate: What cap rate are they looking for? (number only, should be realistic like 5-15, NOT 500)
+      - targetMonthlyReturn: What monthly cash flow are they targeting? (extract single number or midpoint of range)
+      - targetCapRate: What cap rate are they looking for? (only extract if specifically mentioned as percentage or "cap rate")
       - timeline: What's their investment timeline?
       - experience: Are they new or experienced investors?
       - goals: What are their specific investment goals?
@@ -133,8 +133,9 @@ export class InvestmentChatService {
       IMPORTANT: 
       - If they mention investment goals like "monthly cash flow", map it to the appropriate investorType.
       - If they mention dollar amounts, extract the number (e.g., "$2 million" = 2000000).
-      - Cap rates should be realistic (5-15%), NOT 500%. If they say "400 500", this likely means monthly cash flow range, not cap rate.
-      - If unclear whether numbers refer to monthly return or cap rate, prioritize monthly return for rental income investors.
+      - For ranges like "400 500" or "400-500", extract the midpoint as targetMonthlyReturn (e.g., 450).
+      - Only extract targetCapRate if they specifically mention "cap rate", "%" or "percent" - don't assume numbers are cap rates.
+      - For rental income investors asking about monthly targets, numbers are monthly cash flow, NOT cap rates.
       
       Return ONLY a JSON object with the extracted fields. If a field is not mentioned, don't include it.
       Example: {"investorType": "rental_income", "investmentCapital": 2000000, "location": "Boston", "targetMonthlyReturn": 450}
