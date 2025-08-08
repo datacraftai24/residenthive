@@ -38,7 +38,7 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   investorType: text("investor_type"), // rental_income, flip, house_hack, multi_unit
   investmentCapital: integer("investment_capital"), // Available cash for down payment
   targetMonthlyReturn: integer("target_monthly_return"), // Target cash flow per month
-  targetCapRate: numeric("target_cap_rate", { precision: 4, scale: 2 }), // Target cap rate percentage
+  targetCapRate: numeric("target_cap_rate", { precision: 5, scale: 2 }), // Target cap rate percentage
   investmentStrategy: text("investment_strategy"), // Free text for detailed strategy
   
   // Features & Preferences
