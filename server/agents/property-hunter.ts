@@ -4,7 +4,8 @@
  * Responsibility: Multi-criteria property search and data enrichment
  */
 
-import { RepliersService } from '../services/repliers-service.js';
+// Import existing search functions
+import { repliersAPI } from '../repliers-api.js';
 
 export interface PropertySearchCriteria {
   locations: string[];
@@ -36,10 +37,8 @@ export interface EnrichedProperty {
 }
 
 export class PropertyHunterAgent {
-  private repliersService: RepliersService;
-
   constructor() {
-    this.repliersService = new RepliersService();
+    // Property Hunter uses existing Repliers API functions
   }
 
   async searchProperties(criteria: PropertySearchCriteria): Promise<EnrichedProperty[]> {
@@ -67,16 +66,62 @@ export class PropertyHunterAgent {
       const query = this.buildSearchQuery(location, criteria);
       console.log(`🔍 [Property Hunter] Searching ${location}: ${query}`);
 
-      // Use Repliers NLP search
-      const searchResult = await this.repliersService.broadSearch({
-        location,
-        investmentCapital: criteria.maxPrice,
-        bedrooms: criteria.minBedrooms,
-        propertyType: criteria.propertyTypes[0] || 'residential'
-      } as any);
+      // Use Repliers NLP search with proper parameters
+      const searchParams = {
+        location: location,
+        maxPrice: criteria.maxPrice,
+        minBedrooms: criteria.minBedrooms,
+        propertyTypes: criteria.propertyTypes,
+        query: query
+      };
+
+      console.log(`📋 [Property Hunter] Search params:`, searchParams);
+
+      // Use existing Repliers API search function
+      let searchResult;
+      try {
+        console.log(`🔍 [Property Hunter] Executing property search for ${location}...`);
+        
+        // Use the Repliers API with proper parameters
+        searchResult = await repliersAPI.searchListings({
+          location: location,
+          price_max: criteria.maxPrice,
+          bedrooms: criteria.minBedrooms,
+          property_type: criteria.propertyTypes[0] || 'residential',
+          limit: 50
+        });
+        
+        console.log(`📊 [Property Hunter] Search response:`, {
+          hasProperties: !!searchResult?.properties,
+          propertiesCount: searchResult?.properties?.length || 0,
+          hasListings: !!searchResult?.listings,
+          listingsCount: searchResult?.listings?.length || 0
+        });
+
+      } catch (searchError) {
+        console.error(`❌ [Property Hunter] Search failed for ${location}:`, searchError);
+        return [];
+      }
+
+      // Handle different response formats from Repliers API
+      let properties = [];
+      if (searchResult?.properties) {
+        properties = searchResult.properties;
+      } else if (searchResult?.listings) {
+        properties = searchResult.listings;
+      } else if (Array.isArray(searchResult)) {
+        properties = searchResult;
+      }
+
+      if (!properties || properties.length === 0) {
+        console.log(`⚠️ [Property Hunter] No properties found for ${location}`);
+        return [];
+      }
+
+      console.log(`✅ [Property Hunter] Found ${properties.length} properties in ${location}`);
 
       // Convert to enriched properties
-      return searchResult.listings.slice(0, 20).map((property: any) => this.convertToEnrichedProperty(property, location));
+      return properties.slice(0, 20).map((property: any) => this.convertToEnrichedProperty(property, location));
 
     } catch (error) {
       console.error(`❌ [Property Hunter] Error searching ${location}:`, error);

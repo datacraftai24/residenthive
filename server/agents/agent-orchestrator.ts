@@ -67,8 +67,20 @@ export class AgentOrchestrator {
 
       // Phase 3: Property Discovery with Strategic Factors
       console.log(`🏠 [Orchestrator] Phase 3: Property Discovery & Enrichment`);
-      const searchCriteria: PropertySearchCriteria = {
+      
+      // Expand geographic search for better property discovery
+      const expandedLocations = await this.propertyHunter.expandGeographicSearch({
         locations: investmentProfile.locations,
+        maxPrice: investmentProfile.capital * 4,
+        minBedrooms: investmentProfile.preferences.multiFamily ? 3 : 2,
+        propertyTypes: investmentProfile.propertyTypes,
+        strategicFactors: investmentProfile.strategicFactors
+      });
+
+      console.log(`🗺️ [Orchestrator] Expanded search to ${expandedLocations.length} locations: ${expandedLocations.join(', ')}`);
+
+      const searchCriteria: PropertySearchCriteria = {
+        locations: expandedLocations,
         maxPrice: investmentProfile.capital * 4, // 4x leverage ratio
         minBedrooms: investmentProfile.preferences.multiFamily ? 3 : 2,
         propertyTypes: investmentProfile.propertyTypes,
@@ -76,14 +88,39 @@ export class AgentOrchestrator {
       };
 
       const rawProperties = await this.propertyHunter.searchProperties(searchCriteria);
+      console.log(`📊 [Orchestrator] Discovery complete: ${rawProperties.length} properties found`);
 
       // Phase 4: Comprehensive Analysis (Financial + Enhancement)
       console.log(`💰 [Orchestrator] Phase 4: Comprehensive Financial & Enhancement Analysis`);
+      
+      if (rawProperties.length === 0) {
+        console.log(`⚠️ [Orchestrator] No properties found for analysis - expanding search criteria`);
+        
+        // Fallback: expand search with relaxed criteria
+        const relaxedCriteria = {
+          ...searchCriteria,
+          maxPrice: searchCriteria.maxPrice * 1.2, // 20% higher price range
+          minBedrooms: Math.max(1, searchCriteria.minBedrooms - 1), // One less bedroom minimum
+          locations: ['Massachusetts', 'Boston', 'Worcester', 'Springfield', 'Lowell', 'Cambridge', 'Quincy']
+        };
+        
+        const fallbackProperties = await this.propertyHunter.searchProperties(relaxedCriteria);
+        console.log(`🔄 [Orchestrator] Fallback search found ${fallbackProperties.length} properties`);
+        
+        if (fallbackProperties.length === 0) {
+          throw new Error('No properties found even with expanded criteria');
+        }
+        
+        rawProperties.push(...fallbackProperties);
+      }
+
       const enhancedProperties = await this.performComprehensiveAnalysis(
-        rawProperties.slice(0, 15), // Top 15 properties for detailed analysis
+        rawProperties.slice(0, 20), // Top 20 properties for detailed analysis
         investmentProfile,
         request.priorityLevel
       );
+
+      console.log(`✅ [Orchestrator] Analysis complete: ${enhancedProperties.length} properties analyzed`);
 
       // Phase 5: Report Generation
       console.log(`📄 [Orchestrator] Phase 5: Investment Report Compilation`);
