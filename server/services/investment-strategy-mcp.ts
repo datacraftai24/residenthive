@@ -449,55 +449,59 @@ Prepared for: ${profile.name || 'Investor'}
 ${strategy.executiveSummary}
 
 ## Your Investment Power
-- **Available Capital**: $${strategy.purchasingPower.availableCapital.toLocaleString()}
-- **Maximum Purchase Price**: $${strategy.purchasingPower.maxPurchasePrice.toLocaleString()}
-- **Down Payment**: ${strategy.purchasingPower.downPaymentPercent}%
-- **Monthly Investment Budget**: $${strategy.purchasingPower.monthlyBudget.toLocaleString()}
+- **Available Capital**: $${strategy.purchasingPower?.availableCapital ? strategy.purchasingPower.availableCapital.toLocaleString() : 'Not specified'}
+- **Maximum Purchase Price**: $${strategy.purchasingPower?.maxPurchasePrice ? strategy.purchasingPower.maxPurchasePrice.toLocaleString() : 'Not specified'}
+- **Down Payment**: ${strategy.purchasingPower?.downPaymentPercent || 0}%
+- **Monthly Investment Budget**: $${strategy.purchasingPower?.monthlyBudget ? strategy.purchasingPower.monthlyBudget.toLocaleString() : 'Not specified'}
 
-## Market Analysis: ${strategy.marketAnalysis.location}
+## Market Analysis: ${strategy.marketAnalysis?.location || 'Target Market'}
 
 ### Current Market Conditions
-${strategy.marketAnalysis.marketConditions}
+${strategy.marketAnalysis?.marketConditions || 'Market analysis in progress...'}
 
 ### Opportunities
-${strategy.marketAnalysis.opportunities.map(o => `- ${o}`).join('\n')}
+${strategy.marketAnalysis?.opportunities ? strategy.marketAnalysis.opportunities.map(o => `- ${o}`).join('\n') : '- Analysis in progress...'}
 
 ### Emerging Trends
-${strategy.marketAnalysis.emergingTrends.map(t => `- ${t}`).join('\n')}
+${strategy.marketAnalysis?.emergingTrends ? strategy.marketAnalysis.emergingTrends.map(t => `- ${t}`).join('\n') : '- Analysis in progress...'}
 
 ### Risks to Consider
-${strategy.marketAnalysis.risks.map(r => `- ${r}`).join('\n')}
+${strategy.marketAnalysis?.risks ? strategy.marketAnalysis.risks.map(r => `- ${r}`).join('\n') : '- Analysis in progress...'}
 
 ## Property Recommendations
 
-${strategy.propertyRecommendations.map((prop, idx) => `
-### ${idx + 1}. ${prop.address}
-- **Price**: $${prop.price.toLocaleString()}
-- **Type**: ${prop.propertyType}
+${strategy.propertyRecommendations && strategy.propertyRecommendations.length > 0 ? 
+  strategy.propertyRecommendations.map((prop, idx) => `
+### ${idx + 1}. ${prop.address || 'Property Address TBD'}
+- **Price**: $${prop.price ? prop.price.toLocaleString() : 'TBD'}
+- **Type**: ${prop.propertyType || 'TBD'}
 ${prop.units ? `- **Units**: ${prop.units}` : ''}
 ${prop.monthlyIncome ? `- **Monthly Income**: $${prop.monthlyIncome.toLocaleString()}` : ''}
 ${prop.netCashFlow ? `- **Net Cash Flow**: $${prop.netCashFlow.toLocaleString()}/month` : ''}
 ${prop.capRate ? `- **Cap Rate**: ${prop.capRate.toFixed(2)}%` : ''}
 
 **Why This Property:**
-${prop.whyRecommended}
+${prop.whyRecommended || 'Analysis in progress...'}
 
 **Action Items:**
-${prop.actionItems.map(a => `- ${a}`).join('\n')}
+${prop.actionItems && prop.actionItems.length > 0 ? prop.actionItems.map(a => `- ${a}`).join('\n') : '- Analysis in progress...'}
 
-${prop.concerns.length > 0 ? `**Concerns:**\n${prop.concerns.map(c => `- ${c}`).join('\n')}` : ''}
-`).join('\n---\n')}
+${prop.concerns && prop.concerns.length > 0 ? `**Concerns:**\n${prop.concerns.map(c => `- ${c}`).join('\n')}` : ''}
+`).join('\n---\n') 
+: '- Property analysis in progress...'}
 
 ## Financial Projections
 
 ### Monthly Cash Flow Analysis
-- **Total Monthly Income**: $${strategy.financialProjections.expectedMonthlyIncome.toLocaleString()}
-- **Total Monthly Expenses**: $${strategy.financialProjections.expectedMonthlyExpenses.toLocaleString()}
-- **Net Monthly Cash Flow**: $${strategy.financialProjections.netMonthlyCashFlow.toLocaleString()}
-- **Average Cap Rate**: ${strategy.financialProjections.averageCapRate.toFixed(2)}%
+- **Total Monthly Income**: $${strategy.financialProjections?.expectedMonthlyIncome ? strategy.financialProjections.expectedMonthlyIncome.toLocaleString() : 'TBD'}
+- **Total Monthly Expenses**: $${strategy.financialProjections?.expectedMonthlyExpenses ? strategy.financialProjections.expectedMonthlyExpenses.toLocaleString() : 'TBD'}
+- **Net Monthly Cash Flow**: $${strategy.financialProjections?.netMonthlyCashFlow ? strategy.financialProjections.netMonthlyCashFlow.toLocaleString() : 'TBD'}
+- **Average Cap Rate**: ${strategy.financialProjections?.averageCapRate ? strategy.financialProjections.averageCapRate.toFixed(2) : 'TBD'}%
 
 ## Next Steps
-${strategy.nextSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}
+${strategy.nextSteps && strategy.nextSteps.length > 0 ? 
+  strategy.nextSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n') :
+  '1. Review market analysis\n2. Identify target properties\n3. Secure financing pre-approval'}
 
 ## Additional Market Insights
 *These insights were discovered through real-time market analysis:*
