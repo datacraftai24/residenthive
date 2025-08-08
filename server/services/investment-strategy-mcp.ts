@@ -9,7 +9,6 @@
  */
 
 import OpenAI from 'openai';
-import { hostedMcpTool } from '@openai/agents';
 import { repliersService } from './repliers-service';
 import { db } from '../db';
 import { investmentStrategies } from '@shared/schema';
@@ -199,13 +198,14 @@ export class InvestmentStrategyGenerator {
     properties: any[]
   ): Promise<InvestmentStrategy> {
     
-    // Define Tavily MCP tool
+    // Define Tavily MCP tool with correct format
     console.log('🔧 Setting up Tavily MCP tool...');
-    const tavilyTool = hostedMcpTool({
-      serverLabel: "tavily",
-      serverUrl: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`,
-      requireApproval: "never",
-    });
+    const tavilyTool = {
+      type: "mcp" as const,
+      server_label: "tavily",
+      server_url: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`,
+      require_approval: "never",
+    };
     
     // Use OpenAI Responses API with Tavily MCP
     console.log('🤖 Generating strategy with OpenAI + Tavily MCP...');
