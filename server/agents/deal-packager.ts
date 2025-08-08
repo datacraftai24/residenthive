@@ -138,7 +138,7 @@ This strategy aligns with your ${profile.riskTolerance} risk tolerance and targe
       const property = pf.property;
       const recommended = pf.recommendedScenario;
       
-      // Ensure complete address information from enhanced data
+      // Ensure complete address information - prioritize property.fullAddress from Repliers API
       const fullAddress = property.fullAddress || [
         property.address,
         property.city && property.state ? `${property.city}, ${property.state}` : property.city || property.state,
@@ -152,6 +152,7 @@ This strategy aligns with your ${profile.riskTolerance} risk tolerance and targe
         city: property.city,
         state: property.state,
         postalCode: property.postalCode,
+        mlsNumber: property.mls_number || property.id,
         price: property.price,
         bedrooms: property.bedrooms,
         bathrooms: property.bathrooms,
@@ -356,6 +357,8 @@ This strategy aligns with your ${profile.riskTolerance} risk tolerance and targe
     report.propertyRecommendations.forEach(prop => {
       sections.push(
         `### ${prop.rank}. ${prop.address}`,
+        `- **Complete Address**: ${prop.fullAddress || prop.address}`,
+        `- **MLS#**: ${prop.mlsNumber || 'Available on request'}`,
         `- **Price**: $${prop.price.toLocaleString()}`,
         `- **Type**: ${prop.propertyType}`,
         `- **Bedrooms**: ${prop.bedrooms} | **Bathrooms**: ${prop.bathrooms}`,
