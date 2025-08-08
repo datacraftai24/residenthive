@@ -329,21 +329,20 @@ export class RepliersAPIService {
     postalCode: string;
     complete: string;
   } {
-    // Handle various address formats from Repliers API
-    const streetNumber = address?.streetNumber || address?.streetNo || '';
-    const streetName = address?.streetName || address?.street || '';
-    const streetSuffix = address?.streetSuffix || address?.suffix || '';
-    const unitNumber = address?.unitNumber || address?.unit || '';
+    // Handle Repliers API specific address format
+    const streetNumber = address?.streetNumber || '';
+    const streetName = address?.streetName || '';
+    const streetSuffix = address?.streetSuffix || '';
+    const unitNumber = address?.unitNumber || '';
     
-    // Build street address
+    // Build street address using exact Repliers API field names
     const streetParts = [streetNumber, streetName, streetSuffix, unitNumber ? `Unit ${unitNumber}` : ''].filter(Boolean);
-    const streetAddress = streetParts.length > 0 ? streetParts.join(' ') : 
-                         address?.address1 || address?.fullAddress || 'Address not available';
+    const streetAddress = streetParts.length > 0 ? streetParts.join(' ') : 'Address not available';
     
-    // Extract city, state, postal code
+    // Extract city, state, zip using correct Repliers API field names
     const city = address?.city || '';
-    const state = address?.state || address?.stateOrProvince || '';
-    const postalCode = address?.postal || address?.postalCode || address?.zipCode || '';
+    const state = address?.state || '';
+    const postalCode = address?.zip || address?.postalCode || address?.zipCode || '';
     
     // Build complete address
     const addressParts = [
