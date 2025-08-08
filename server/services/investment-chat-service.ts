@@ -238,9 +238,13 @@ export class InvestmentChatService {
       bedrooms: (config?.searchCriteria as any)?.minBedrooms || 3,
       bathrooms: context.investorType === 'multi_unit' ? '8+' : '2+',
       
-      // Get features from knowledge base
-      mustHaveFeatures: config?.mustHaveFeatures || [],
+      // Skip restrictive features for broader search results
+      // Features will be used for post-search evaluation instead
+      mustHaveFeatures: [],
       dealbreakers: config?.dealbreakers || [],
+      
+      // Store original preferences for evaluation after search
+      preferredFeatures: config?.mustHaveFeatures || [],
       
       rawInput: JSON.stringify(context.messages || []),
       inputMethod: 'text'
