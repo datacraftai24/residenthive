@@ -82,14 +82,17 @@ export class PropertyHunterAgent {
       try {
         console.log(`🔍 [Property Hunter] Executing property search for ${location}...`);
         
-        // Use the Repliers API with proper parameters
-        searchResult = await repliersAPI.searchListings({
-          location: location,
-          price_max: criteria.maxPrice,
+        // Use the Repliers API with proper parameters for SALE properties
+        const searchProfile = {
+          preferredAreas: [location],
+          budgetMax: criteria.maxPrice,
           bedrooms: criteria.minBedrooms,
-          property_type: criteria.propertyTypes[0] || 'residential',
+          homeType: criteria.propertyTypes[0] === 'multi-family' ? 'multi-family' : 'single-family',
           limit: 50
-        });
+        };
+        
+        console.log(`📋 [Property Hunter] Search profile for SALE properties:`, searchProfile);
+        searchResult = await repliersAPI.searchListings(searchProfile);
         
         console.log(`📊 [Property Hunter] Search response:`, {
           hasProperties: !!searchResult?.properties,
@@ -103,14 +106,14 @@ export class PropertyHunterAgent {
         return [];
       }
 
-      // Handle different response formats from Repliers API
+      // Handle response from Repliers API (should be array of sale listings)
       let properties = [];
-      if (searchResult?.properties) {
-        properties = searchResult.properties;
+      if (Array.isArray(searchResult)) {
+        properties = searchResult;
       } else if (searchResult?.listings) {
         properties = searchResult.listings;
-      } else if (Array.isArray(searchResult)) {
-        properties = searchResult;
+      } else if (searchResult?.properties) {
+        properties = searchResult.properties;
       }
 
       if (!properties || properties.length === 0) {
@@ -120,8 +123,13 @@ export class PropertyHunterAgent {
 
       console.log(`✅ [Property Hunter] Found ${properties.length} properties in ${location}`);
 
-      // Convert to enriched properties
-      return properties.slice(0, 20).map((property: any) => this.convertToEnrichedProperty(property, location));
+      // Convert to enriched properties, filtering out rentals
+      const enrichedProperties = properties.slice(0, 20)
+        .map((property: any) => this.convertToEnrichedProperty(property, location))
+        .filter(property => property !== null); // Remove filtered rentals
+      
+      console.log(`🏠 [Property Hunter] After filtering rentals: ${enrichedProperties.length} sale properties remain`);
+      return enrichedProperties;
 
     } catch (error) {
       console.error(`❌ [Property Hunter] Error searching ${location}:`, error);
@@ -144,11 +152,30 @@ export class PropertyHunterAgent {
     return parts.join(' ');
   }
 
-  private convertToEnrichedProperty(property: any, location: string): EnrichedProperty {
+  private convertToEnrichedProperty(property: any, location: string): EnrichedProperty | null {
+    // Filter out rental listings - only include properties with realistic sale prices
+    const price = property.price || 0;
+    
+    // Skip if price is too low (likely rental) or unrealistic for sale
+    if (price < 50000 || price > 2000000) {
+      console.log(`⚠️ [Property Hunter] Filtering out property with price $${price} (likely rental or unrealistic)`);
+      return null;
+    }
+    
+    // Skip if property description indicates rental terms
+    const description = (property.description || '').toLowerCase();
+    const address = (property.address || '').toLowerCase();
+    if (description.includes('/month') || description.includes('rent') || 
+        description.includes('monthly') || address.includes('rent') ||
+        description.includes('lease') || description.includes('tenant')) {
+      console.log(`⚠️ [Property Hunter] Filtering out rental property: ${property.address}`);
+      return null;
+    }
+
     return {
       id: property.id || `${property.address}_${Date.now()}`,
       address: property.address || 'Address not available',
-      price: property.price || 0,
+      price: price,
       bedrooms: property.bedrooms || 2,
       bathrooms: property.bathrooms || 1,
       propertyType: property.property_type || 'residential',

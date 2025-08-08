@@ -138,6 +138,7 @@ export class RepliersAPIService {
       operator: 'AND',
       sortBy: 'updatedOnDesc',
       status: 'A',
+      type: 'Sale', // Force search for Sale listings only, not rentals
       limit: (searchParams.limit?.toString() || '100')
     });
 
