@@ -519,31 +519,124 @@ export class InvestmentStrategyGenerator {
    */
   private calculateAlternativeScenarios(property: any, estimatedRent: number, price: number): any {
     const scenarios = [];
+    const operatingExpenses = estimatedRent * 0.35; // 35% rule
+    const monthlyAppreciation = (price * 0.03) / 12; // 3% annual appreciation
     
-    // 30% down scenario
-    const downPayment30 = price * 0.3;
-    const loanAmount30 = price - downPayment30;
-    const monthlyPayment30 = this.calculateMonthlyPayment(loanAmount30);
-    const cashFlow30 = estimatedRent - monthlyPayment30 - (estimatedRent * 0.45);
+    // Scenario 1: 25% down (standard)
+    const down25 = price * 0.25;
+    const loan25 = price - down25;
+    const payment25 = this.calculateMonthlyPayment(loan25);
+    const principal25 = payment25 - (loan25 * (0.07/12));
+    const cashFlow25 = estimatedRent - payment25 - operatingExpenses;
+    const totalBenefit25 = cashFlow25 + principal25 + monthlyAppreciation;
     
     scenarios.push({
-      downPayment: '30%',
-      amount: downPayment30,
-      monthlyCashFlow: cashFlow30,
-      breakEven: cashFlow30 >= -50
+      scenario: "Standard Investment (25% Down)",
+      breakdown: {
+        purchasePrice: price,
+        downPayment: down25,
+        loanAmount: loan25,
+        monthlyRent: estimatedRent,
+        mortgagePayment: payment25,
+        operatingExpenses: operatingExpenses,
+        monthlyCashFlow: cashFlow25,
+        monthlyPrincipal: principal25,
+        monthlyAppreciation: monthlyAppreciation,
+        totalEconomicBenefit: totalBenefit25,
+        annualReturn: totalBenefit25 * 12,
+        returnOnEquity: ((totalBenefit25 * 12) / down25) * 100
+      },
+      walkthrough: [
+        `Purchase Price: $${price.toLocaleString()}`,
+        `Down Payment (25%): $${Math.round(down25).toLocaleString()}`,
+        `Loan Amount: $${Math.round(loan25).toLocaleString()}`,
+        `Monthly Rent: $${estimatedRent}`,
+        `Mortgage Payment: $${Math.round(payment25)}`,
+        `Operating Expenses (35%): $${Math.round(operatingExpenses)}`,
+        `Net Cash Flow: $${Math.round(cashFlow25)}`,
+        `Principal Paydown: $${Math.round(principal25)}`,
+        `Appreciation (3%/year): $${Math.round(monthlyAppreciation)}`,
+        `Total Monthly Benefit: $${Math.round(totalBenefit25)}`,
+        `Annual ROE: ${((totalBenefit25 * 12) / down25 * 100).toFixed(1)}%`
+      ]
     });
     
-    // 40% down scenario
-    const downPayment40 = price * 0.4;
-    const loanAmount40 = price - downPayment40;
-    const monthlyPayment40 = this.calculateMonthlyPayment(loanAmount40);
-    const cashFlow40 = estimatedRent - monthlyPayment40 - (estimatedRent * 0.45);
+    // Scenario 2: 30% down
+    const down30 = price * 0.30;
+    const loan30 = price - down30;
+    const payment30 = this.calculateMonthlyPayment(loan30);
+    const principal30 = payment30 - (loan30 * (0.07/12));
+    const cashFlow30 = estimatedRent - payment30 - operatingExpenses;
+    const totalBenefit30 = cashFlow30 + principal30 + monthlyAppreciation;
     
     scenarios.push({
-      downPayment: '40%',
-      amount: downPayment40,
-      monthlyCashFlow: cashFlow40,
-      breakEven: cashFlow40 >= -50
+      scenario: "Conservative Approach (30% Down)",
+      breakdown: {
+        purchasePrice: price,
+        downPayment: down30,
+        loanAmount: loan30,
+        monthlyRent: estimatedRent,
+        mortgagePayment: payment30,
+        operatingExpenses: operatingExpenses,
+        monthlyCashFlow: cashFlow30,
+        monthlyPrincipal: principal30,
+        monthlyAppreciation: monthlyAppreciation,
+        totalEconomicBenefit: totalBenefit30,
+        annualReturn: totalBenefit30 * 12,
+        returnOnEquity: ((totalBenefit30 * 12) / down30) * 100
+      },
+      walkthrough: [
+        `Purchase Price: $${price.toLocaleString()}`,
+        `Down Payment (30%): $${Math.round(down30).toLocaleString()}`,
+        `Loan Amount: $${Math.round(loan30).toLocaleString()}`,
+        `Monthly Rent: $${estimatedRent}`,
+        `Mortgage Payment: $${Math.round(payment30)}`,
+        `Operating Expenses (35%): $${Math.round(operatingExpenses)}`,
+        `Net Cash Flow: $${Math.round(cashFlow30)}`,
+        `Principal Paydown: $${Math.round(principal30)}`,
+        `Appreciation (3%/year): $${Math.round(monthlyAppreciation)}`,
+        `Total Monthly Benefit: $${Math.round(totalBenefit30)}`,
+        `Annual ROE: ${((totalBenefit30 * 12) / down30 * 100).toFixed(1)}%`
+      ]
+    });
+    
+    // Scenario 3: 40% down (cash flow focused)
+    const down40 = price * 0.40;
+    const loan40 = price - down40;
+    const payment40 = this.calculateMonthlyPayment(loan40);
+    const principal40 = payment40 - (loan40 * (0.07/12));
+    const cashFlow40 = estimatedRent - payment40 - operatingExpenses;
+    const totalBenefit40 = cashFlow40 + principal40 + monthlyAppreciation;
+    
+    scenarios.push({
+      scenario: "Cash Flow Focused (40% Down)",
+      breakdown: {
+        purchasePrice: price,
+        downPayment: down40,
+        loanAmount: loan40,
+        monthlyRent: estimatedRent,
+        mortgagePayment: payment40,
+        operatingExpenses: operatingExpenses,
+        monthlyCashFlow: cashFlow40,
+        monthlyPrincipal: principal40,
+        monthlyAppreciation: monthlyAppreciation,
+        totalEconomicBenefit: totalBenefit40,
+        annualReturn: totalBenefit40 * 12,
+        returnOnEquity: ((totalBenefit40 * 12) / down40) * 100
+      },
+      walkthrough: [
+        `Purchase Price: $${price.toLocaleString()}`,
+        `Down Payment (40%): $${Math.round(down40).toLocaleString()}`,
+        `Loan Amount: $${Math.round(loan40).toLocaleString()}`,
+        `Monthly Rent: $${estimatedRent}`,
+        `Mortgage Payment: $${Math.round(payment40)}`,
+        `Operating Expenses (35%): $${Math.round(operatingExpenses)}`,
+        `Net Cash Flow: $${Math.round(cashFlow40)}`,
+        `Principal Paydown: $${Math.round(principal40)}`,
+        `Appreciation (3%/year): $${Math.round(monthlyAppreciation)}`,
+        `Total Monthly Benefit: $${Math.round(totalBenefit40)}`,
+        `Annual ROE: ${((totalBenefit40 * 12) / down40 * 100).toFixed(1)}%`
+      ]
     });
     
     return scenarios;
