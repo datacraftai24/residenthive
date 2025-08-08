@@ -223,7 +223,7 @@ export class InvestmentStrategyGenerator {
           model: "gpt-4o",
           tools: [tavilyTool],
           text: {
-            format: "json_schema",
+            format: "json_schema" as const,
             json_schema: {
               name: "RealEstateStrategy",
               strict: true,
@@ -299,9 +299,8 @@ export class InvestmentStrategyGenerator {
                 additionalProperties: false
               }
             }
-          }
-        },
-        input: [
+          },
+          input: [
             { 
               role: "system", 
               content: "You are an expert real estate investment advisor. Create a comprehensive investment strategy and return it as valid JSON."
