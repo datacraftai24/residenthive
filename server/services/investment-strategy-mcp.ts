@@ -222,8 +222,8 @@ export class InvestmentStrategyGenerator {
         response = await openai.responses.create({
           model: "gpt-4o",
           tools: [tavilyTool],
-          response_format: {
-            type: "json_schema",
+          text: {
+            format: "json_schema",
             json_schema: {
               name: "RealEstateStrategy",
               strict: true,
@@ -299,8 +299,9 @@ export class InvestmentStrategyGenerator {
                 additionalProperties: false
               }
             }
-          },
-          input: [
+          }
+        },
+        input: [
             { 
               role: "system", 
               content: "You are an expert real estate investment advisor. Create a comprehensive investment strategy and return it as valid JSON."
@@ -371,21 +372,18 @@ export class InvestmentStrategyGenerator {
           ]
         });
         
-        // Parse the response correctly from Responses API
-        // First try to get structured JSON directly
+        // Parse the response correctly from Responses API with new structure
         const content = response.output?.[0]?.content ?? [];
         const jsonPart = content.find?.((c: any) => 'json' in c);
         
         if (jsonPart?.json) {
-          // Already structured JSON from response_format
+          // Already structured JSON from text.format
           response.strategy = jsonPart.json;
           console.log('✅ Got structured JSON directly from response');
         } else {
-          // Store text content for later parsing
-          response.strategyContent = response.output?.[0]?.content?.[0]?.text || 
-                                   response.output?.[0]?.content || 
-                                   response.output_text || 
-                                   '';
+          // Fallback to output_text if no json part found
+          response.strategyContent = response.output_text || '';
+          console.log('⚠️ No JSON part found, falling back to output_text');
         }
       } else {
         // Fallback to regular chat completions if responses API not available
