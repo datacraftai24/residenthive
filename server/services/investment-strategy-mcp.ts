@@ -484,9 +484,9 @@ ${prop.capRate ? `- **Cap Rate**: ${prop.capRate.toFixed(2)}%` : ''}
 ${prop.whyRecommended || 'Analysis in progress...'}
 
 **Action Items:**
-${prop.actionItems && prop.actionItems.length > 0 ? prop.actionItems.map(a => `- ${a}`).join('\n') : '- Analysis in progress...'}
+${this.formatArrayAsBullets(prop.actionItems, '- Analysis in progress...')}
 
-${prop.concerns && prop.concerns.length > 0 ? `**Concerns:**\n${prop.concerns.map(c => `- ${c}`).join('\n')}` : ''}
+${this.formatConcerns(prop.concerns)}
 `).join('\n---\n') 
 : '- Property analysis in progress...'}
 
@@ -499,22 +499,106 @@ ${prop.concerns && prop.concerns.length > 0 ? `**Concerns:**\n${prop.concerns.ma
 - **Average Cap Rate**: ${strategy.financialProjections?.averageCapRate ? strategy.financialProjections.averageCapRate.toFixed(2) : 'TBD'}%
 
 ## Next Steps
-${strategy.nextSteps && strategy.nextSteps.length > 0 ? 
-  strategy.nextSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n') :
-  '1. Review market analysis\n2. Identify target properties\n3. Secure financing pre-approval'}
+${this.formatStepsArray(strategy.nextSteps)}
 
 ## Additional Market Insights
 *These insights were discovered through real-time market analysis:*
 
-${strategy.additionalInsights && strategy.additionalInsights.length > 0 
-  ? strategy.additionalInsights.map(insight => `- ${insight}`).join('\n')
-  : '- Market analysis in progress...'}
+${this.formatInsightsArray(strategy.additionalInsights)}
 
 ---
 *This strategy was generated using real-time market data and AI analysis. 
 Always consult with real estate professionals before making investment decisions.*`;
   }
   
+  /**
+   * Format steps array safely
+   */
+  private formatStepsArray(steps: any): string {
+    try {
+      if (!steps) {
+        return '1. Review market analysis\n2. Identify target properties\n3. Secure financing pre-approval';
+      }
+      
+      if (Array.isArray(steps) && steps.length > 0) {
+        return steps.map((step, idx) => `${idx + 1}. ${step}`).join('\n');
+      }
+      
+      return '1. Review market analysis\n2. Identify target properties\n3. Secure financing pre-approval';
+    } catch (error) {
+      console.error('Error formatting steps:', error);
+      return '1. Review market analysis\n2. Identify target properties\n3. Secure financing pre-approval';
+    }
+  }
+
+  /**
+   * Format array as bullets safely
+   */
+  private formatArrayAsBullets(items: any, fallback: string = '- Analysis in progress...'): string {
+    try {
+      if (!items) return fallback;
+      
+      if (Array.isArray(items) && items.length > 0) {
+        return items.map(item => `- ${item}`).join('\n');
+      }
+      
+      return fallback;
+    } catch (error) {
+      console.error('Error formatting array as bullets:', error);
+      return fallback;
+    }
+  }
+
+  /**
+   * Format concerns safely
+   */
+  private formatConcerns(concerns: any): string {
+    try {
+      if (!concerns) return '';
+      
+      if (Array.isArray(concerns) && concerns.length > 0) {
+        return `**Concerns:**\n${concerns.map(c => `- ${c}`).join('\n')}`;
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Error formatting concerns:', error);
+      return '';
+    }
+  }
+
+  /**
+   * Format insights array safely handling different data types
+   */
+  private formatInsightsArray(insights: any): string {
+    try {
+      // Handle null/undefined
+      if (!insights) {
+        return '- Market analysis in progress...';
+      }
+      
+      // Handle array
+      if (Array.isArray(insights) && insights.length > 0) {
+        return insights.map(insight => `- ${insight}`).join('\n');
+      }
+      
+      // Handle string
+      if (typeof insights === 'string' && insights.trim()) {
+        return `- ${insights}`;
+      }
+      
+      // Handle object with array property
+      if (typeof insights === 'object' && insights.insights && Array.isArray(insights.insights)) {
+        return insights.insights.map(insight => `- ${insight}`).join('\n');
+      }
+      
+      return '- Market analysis in progress...';
+    } catch (error) {
+      console.error('Error formatting insights:', error);
+      return '- Market analysis in progress...';
+    }
+  }
+
   /**
    * Save strategy document
    */
