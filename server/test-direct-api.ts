@@ -2,7 +2,7 @@
 import 'dotenv/config';
 
 async function testDirectAPI() {
-  const apiKey = process.env.REPLIERS_API_KEY;
+  const apiKey = 'lwSqnPJBTbOq2hBMj26lwFqBR4yfit';
   
   console.log('API Key Status:', apiKey ? '[PRESENT]' : '[MISSING]');
   console.log('API Key Length:', apiKey ? apiKey.length : 0);

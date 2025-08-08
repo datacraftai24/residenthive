@@ -146,8 +146,5 @@ function calculateROI(property: DemoProperty, budget: number): number {
   return (annualCashFlow / downPayment) * 100;
 }
 
-// Run the demo analysis
-if (require.main === module) {
-  console.log('🚀 RUNNING ENHANCED INVESTMENT PROPERTY ANALYSIS DEMO');
-  analyzeDemoInvestmentProperties(500000, 2);
-}
+// Export for use in other modules
+export { analyzeDemoInvestmentProperties };

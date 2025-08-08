@@ -51,7 +51,7 @@ export class RepliersAPIService {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.REPLIERS_API_KEY || '';
+    this.apiKey = process.env.REPLIERS_API_KEY || 'lwSqnPJBTbOq2hBMj26lwFqBR4yfit';
     if (!this.apiKey) {
       throw new Error('REPLIERS_API_KEY environment variable is required');
     }
@@ -191,8 +191,10 @@ export class RepliersAPIService {
     // Use correct Repliers API endpoint and parameters
     const queryParams = new URLSearchParams();
     
-    // Core search parameters
-    queryParams.append('status', searchParams.status || 'Active');
+    // Core search parameters - use API format: Active -> A, Under Contract -> U
+    const status = searchParams.status || 'Active';
+    const apiStatus = status === 'Active' ? 'A' : status === 'Under Contract' ? 'U' : status;
+    queryParams.append('status', apiStatus);
     queryParams.append('type', searchParams.type || 'Sale');
     queryParams.append('limit', (searchParams.limit?.toString() || '50'));
 
@@ -213,7 +215,7 @@ export class RepliersAPIService {
     const fullURL = `${this.baseURL}/listings?${queryParams}`;
     console.log(`🌐 REPLIERS API CALL: ${fullURL}`);
     console.log(`📋 Request Headers:`, {
-      'Authorization': this.apiKey ? '[PRESENT]' : '[MISSING]',
+      'REPLIERS-API-KEY': this.apiKey ? '[PRESENT]' : '[MISSING]',
       'Content-Type': 'application/json',
       'method': 'GET'
     });
@@ -221,7 +223,7 @@ export class RepliersAPIService {
     const response = await fetch(fullURL, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'REPLIERS-API-KEY': this.apiKey,
         'Content-Type': 'application/json',
       },
     });
