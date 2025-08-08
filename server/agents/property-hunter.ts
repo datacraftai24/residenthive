@@ -6,6 +6,7 @@
 
 // Import existing search functions
 import { repliersAPI } from '../repliers-api.js';
+import { InvestmentPropertyMapper } from '../investment-property-mapper';
 
 export interface PropertySearchCriteria {
   locations: string[];
@@ -83,12 +84,27 @@ export class PropertyHunterAgent {
         console.log(`🔍 [Property Hunter] Executing property search for ${location}...`);
         
         // Use the Repliers API with proper parameters for SALE properties only
+        // Target investment property types based on aggregates data
+        const targetUnits = criteria.minBedrooms >= 4 ? 4 : criteria.minBedrooms >= 3 ? 3 : 2;
+        const optimalStyles = InvestmentPropertyMapper.getOptimalPropertyStyles(criteria.maxPrice, targetUnits);
+        
+        let homeType = 'single-family'; // Default fallback
+        if (criteria.propertyTypes.includes('multi-family') && optimalStyles.length > 0) {
+          // Use the best available investment property style
+          homeType = optimalStyles[0].toLowerCase().includes('family') ? 'multi-family' : 
+                    optimalStyles[0].toLowerCase().includes('duplex') ? 'duplex' : 
+                    'multi-family';
+        }
+
+        console.log(`🎯 [Property Hunter] Targeting ${homeType} properties in ${location}, budget: $${criteria.maxPrice.toLocaleString()}`);
+        console.log(`📊 [Property Hunter] Optimal investment styles: ${optimalStyles.slice(0, 3).join(', ')}`);
+
         const searchProfile = {
           preferredAreas: [location],
           budgetMax: criteria.maxPrice,
           budgetMin: Math.max(50000, Math.floor(criteria.maxPrice * 0.3)), // Minimum realistic sale price
           bedrooms: criteria.minBedrooms,
-          homeType: criteria.propertyTypes[0] === 'multi-family' ? 'multi-family' : 'single-family',
+          homeType: homeType,
           limit: 50
         };
         
@@ -244,10 +260,17 @@ export class PropertyHunterAgent {
         strategicScore += 10; // Bonus for below-average pricing
       }
 
-      // Multi-family bonus
-      if (property.bedrooms >= 3 && property.propertyType.toLowerCase().includes('multi')) {
-        strategicScore += 15;
+      // Investment potential bonus based on aggregates data
+      const investmentScore = InvestmentPropertyMapper.getInvestmentScore(property.propertyType);
+      const expectedUnits = InvestmentPropertyMapper.getExpectedUnits(property.propertyType);
+      
+      // Multi-family investment bonus
+      if (expectedUnits >= 2) {
+        strategicScore += Math.min(25, expectedUnits * 5); // Up to 25 points for multi-unit
       }
+      
+      // Apply investment potential score
+      strategicScore = Math.floor((strategicScore + investmentScore) / 2);
 
       property.strategicScore = Math.min(strategicScore, 100);
       return property;

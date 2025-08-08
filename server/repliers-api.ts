@@ -58,6 +58,42 @@ export class RepliersAPIService {
   }
 
   /**
+   * Get available property types and styles from Repliers aggregates
+   */
+  async getAvailablePropertyTypes(): Promise<{propertyTypes: any, styles: any}> {
+    try {
+      // Fetch property type aggregates
+      const propertyTypeResponse = await fetch(`${this.baseURL}/listings?aggregates=details.propertyType`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Fetch style aggregates  
+      const styleResponse = await fetch(`${this.baseURL}/listings?aggregates=details.style`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const propertyTypeData = await propertyTypeResponse.json();
+      const styleData = await styleResponse.json();
+
+      return {
+        propertyTypes: propertyTypeData.aggregates?.details?.propertyType || {},
+        styles: styleData.aggregates?.details?.style || {}
+      };
+    } catch (error) {
+      console.error('Error fetching property aggregates:', error);
+      return { propertyTypes: {}, styles: {} };
+    }
+  }
+
+  /**
    * Transform buyer profile data into Repliers API search parameters
    */
   private mapProfileToSearchParams(profile: any): RepliersSearchParams {
@@ -93,14 +129,18 @@ export class RepliersAPIService {
       }
     }
 
-    // Property type mapping using correct Repliers parameter names
+    // Property type mapping using actual Repliers API values from aggregates
     if (profile.homeType) {
       const typeMapping: Record<string, string> = {
-        'single-family': 'Single Family',
-        'condo': 'Condominium', 
-        'townhouse': 'Townhouse',
-        'apartment': 'Condominium',
-        'multi-family': 'Multi Family'
+        'single-family': 'Single Family Residence',  // Most common style (8,363 listings)
+        'condo': 'Condominium',                      // 5,761 listings
+        'townhouse': 'Attached (Townhouse/Rowhouse/Duplex)', // 609 listings
+        'apartment': 'Apartment',                    // 3,770 listings
+        'multi-family': 'Multi Family',             // 362 listings
+        'duplex': 'Attached (Townhouse/Rowhouse/Duplex)', // Alternative for duplex
+        '2-family': '2 Family - 2 Units Up/Down',   // 224 listings
+        '3-family': '3 Family',                     // 261 listings
+        '4-family': '4 Family'                      // 58 listings
       };
       params.propertyType = typeMapping[profile.homeType] || profile.homeType;
     }
