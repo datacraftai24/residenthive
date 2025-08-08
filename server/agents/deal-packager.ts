@@ -138,9 +138,20 @@ This strategy aligns with your ${profile.riskTolerance} risk tolerance and targe
       const property = pf.property;
       const recommended = pf.recommendedScenario;
       
+      // Create complete address with city, state, ZIP
+      const fullAddress = [
+        property.address,
+        property.city && property.state ? `${property.city}, ${property.state}` : property.city || property.state,
+        property.postalCode
+      ].filter(Boolean).join(', ');
+
       return {
         rank: index + 1,
         address: property.address,
+        fullAddress: fullAddress,
+        city: property.city,
+        state: property.state,
+        postalCode: property.postalCode,
         price: property.price,
         bedrooms: property.bedrooms,
         bathrooms: property.bathrooms,
