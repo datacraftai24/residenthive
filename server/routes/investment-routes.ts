@@ -10,8 +10,8 @@ import { buyerProfiles, investmentStrategies } from '@shared/schema';
 import { investmentChatService } from '../services/investment-chat-service';
 import { investmentStrategyGenerator } from '../services/investment-strategy-mcp';
 import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 
 const router = Router();
 

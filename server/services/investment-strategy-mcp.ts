@@ -103,7 +103,7 @@ export class InvestmentStrategyGenerator {
       );
       
       // Save discoveries for future learning
-      if (strategy.additionalInsights.length > 0) {
+      if (strategy.additionalInsights && Array.isArray(strategy.additionalInsights) && strategy.additionalInsights.length > 0) {
         strategy.additionalInsights.forEach(insight => {
           addDiscoveredInsight(profile.investorType!, {
             insight,
@@ -203,8 +203,11 @@ export class InvestmentStrategyGenerator {
     const tavilyTool = {
       type: "mcp" as const,
       server_label: "tavily",
+      // NOTE: API key in URL is not ideal for security, but Tavily MCP currently only supports query param auth
+      // Consider running a local proxy or Tavily's self-hosted option for production
       server_url: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`,
-      require_approval: "never",
+      allowed_tools: ["tavily-search", "tavily-extract"], // Whitelist specific tools
+      require_approval: "never" as const,
     };
     
     // Use OpenAI Responses API with Tavily MCP
@@ -213,12 +216,98 @@ export class InvestmentStrategyGenerator {
     let response: any;
     
     try {
-      // Check if responses API is available (SDK v5.0.0+)
-      if ('responses' in openai) {
-        response = await (openai as any).responses.create({
+      // Use responses API (available in SDK v5.9.0)
+      if (openai?.responses) {
+        console.log('✅ Using OpenAI Responses API with Tavily MCP');
+        response = await openai.responses.create({
           model: "gpt-4o",
           tools: [tavilyTool],
-          input: `
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "RealEstateStrategy",
+              strict: true,
+              schema: {
+                type: "object",
+                required: [
+                  "executiveSummary",
+                  "purchasingPower",
+                  "marketAnalysis",
+                  "propertyRecommendations",
+                  "financialProjections",
+                  "nextSteps",
+                  "additionalInsights"
+                ],
+                properties: {
+                  executiveSummary: { type: "string" },
+                  purchasingPower: {
+                    type: "object",
+                    required: ["availableCapital", "maxPurchasePrice", "downPaymentPercent", "monthlyBudget"],
+                    properties: {
+                      availableCapital: { type: "number" },
+                      maxPurchasePrice: { type: "number" },
+                      downPaymentPercent: { type: "number" },
+                      monthlyBudget: { type: "number" }
+                    }
+                  },
+                  marketAnalysis: {
+                    type: "object",
+                    required: ["location", "marketConditions", "opportunities", "risks", "emergingTrends"],
+                    properties: {
+                      location: { type: "string" },
+                      marketConditions: { type: "string" },
+                      opportunities: { type: "array", items: { type: "string" } },
+                      risks: { type: "array", items: { type: "string" } },
+                      emergingTrends: { type: "array", items: { type: "string" } }
+                    }
+                  },
+                  propertyRecommendations: { 
+                    type: "array", 
+                    items: {
+                      type: "object",
+                      required: ["address", "price", "propertyType", "whyRecommended", "actionItems"],
+                      properties: {
+                        address: { type: "string" },
+                        price: { type: "number" },
+                        propertyType: { type: "string" },
+                        units: { type: "number" },
+                        monthlyIncome: { type: "number" },
+                        monthlyExpenses: { type: "number" },
+                        netCashFlow: { type: "number" },
+                        capRate: { type: "number" },
+                        whyRecommended: { type: "string" },
+                        actionItems: { type: "array", items: { type: "string" } },
+                        concerns: { type: "array", items: { type: "string" } }
+                      }
+                    }
+                  },
+                  financialProjections: { 
+                    type: "object",
+                    required: ["totalInvestment", "expectedMonthlyIncome", "expectedMonthlyExpenses", "netMonthlyCashFlow", "averageCapRate"],
+                    properties: {
+                      totalInvestment: { type: "number" },
+                      expectedMonthlyIncome: { type: "number" },
+                      expectedMonthlyExpenses: { type: "number" },
+                      netMonthlyCashFlow: { type: "number" },
+                      averageCapRate: { type: "number" },
+                      fiveYearProjection: { type: "object" }
+                    }
+                  },
+                  nextSteps: { type: "array", items: { type: "string" } },
+                  additionalInsights: { type: "array", items: { type: "string" } }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          input: [
+            { 
+              role: "system", 
+              content: "You are an expert real estate investment advisor. Create a comprehensive investment strategy and return it as valid JSON."
+            },
+            {
+              role: "user",
+              content: `
         You are an expert real estate investment advisor. Create a comprehensive investment strategy.
         
         INVESTOR PROFILE:
@@ -278,11 +367,26 @@ export class InvestmentStrategyGenerator {
         - nextSteps: Specific action items
         - additionalInsights: Array of discoveries beyond our static knowledge
       `
+            }
+          ]
         });
         
-        // Parse the response
-        const strategyContent = response.output_text;
-        console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
+        // Parse the response correctly from Responses API
+        // First try to get structured JSON directly
+        const content = response.output?.[0]?.content ?? [];
+        const jsonPart = content.find?.((c: any) => 'json' in c);
+        
+        if (jsonPart?.json) {
+          // Already structured JSON from response_format
+          response.strategy = jsonPart.json;
+          console.log('✅ Got structured JSON directly from response');
+        } else {
+          // Store text content for later parsing
+          response.strategyContent = response.output?.[0]?.content?.[0]?.text || 
+                                   response.output?.[0]?.content || 
+                                   response.output_text || 
+                                   '';
+        }
       } else {
         // Fallback to regular chat completions if responses API not available
         console.log('⚠️ Responses API not available, falling back to chat completions');
@@ -310,20 +414,57 @@ export class InvestmentStrategyGenerator {
     }
     
     // Parse the response
-    const strategyContent = response.output_text;
-    console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
-    
     let strategy: InvestmentStrategy;
     
-    try {
-      strategy = JSON.parse(strategyContent);
-      console.log('✅ Successfully parsed strategy JSON');
-    } catch (error) {
-      // If not valid JSON, extract key information
-      console.error('⚠️ Failed to parse strategy JSON:', error);
-      console.log('📝 Raw strategy content (first 500 chars):', strategyContent?.substring(0, 500));
-      strategy = this.extractStrategyFromText(strategyContent, profile, properties);
+    // If we already got structured JSON from response_format
+    if (response.strategy) {
+      strategy = response.strategy;
+      console.log('✅ Using pre-parsed strategy from response_format');
+    } else {
+      // Need to parse from text
+      const strategyContent = response.output_text || response.strategyContent || '';
+      console.log('📄 Raw strategy response length:', strategyContent?.length || 0);
+      
+      try {
+        strategy = JSON.parse(strategyContent);
+        console.log('✅ Successfully parsed strategy JSON');
+      } catch (error) {
+        // Try to extract JSON from markdown or mixed content
+        console.error('⚠️ Failed to parse strategy JSON:', error);
+        console.log('📝 Raw strategy content (first 500 chars):', strategyContent?.substring(0, 500));
+        
+        const jsonMatch = strategyContent.match(/```json\s*([\s\S]*?)```/i) || 
+                         strategyContent.match(/{[\s\S]*}/);
+        if (jsonMatch) {
+          try {
+            strategy = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+            console.log('✅ Extracted JSON from text content');
+          } catch {
+            strategy = this.extractStrategyFromText(strategyContent, profile, properties);
+          }
+        } else {
+          strategy = this.extractStrategyFromText(strategyContent, profile, properties);
+        }
+      }
     }
+    
+    // With json_schema, additionalInsights should always be an array
+    // But keep safety check for fallback scenarios
+    if (!Array.isArray(strategy.additionalInsights)) {
+      strategy.additionalInsights = strategy.additionalInsights 
+        ? [String(strategy.additionalInsights)] 
+        : [];
+    }
+    
+    console.log('🔍 Strategy structure:', {
+      hasExecutiveSummary: !!strategy.executiveSummary,
+      hasPurchasingPower: !!strategy.purchasingPower,
+      hasMarketAnalysis: !!strategy.marketAnalysis,
+      propertyCount: strategy.propertyRecommendations?.length || 0,
+      hasFinancials: !!strategy.financialProjections,
+      hasNextSteps: !!strategy.nextSteps,
+      additionalInsightsCount: strategy.additionalInsights.length
+    });
     
     return strategy;
   }
@@ -450,7 +591,9 @@ ${strategy.nextSteps.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}
 ## Additional Market Insights
 *These insights were discovered through real-time market analysis:*
 
-${strategy.additionalInsights.map(insight => `- ${insight}`).join('\n')}
+${strategy.additionalInsights && strategy.additionalInsights.length > 0 
+  ? strategy.additionalInsights.map(insight => `- ${insight}`).join('\n')
+  : '- Market analysis in progress...'}
 
 ---
 *This strategy was generated using real-time market data and AI analysis. 
