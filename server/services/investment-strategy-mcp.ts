@@ -210,21 +210,52 @@ export class InvestmentStrategyGenerator {
       require_approval: "never" as const,
     };
     
-    // Use OpenAI Responses API with Tavily MCP
-    console.log('🤖 Generating strategy with OpenAI + Tavily MCP...');
+    // Use OpenAI Chat Completions API
+    console.log('🤖 Generating strategy with OpenAI...');
     
     let response: any;
     
     try {
-      // Use responses API (available in SDK v5.9.0)
-      if (openai?.responses) {
-        console.log('✅ Using OpenAI Responses API with Tavily MCP');
-        response = await openai.responses.create({
-          model: "gpt-4o",
-          tools: [tavilyTool],
-          text: {
-            format: "json_schema" as const,
-            json_schema: {
+      console.log('✅ Using OpenAI Chat Completions API with structured output');
+      const chatResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert real estate investment advisor. Create comprehensive investment strategies with detailed market analysis and property recommendations."
+          },
+          {
+            role: "user", 
+            content: `
+Create a comprehensive investment strategy for:
+
+INVESTOR PROFILE:
+- Type: ${profile.investorType}
+- Available Capital: $${profile.investmentCapital?.toLocaleString() || 'Not specified'}
+- Target Location: ${profile.location}
+- Goals: ${profile.investmentStrategy || 'Maximum returns'}
+${profile.targetMonthlyReturn ? `- Target Monthly Cash Flow: $${profile.targetMonthlyReturn}` : ''}
+${profile.targetCapRate ? `- Target Cap Rate: ${profile.targetCapRate}%` : ''}
+
+BASE STRATEGY CONFIG:
+${JSON.stringify(config, null, 2)}
+
+AVAILABLE PROPERTIES (Top 10):
+${JSON.stringify(properties.slice(0, 10).map(p => ({
+  address: p.address,
+  price: p.price,
+  bedrooms: p.bedrooms,
+  bathrooms: p.bathrooms,
+  sqft: p.square_feet,
+  type: p.property_type
+})), null, 2)}
+
+Provide market analysis, detailed property recommendations with financial projections, and actionable next steps.`
+          }
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
               name: "RealEstateStrategy",
               strict: true,
               schema: {
