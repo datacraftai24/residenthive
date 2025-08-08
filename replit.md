@@ -49,6 +49,7 @@ Preferred communication style: Simple, everyday language.
 - **Messaging System**: Two-tier professional agent messaging with AI transparency labels, editable AI assessments, "Generate Personal Message" feature, and engaging, scannable property assessments using emojis.
 - **Shareable System**: Client-focused shareable profile dashboards (Zillow-like) displaying all property matches for a buyer profile in one link, with agent branding, WhatsApp/email sharing, and authentic MLS images via CDN.
 - **Centralized API Architecture**: All Repliers API interactions consolidated in RepliersService (`server/services/repliers-service.ts`) with dedicated methods for broad search, targeted search, NLP API calls, and search execution. AgentSearchService (`server/services/agent-search-service.ts`) orchestrates dual-view functionality with parallel execution for optimal performance.
+- **Repliers API Integration**: Fully corrected implementation based on Smart Rules documentation using proper parameter names (`minPrice/maxPrice`, `propertyType`, `status`, `type`), GET requests with Bearer authentication, and explicit sale property filtering to eliminate rental listings and ensure realistic purchase price data.
 
 ### System Design Choices
 - **Monorepo Structure**: Client, server, and shared code separation.

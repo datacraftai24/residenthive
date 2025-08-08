@@ -1,11 +1,16 @@
 interface RepliersSearchParams {
-  price_min?: number;
-  price_max?: number;
+  propertyType?: string;  // Correct parameter name from docs
+  status?: string;        // For sale vs rent
+  minPrice?: number;      // Price range
+  maxPrice?: number;
   bedrooms?: number;
   bathrooms?: string;
-  property_type?: string;
-  location?: string;
+  area?: string;          // Location parameter
+  city?: string;
+  state?: string;
+  amenities?: string;
   limit?: number;
+  type?: string;          // 'Sale' or 'Rent'
 }
 
 interface RepliersListing {
@@ -57,15 +62,17 @@ export class RepliersAPIService {
    */
   private mapProfileToSearchParams(profile: any): RepliersSearchParams {
     const params: RepliersSearchParams = {
-      limit: 50 // Get more listings for better scoring
+      limit: 50,
+      status: 'Active',      // Only active listings
+      type: 'Sale'          // Force sale properties only, not rentals
     };
 
-    // Budget mapping
+    // Budget mapping using correct parameter names
     if (profile.budgetMin) {
-      params.price_min = profile.budgetMin;
+      params.minPrice = profile.budgetMin;
     }
     if (profile.budgetMax) {
-      params.price_max = profile.budgetMax;
+      params.maxPrice = profile.budgetMax;
     }
 
     // Bedrooms
@@ -86,21 +93,29 @@ export class RepliersAPIService {
       }
     }
 
-    // Property type mapping
+    // Property type mapping using correct Repliers parameter names
     if (profile.homeType) {
       const typeMapping: Record<string, string> = {
-        'single-family': 'house',
-        'condo': 'condo',
-        'townhouse': 'townhouse',
-        'apartment': 'condo',
-        'multi-family': 'multi_family'
+        'single-family': 'Single Family',
+        'condo': 'Condominium', 
+        'townhouse': 'Townhouse',
+        'apartment': 'Condominium',
+        'multi-family': 'Multi Family'
       };
-      params.property_type = typeMapping[profile.homeType] || profile.homeType;
+      params.propertyType = typeMapping[profile.homeType] || profile.homeType;
     }
 
-    // Location - use first preferred area
+    // Location mapping using correct parameter names
     if (profile.preferredAreas && Array.isArray(profile.preferredAreas) && profile.preferredAreas.length > 0) {
-      params.location = profile.preferredAreas[0];
+      const location = profile.preferredAreas[0];
+      
+      // Handle state vs city
+      if (location.toLowerCase() === 'massachusetts') {
+        params.state = 'MA';
+      } else {
+        params.city = location;
+        params.state = 'MA'; // Default to Massachusetts
+      }
     }
 
     return params;
@@ -133,42 +148,41 @@ export class RepliersAPIService {
    * Perform exact search with all criteria
    */
   private async performSearch(searchParams: RepliersSearchParams, isLocationOnly: boolean = false): Promise<RepliersListing[]> {
-    const baseParams = new URLSearchParams({
-      listings: 'true',
-      operator: 'AND',
-      sortBy: 'updatedOnDesc',
-      status: 'A',
-      type: 'Sale', // Force search for Sale listings only, not rentals
-      limit: (searchParams.limit?.toString() || '100')
-    });
+    // Use correct Repliers API endpoint and parameters
+    const queryParams = new URLSearchParams();
+    
+    // Core search parameters
+    queryParams.append('status', searchParams.status || 'Active');
+    queryParams.append('type', searchParams.type || 'Sale');
+    queryParams.append('limit', (searchParams.limit?.toString() || '50'));
 
     // Add search filters (skip non-location filters for fallback)
     if (!isLocationOnly) {
-      if (searchParams.price_min) baseParams.append('minPrice', searchParams.price_min.toString());
-      if (searchParams.price_max) baseParams.append('maxPrice', searchParams.price_max.toString());
-      if (searchParams.bedrooms) baseParams.append('bedrooms', searchParams.bedrooms.toString());
-      if (searchParams.bathrooms) baseParams.append('bathrooms', searchParams.bathrooms.toString());
-      if (searchParams.property_type) baseParams.append('propertyType', searchParams.property_type);
+      if (searchParams.minPrice) queryParams.append('minPrice', searchParams.minPrice.toString());
+      if (searchParams.maxPrice) queryParams.append('maxPrice', searchParams.maxPrice.toString());
+      if (searchParams.bedrooms) queryParams.append('bedrooms', searchParams.bedrooms.toString());
+      if (searchParams.bathrooms) queryParams.append('bathrooms', searchParams.bathrooms.toString());
+      if (searchParams.propertyType) queryParams.append('propertyType', searchParams.propertyType);
     }
     
-    // Always include location
-    if (searchParams.location) baseParams.append('city', searchParams.location);
+    // Location parameters
+    if (searchParams.city) queryParams.append('city', searchParams.city);
+    if (searchParams.state) queryParams.append('state', searchParams.state);
+    if (searchParams.area) queryParams.append('area', searchParams.area);
 
-    const fullURL = `${this.baseURL}/listings?${baseParams}`;
+    const fullURL = `${this.baseURL}/listings?${queryParams}`;
     console.log(`🌐 REPLIERS API CALL: ${fullURL}`);
     console.log(`📋 Request Headers:`, {
-      'REPLIERS-API-KEY': this.apiKey ? '[PRESENT]' : '[MISSING]',
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'method': 'POST'
+      'Authorization': this.apiKey ? '[PRESENT]' : '[MISSING]',
+      'Content-Type': 'application/json',
+      'method': 'GET'
     });
     
     const response = await fetch(fullURL, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'REPLIERS-API-KEY': this.apiKey,
-        'accept': 'application/json',
-        'content-type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
       },
     });
 

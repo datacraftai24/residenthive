@@ -82,10 +82,11 @@ export class PropertyHunterAgent {
       try {
         console.log(`🔍 [Property Hunter] Executing property search for ${location}...`);
         
-        // Use the Repliers API with proper parameters for SALE properties
+        // Use the Repliers API with proper parameters for SALE properties only
         const searchProfile = {
           preferredAreas: [location],
           budgetMax: criteria.maxPrice,
+          budgetMin: Math.max(50000, Math.floor(criteria.maxPrice * 0.3)), // Minimum realistic sale price
           bedrooms: criteria.minBedrooms,
           homeType: criteria.propertyTypes[0] === 'multi-family' ? 'multi-family' : 'single-family',
           limit: 50
