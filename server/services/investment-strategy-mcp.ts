@@ -9,7 +9,6 @@
  */
 
 import OpenAI from 'openai';
-import { Agent, MCPServerSSE } from '@openai/agents';
 import { repliersService } from './repliers-service';
 import { db } from '../db';
 import { investmentStrategies } from '@shared/schema';
@@ -191,7 +190,7 @@ export class InvestmentStrategyGenerator {
   }
   
   /**
-   * Generate strategy using OpenAI Agents SDK with Tavily MCP
+   * Generate strategy using direct Tavily API integration
    */
   private async generateStrategyWithMCP(
     profile: Partial<BuyerProfile>,
@@ -199,150 +198,7 @@ export class InvestmentStrategyGenerator {
     properties: any[]
   ): Promise<InvestmentStrategy> {
     
-    console.log('🔧 Setting up OpenAI Agent with Tavily MCP...');
-    
-    try {
-      // Create Tavily MCP server
-      const tavilyServer = new MCPServerSSE({
-        serverUrl: `https://mcp.tavily.com/mcp/?tavilyApiKey=${process.env.TAVILY_API_KEY}`
-      });
-
-      // Create agent with Tavily MCP server
-      const agent = new Agent({
-        name: "Investment Strategy Advisor",
-        instructions: `You are an expert real estate investment advisor. Use Tavily search tools to gather real-time market data and create comprehensive investment strategies.
-        
-Always return responses in this exact JSON format:
-{
-  "executiveSummary": "string",
-  "purchasingPower": {
-    "availableCapital": number,
-    "maxPurchasePrice": number,
-    "downPaymentPercent": number,
-    "monthlyBudget": number
-  },
-  "marketAnalysis": {
-    "location": "string",
-    "marketConditions": "string", 
-    "opportunities": ["string"],
-    "risks": ["string"],
-    "emergingTrends": ["string"]
-  },
-  "propertyRecommendations": [
-    {
-      "address": "string",
-      "price": number,
-      "propertyType": "string",
-      "whyRecommended": "string",
-      "actionItems": ["string"],
-      "netCashFlow": number
-    }
-  ],
-  "financialProjections": {
-    "totalInvestment": number,
-    "expectedMonthlyIncome": number,
-    "expectedMonthlyExpenses": number,
-    "netMonthlyCashFlow": number,
-    "averageCapRate": number
-  },
-  "nextSteps": ["string"],
-  "additionalInsights": ["string"]
-}`,
-        model: "gpt-4o",
-        mcp_servers: [tavilyServer]
-      });
-
-      console.log('🤖 Generating strategy with real-time market research...');
-      
-      const userQuery = `
-Create a comprehensive investment strategy for:
-
-INVESTOR PROFILE:
-- Type: ${profile.investorType}
-- Available Capital: $${profile.investmentCapital?.toLocaleString() || 'Not specified'}
-- Target Location: ${profile.location}
-- Goals: ${profile.investmentStrategy || 'Maximum returns'}
-${profile.targetMonthlyReturn ? `- Target Monthly Cash Flow: $${profile.targetMonthlyReturn}` : ''}
-${profile.targetCapRate ? `- Target Cap Rate: ${profile.targetCapRate}%` : ''}
-
-BASE STRATEGY CONFIG:
-${JSON.stringify(config, null, 2)}
-
-AVAILABLE PROPERTIES (Top 10):
-${JSON.stringify(properties.slice(0, 10).map(p => ({
-  address: p.address,
-  price: p.price,
-  bedrooms: p.bedrooms,
-  bathrooms: p.bathrooms,
-  sqft: p.square_feet,
-  type: p.property_type
-})), null, 2)}
-
-RESEARCH TASKS - Use Tavily to search for current market data:
-1. "${profile.location} real estate investment market analysis 2025"
-2. "${profile.location} ${profile.investorType} investment opportunities"
-3. "${profile.location} rental market vacancy rates cap rates"
-4. "${profile.location} new development construction projects"
-5. "${profile.location} employment growth major employers"
-
-Use this real-time market data to enhance your analysis and provide current market insights beyond the static knowledge base.
-
-Return ONLY the JSON strategy object, no additional text.`;
-
-      const result = await agent.chat(userQuery);
-      console.log('✅ Agent completed market research and strategy generation');
-      
-      // Parse the agent's response
-      let strategy: InvestmentStrategy;
-      const responseText = result.content || '';
-      
-      try {
-        // Try to parse as direct JSON
-        strategy = JSON.parse(responseText);
-        console.log('✅ Successfully parsed strategy JSON from agent');
-      } catch (error) {
-        console.error('⚠️ Failed to parse agent response as JSON:', error);
-        console.log('📝 Raw response (first 500 chars):', responseText?.substring(0, 500));
-        
-        // Try to extract JSON from response
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            strategy = JSON.parse(jsonMatch[0]);
-            console.log('✅ Extracted JSON from agent response');
-          } catch {
-            strategy = this.extractStrategyFromText(responseText, profile, properties);
-          }
-        } else {
-          strategy = this.extractStrategyFromText(responseText, profile, properties);
-        }
-      }
-      
-      // Ensure additionalInsights is always an array
-      if (strategy.additionalInsights && !Array.isArray(strategy.additionalInsights)) {
-        strategy.additionalInsights = [strategy.additionalInsights as string];
-      }
-      
-      return strategy;
-      
-    } catch (error) {
-      console.error('❌ Error with OpenAI Agent MCP:', error);
-      
-      // Fallback to direct Tavily API calls if MCP fails
-      console.log('🔄 Falling back to direct Tavily API integration...');
-      return await this.generateStrategyWithDirectTavily(profile, config, properties);
-    }
-  }
-
-  /**
-   * Fallback: Direct Tavily API integration when MCP fails
-   */
-  private async generateStrategyWithDirectTavily(
-    profile: Partial<BuyerProfile>,
-    config: any,
-    properties: any[]
-  ): Promise<InvestmentStrategy> {
-    console.log('🔄 Using direct Tavily API for market research...');
+    console.log('🔧 Using direct Tavily API for market research...');
     
     try {
       // Perform market research using direct Tavily API calls
@@ -354,12 +210,12 @@ Return ONLY the JSON strategy object, no additional text.`;
         messages: [
           {
             role: "system",
-            content: "You are an expert real estate investment advisor. Create comprehensive investment strategies based on the provided market research data."
+            content: "You are an expert real estate investment advisor. Create comprehensive investment strategies based on market research data. Always respond with valid JSON format."
           },
           {
             role: "user",
             content: `
-Create a comprehensive investment strategy using this market research:
+Create a comprehensive investment strategy using this market research data.
 
 INVESTOR PROFILE:
 - Type: ${profile.investorType}
@@ -383,15 +239,29 @@ ${JSON.stringify(properties.slice(0, 10).map(p => ({
   type: p.property_type
 })), null, 2)}
 
-Return a comprehensive investment strategy with: executiveSummary, purchasingPower, marketAnalysis, propertyRecommendations, financialProjections, nextSteps, additionalInsights`
+Return a comprehensive investment strategy as JSON with these exact fields: executiveSummary, purchasingPower, marketAnalysis, propertyRecommendations, financialProjections, nextSteps, additionalInsights`
           }
         ],
-        response_format: { type: "json_object" },
         temperature: 0.7
       });
       
-      const strategy = JSON.parse(chatResponse.choices[0].message.content || '{}');
-      console.log('✅ Generated strategy using direct Tavily integration');
+      // Parse the response
+      const responseText = chatResponse.choices[0].message.content || '';
+      let strategy: InvestmentStrategy;
+      
+      try {
+        // Try to extract JSON from response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          strategy = JSON.parse(jsonMatch[0]);
+          console.log('✅ Generated strategy using direct Tavily integration');
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      } catch (error) {
+        console.error('❌ Failed to parse strategy JSON:', error);
+        strategy = this.extractStrategyFromText(responseText, profile, properties);
+      }
       
       return strategy;
       
@@ -400,6 +270,8 @@ Return a comprehensive investment strategy with: executiveSummary, purchasingPow
       return this.extractStrategyFromText('', profile, properties);
     }
   }
+
+
 
   /**
    * Perform market research using direct Tavily API
@@ -419,11 +291,8 @@ Return a comprehensive investment strategy with: executiveSummary, purchasingPow
       timestamp: new Date().toISOString()
     };
 
-    try {
-      // For now, we'll simulate the research since we need the actual Tavily API setup
-      // In production, you would make actual HTTP calls to Tavily API
-      console.log('📊 Simulating Tavily research for:', queries);
-      
+    if (!process.env.TAVILY_API_KEY) {
+      console.log('⚠️ No Tavily API key found, using simulated data');
       marketData.researched_data = [
         `Market analysis for ${profile.location} shows strong investment potential`,
         `${profile.investorType} opportunities available in the area`,
@@ -431,11 +300,82 @@ Return a comprehensive investment strategy with: executiveSummary, purchasingPow
         'New development projects planned for the region',
         'Employment growth supporting rental demand'
       ];
+      return marketData;
+    }
+
+    try {
+      console.log('📊 Performing Tavily research for:', queries);
       
+      // Make actual Tavily API calls
+      const searchPromises = queries.map(async (query) => {
+        try {
+          const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`
+            },
+            body: JSON.stringify({
+              query: query,
+              search_depth: 'advanced',
+              include_answer: true,
+              include_raw_content: false,
+              max_results: 3,
+              include_domains: ['realestate.com', 'zillow.com', 'realtor.com', 'rentometer.com', 'census.gov', 'bls.gov']
+            })
+          });
+
+          if (!response.ok) {
+            console.error(`❌ Tavily API error for query "${query}":`, response.status, response.statusText);
+            return { query, error: `API error: ${response.status}` };
+          }
+
+          const data = await response.json();
+          
+          return {
+            query,
+            answer: data.answer || 'No answer provided',
+            results: data.results?.map((r: any) => ({
+              title: r.title,
+              content: r.content?.substring(0, 200) + '...',
+              url: r.url
+            })) || []
+          };
+          
+        } catch (error) {
+          console.error(`❌ Error searching for "${query}":`, error);
+          return { query, error: error.message };
+        }
+      });
+
+      const searchResults = await Promise.all(searchPromises);
+      
+      // Process and format the research data
+      marketData.researched_data = searchResults.map(result => {
+        if (result.error) {
+          return `Research for "${result.query}": Error - ${result.error}`;
+        }
+        
+        let summary = `Research for "${result.query}": ${result.answer}`;
+        if (result.results && result.results.length > 0) {
+          summary += ` Sources: ${result.results.map(r => r.title).join(', ')}`;
+        }
+        return summary;
+      });
+      
+      console.log('✅ Tavily research completed successfully');
       return marketData;
       
     } catch (error) {
       console.error('❌ Tavily research failed:', error);
+      // Fallback to simulated data
+      marketData.researched_data = [
+        `Market analysis for ${profile.location} shows strong investment potential`,
+        `${profile.investorType} opportunities available in the area`,
+        'Current rental market conditions indicate favorable vacancy rates',
+        'New development projects planned for the region',
+        'Employment growth supporting rental demand'
+      ];
       return marketData;
     }
   }
