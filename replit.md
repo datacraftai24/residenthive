@@ -3,6 +3,15 @@ Insert space and write text here
 
 - **Change Management**: Ensure all code changes are reviewed and approved before merging into the main branch. Implement proper version control protocols to track and manage code alterations effectively.
 
+### Outstanding Issues
+
+**Address Extraction System (Priority: High)**
+- **Issue**: Investment reports still showing incomplete addresses (missing city/ZIP codes)
+- **Status**: Code fixes implemented in `server/repliers-api.ts` and `server/agents/deal-packager.ts` but addresses still not displaying correctly
+- **Verified**: API returns correct data format (`{city: "Boston", state: "MA", zip: "02132"}`)
+- **Next Steps**: Debug data flow from API through Property Hunter → Deal Packager → Report generation
+- **Date**: 2025-08-08
+
 # Real Estate Buyer Profile Management System
 
 ## Overview
