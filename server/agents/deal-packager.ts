@@ -138,11 +138,11 @@ This strategy aligns with your ${profile.riskTolerance} risk tolerance and targe
       const property = pf.property;
       const recommended = pf.recommendedScenario;
       
-      // Create complete address with city, state, ZIP
-      const fullAddress = [
+      // Ensure complete address information from enhanced data
+      const fullAddress = property.fullAddress || [
         property.address,
         property.city && property.state ? `${property.city}, ${property.state}` : property.city || property.state,
-        property.postalCode
+        property.postalCode || property.zip_code
       ].filter(Boolean).join(', ');
 
       return {

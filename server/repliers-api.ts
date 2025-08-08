@@ -266,6 +266,9 @@ export class RepliersAPIService {
     const address = rawListing.address || {};
     const details = rawListing.details || {};
     
+    // Extract complete address information first
+    const fullAddress = this.buildCompleteAddress(rawListing.address);
+    
     // Data extraction optimized for Repliers API structure
     
     // Extract bedrooms and bathrooms using correct field names
@@ -281,10 +284,12 @@ export class RepliersAPIService {
       bedrooms,
       bathrooms,
       property_type: this.normalizePropertyType(details.propertyType || 'house'),
-      address: this.buildAddress(address),
-      city: address.city || '',
-      state: address.state || '',
-      zip_code: address.zip || '',
+      address: fullAddress.streetAddress,
+      city: fullAddress.city,
+      state: fullAddress.state,
+      postalCode: fullAddress.postalCode,
+      fullAddress: fullAddress.complete,
+      zip_code: fullAddress.postalCode,
       square_feet: this.parseNumber(details.sqft) || this.parseNumber(details.livingAreaSqFt) || this.parseNumber(details.totalSqFt),
       year_built: this.parseNumber(details.yearBuilt),
       description: details.description || '',
@@ -317,13 +322,45 @@ export class RepliersAPIService {
     return typeMap[type] || 'house';
   }
 
-  private buildAddress(address: any): string {
-    const parts = [
-      address.streetNumber,
-      address.streetName,
-      address.streetSuffix
+  private buildCompleteAddress(address: any): {
+    streetAddress: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    complete: string;
+  } {
+    // Handle various address formats from Repliers API
+    const streetNumber = address?.streetNumber || address?.streetNo || '';
+    const streetName = address?.streetName || address?.street || '';
+    const streetSuffix = address?.streetSuffix || address?.suffix || '';
+    const unitNumber = address?.unitNumber || address?.unit || '';
+    
+    // Build street address
+    const streetParts = [streetNumber, streetName, streetSuffix, unitNumber ? `Unit ${unitNumber}` : ''].filter(Boolean);
+    const streetAddress = streetParts.length > 0 ? streetParts.join(' ') : 
+                         address?.address1 || address?.fullAddress || 'Address not available';
+    
+    // Extract city, state, postal code
+    const city = address?.city || '';
+    const state = address?.state || address?.stateOrProvince || '';
+    const postalCode = address?.postal || address?.postalCode || address?.zipCode || '';
+    
+    // Build complete address
+    const addressParts = [
+      streetAddress,
+      city && state ? `${city}, ${state}` : city || state,
+      postalCode
     ].filter(Boolean);
-    return parts.join(' ');
+    
+    const complete = addressParts.join(', ');
+    
+    return {
+      streetAddress,
+      city,
+      state, 
+      postalCode,
+      complete
+    };
   }
 
   private extractFeatures(details: any): string[] {
