@@ -23,6 +23,10 @@ export interface PropertySearchCriteria {
 export interface EnrichedProperty {
   id: string;
   address: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  fullAddress?: string;
   price: number;
   bedrooms: number;
   bathrooms: number;
@@ -196,7 +200,12 @@ export class PropertyHunterAgent {
       bedrooms: property.bedrooms || 2,
       bathrooms: property.bathrooms || 1,
       propertyType: property.property_type || 'residential',
-      location,
+      location, // Keep for backward compatibility
+      // Add proper address fields from Repliers API
+      city: property.city || location, // Use actual city from property data
+      state: property.state || 'MA', // Default to MA if not provided
+      postalCode: property.zip_code || property.postalCode,
+      fullAddress: property.fullAddress || undefined, // Preserve if available
       strategicScore: 0, // Will be calculated later
       proximityFactors: {},
       rawData: property
