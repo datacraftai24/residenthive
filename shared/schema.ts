@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, json, numeric, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, numeric, boolean, timestamp, uuid, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -579,6 +579,134 @@ export type InsertRepliersListing = z.infer<typeof insertRepliersListingSchema>;
 export type RepliersListing = typeof repliersListings.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
+
+// ===============================================
+// AGENT LOGGING TABLES - For Phoenix Integration
+// ===============================================
+
+// Multi-agent analysis sessions - tracks each complete analysis workflow
+export const agentAnalysisSessions = pgTable("agent_analysis_sessions", {
+  id: text("id").primaryKey(), // UUID string
+  strategyId: text("strategy_id").notNull(), // Links to generated investment strategy
+  agentId: integer("agent_id").references(() => agents.id), // Which agent initiated
+  profileId: integer("profile_id").references(() => buyerProfiles.id), // Buyer profile used
+  searchCriteria: json("search_criteria").notNull(), // Original search parameters
+  investmentProfile: json("investment_profile").notNull(), // Investment criteria
+  sessionType: text("session_type").notNull().default('multi_agent'), // multi_agent/single_agent/test
+  totalAgentsUsed: integer("total_agents_used").notNull().default(0),
+  totalPropertiesAnalyzed: integer("total_properties_analyzed").notNull().default(0),
+  totalExecutionTime: integer("total_execution_time"), // Milliseconds
+  finalReportPath: text("final_report_path"), // Path to generated strategy report
+  sessionStatus: text("session_status").notNull().default('running'), // running/completed/failed/cancelled
+  errorLogs: json("error_logs"), // Any errors encountered
+  createdAt: text("created_at").notNull(),
+  completedAt: text("completed_at")
+});
+
+// Individual agent interactions - each agent call/response logged
+export const agentExecutionLogs = pgTable("agent_execution_logs", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => agentAnalysisSessions.id, { onDelete: "cascade" }),
+  agentName: text("agent_name").notNull(), // property_hunter/financial_calculator/deal_packager/etc
+  agentRole: text("agent_role").notNull(), // The agent's specialized role
+  executionOrder: integer("execution_order").notNull(), // Order in the workflow (1, 2, 3, etc)
+  inputData: json("input_data").notNull(), // Data passed TO the agent
+  outputData: json("output_data"), // Data returned BY the agent
+  prompt: text("prompt"), // AI prompt used (if applicable)
+  aiResponse: text("ai_response"), // Raw AI response (if applicable)
+  executionTime: integer("execution_time"), // Milliseconds for this agent
+  tokensUsed: integer("tokens_used"), // AI tokens consumed
+  errorMessage: text("error_message"), // Error if failed
+  success: boolean("success").notNull().default(true),
+  dataTransformations: json("data_transformations"), // How data was modified
+  createdAt: text("created_at").notNull(),
+  completedAt: text("completed_at")
+});
+
+// Property data flow tracking - tracks how property data changes between agents
+export const propertyDataFlow = pgTable("property_data_flow", {
+  id: text("id").primaryKey(), // UUID string
+  sessionId: text("session_id").notNull().references(() => agentAnalysisSessions.id, { onDelete: "cascade" }),
+  executionLogId: text("execution_log_id").notNull().references(() => agentExecutionLogs.id, { onDelete: "cascade" }),
+  propertyId: text("property_id").notNull(), // Property identifier from Repliers API
+  agentName: text("agent_name").notNull(), // Which agent processed this property
+  inputPropertyData: json("input_property_data").notNull(), // Property data before processing
+  outputPropertyData: json("output_property_data"), // Property data after processing
+  addressFields: json("address_fields"), // Specific tracking of address components
+  dataQuality: json("data_quality"), // Quality metrics (completeness, accuracy, etc)
+  fieldsAdded: json("fields_added"), // New fields added by this agent
+  fieldsModified: json("fields_modified"), // Fields changed by this agent
+  fieldsRemoved: json("fields_removed"), // Fields removed by this agent
+  createdAt: text("created_at").notNull()
+});
+
+// Agent performance metrics - aggregated performance tracking
+export const agentPerformanceMetrics = pgTable("agent_performance_metrics", {
+  id: serial("id").primaryKey(),
+  agentName: text("agent_name").notNull(),
+  timeFrame: text("time_frame").notNull(), // daily/weekly/monthly
+  totalExecutions: integer("total_executions").notNull().default(0),
+  successfulExecutions: integer("successful_executions").notNull().default(0),
+  averageExecutionTime: decimal("average_execution_time", { precision: 10, scale: 2 }),
+  averageTokenUsage: decimal("average_token_usage", { precision: 10, scale: 2 }),
+  errorRate: decimal("error_rate", { precision: 5, scale: 4 }), // Percentage
+  qualityScore: decimal("quality_score", { precision: 3, scale: 2 }), // 0-100 score
+  dataIntegrityScore: decimal("data_integrity_score", { precision: 3, scale: 2 }), // Address accuracy, etc
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+// Prompt engineering tracking - for A/B testing and optimization
+export const promptPerformanceTracking = pgTable("prompt_performance_tracking", {
+  id: text("id").primaryKey(), // UUID string
+  agentName: text("agent_name").notNull(),
+  promptVersion: text("prompt_version").notNull(), // v1.0, v1.1, experimental, etc
+  promptTemplate: text("prompt_template").notNull(), // The actual prompt used
+  inputContext: json("input_context"), // Context provided with prompt
+  outputQuality: decimal("output_quality", { precision: 3, scale: 2 }), // Quality score 0-100
+  executionTime: integer("execution_time"), // Response time
+  tokensUsed: integer("tokens_used"),
+  successRate: decimal("success_rate", { precision: 5, scale: 4 }), // Success percentage
+  userRating: integer("user_rating"), // Manual quality rating if available
+  automatedScore: decimal("automated_score", { precision: 3, scale: 2 }), // Algorithmic quality score
+  testGroup: text("test_group"), // A/B test group identifier
+  createdAt: text("created_at").notNull()
+});
+
+// Insert schemas for agent logging tables
+export const insertAgentAnalysisSessionSchema = createInsertSchema(agentAnalysisSessions).omit({
+  createdAt: true
+});
+
+export const insertAgentExecutionLogSchema = createInsertSchema(agentExecutionLogs).omit({
+  createdAt: true
+});
+
+export const insertPropertyDataFlowSchema = createInsertSchema(propertyDataFlow).omit({
+  createdAt: true
+});
+
+export const insertAgentPerformanceMetricsSchema = createInsertSchema(agentPerformanceMetrics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPromptPerformanceTrackingSchema = createInsertSchema(promptPerformanceTracking).omit({
+  createdAt: true
+});
+
+// Types for agent logging
+export type InsertAgentAnalysisSession = z.infer<typeof insertAgentAnalysisSessionSchema>;
+export type AgentAnalysisSession = typeof agentAnalysisSessions.$inferSelect;
+export type InsertAgentExecutionLog = z.infer<typeof insertAgentExecutionLogSchema>;
+export type AgentExecutionLog = typeof agentExecutionLogs.$inferSelect;
+export type InsertPropertyDataFlow = z.infer<typeof insertPropertyDataFlowSchema>;
+export type PropertyDataFlow = typeof propertyDataFlow.$inferSelect;
+export type InsertAgentPerformanceMetrics = z.infer<typeof insertAgentPerformanceMetricsSchema>;
+export type AgentPerformanceMetrics = typeof agentPerformanceMetrics.$inferSelect;
+export type InsertPromptPerformanceTracking = z.infer<typeof insertPromptPerformanceTrackingSchema>;
+export type PromptPerformanceTracking = typeof promptPerformanceTracking.$inferSelect;
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({

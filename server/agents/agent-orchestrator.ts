@@ -10,6 +10,7 @@ import { PropertyHunterAgent, PropertySearchCriteria, EnrichedProperty } from '.
 import { FinancialCalculatorAgent, PropertyFinancials } from './financial-calculator.js';
 import { RealEstateAdvisorAgent, PropertyEnhancementAnalysis } from './real-estate-advisor.js';
 import { DealPackagerAgent, InvestmentReport } from './deal-packager.js';
+import { agentLogger, type AgentExecutionContext } from '../services/agent-logger.js';
 
 export interface ComprehensiveAnalysisRequest {
   userInput: string;
@@ -50,13 +51,31 @@ export class AgentOrchestrator {
     const strategyId = this.generateStrategyId();
     console.log(`🎯 [Orchestrator] Starting comprehensive analysis: ${strategyId}`);
 
+    // Start logging session
+    const sessionId = await agentLogger.startSession({
+      strategyId,
+      searchCriteria: request,
+      investmentProfile: {}, // Will be updated after Phase 1
+      sessionType: 'multi_agent'
+    });
+
     try {
       // Phase 1: Strategy Building with Agent Insights
       console.log(`📋 [Orchestrator] Phase 1: Investment Strategy Development`);
+      const strategyContext = agentLogger.createExecutionContext(
+        sessionId, 'strategy_builder', 'Investment Strategy Analyst', 1
+      );
+      
       const investmentProfile = await this.strategyBuilder.analyzeInvestorRequirements(
         request.userInput, 
         request.agentInsights
       );
+
+      await agentLogger.logAgentExecution(strategyContext, {
+        inputData: { userInput: request.userInput, agentInsights: request.agentInsights },
+        outputData: investmentProfile,
+        success: true
+      });
 
       // Phase 2: Market Research (Parallel)
       console.log(`📊 [Orchestrator] Phase 2: Market Intelligence Gathering`);
