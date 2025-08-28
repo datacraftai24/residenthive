@@ -1,3 +1,17 @@
+Insert space and write text here
+### Development Guidelines
+
+- **Change Management**: Ensure all code changes are reviewed and approved before merging into the main branch. Implement proper version control protocols to track and manage code alterations effectively.
+
+### Outstanding Issues
+
+**Address Extraction System (Priority: High)**
+- **Issue**: Investment reports still showing incomplete addresses (missing city/ZIP codes)
+- **Status**: Code fixes implemented in `server/repliers-api.ts` and `server/agents/deal-packager.ts` but addresses still not displaying correctly
+- **Verified**: API returns correct data format (`{city: "Boston", state: "MA", zip: "02132"}`)
+- **Next Steps**: Debug data flow from API through Property Hunter → Deal Packager → Report generation
+- **Date**: 2025-08-08
+
 # Real Estate Buyer Profile Management System
 
 ## Overview
@@ -26,16 +40,25 @@ Preferred communication style: Simple, everyday language.
 - **Agent Management**: Secure authentication system with bcrypt hashing, token-based invites, and professional email integration (SendGrid)
 - **Transaction Logging**: Comprehensive data collection for ML model training, including search inputs, results, execution metrics, agent interactions, and search outcomes across 6 new database tables.
 - **Chat Service Integration**: Dedicated chat service schema (6 tables) with intelligent linking to search transactions, multi-agent AI support, property interaction tracking, and agent insight generation. Designed for pure ResidentHive database integration, relying solely on agent, buyer profiles, and search transaction data.
-- **Agent Dual-View Search**: Clean separation of concerns architecture with centralized RepliersService for all API calls, AgentSearchService orchestrating two views (Market Overview + AI Recommendations), and profile-based search workflow. Supports both broad market analysis and targeted AI-powered property matching with visual analysis.
+- **Multi-Agent Architecture**: Specialized agent system with 5 dedicated agents (Strategy Builder, Market Research, Property Hunter, Financial Calculator, Real Estate Advisor, Deal Packager) coordinated by Agent Orchestrator for comprehensive investment analysis including ADU potential and value-add opportunities.
 
 ### Key Components
 - **Database Schema**: `buyerProfiles` (with versioning, input method, confidence), `profileTags` (AI-generated behavioral tags with confidence and source), `profilePersona` (deep persona analysis: emotionalTone, communicationStyle, decisionMakingStyle, urgencyLevel, personalityTraits). New tables for agent management and chat service.
-- **API Endpoints**: Comprehensive set for profile extraction (basic/enhanced), tag/persona analysis, buyer profile CRUD operations (including versioning), and agent invite/setup/login. Secure `/api/validate-context` for chat integration.
+- **API Endpoints**: Comprehensive set for profile extraction (basic/enhanced), tag/persona analysis, buyer profile CRUD operations (including versioning), and agent invite/setup/login. Secure `/api/validate-context` for chat integration. **NEW**: Multi-agent analysis endpoints (`/api/multi-agent/*`) for comprehensive investment analysis with ADU potential and value-add strategies.
 - **AI Processing**: GPT-4o for structured data extraction, behavioral analysis, persona insights, and visual intelligence (image analysis). Data validation via Zod schemas.
+- **Multi-Agent System**: 
+  - **Strategy Builder Agent**: Investment criteria analysis with real estate agent insights integration
+  - **Market Research Agent**: Real-time market intelligence using Tavily API with university, transit, and development factor analysis
+  - **Property Hunter Agent**: Multi-criteria property discovery with strategic scoring and geographic expansion
+  - **Financial Calculator Agent**: Comprehensive scenario modeling (25%, 30%, 40% down payment options) with total economic benefit calculations
+  - **Real Estate Advisor Agent**: ADU potential analysis (basement conversion feasibility, cost estimation $80k-$120k, rental income projection), value-add opportunity identification, zoning compliance assessment
+  - **Deal Packager Agent**: Professional investment report generation with detailed calculation walkthroughs and PDF export capability
+  - **Agent Orchestrator**: Coordinates all agents for comprehensive analysis workflow prioritizing accuracy over speed
 - **Scoring System**: Smart Listing Scoring System (0-100 scale) with weighted components (Feature_Match, Budget_Match, Bedroom_Match, Location_Match, Visual_Tag_Match, Behavioral_Tag_Match, Listing_Quality_Score), penalties, and a visual boost. Features a defensive scoring utility for robust display.
 - **Messaging System**: Two-tier professional agent messaging with AI transparency labels, editable AI assessments, "Generate Personal Message" feature, and engaging, scannable property assessments using emojis.
 - **Shareable System**: Client-focused shareable profile dashboards (Zillow-like) displaying all property matches for a buyer profile in one link, with agent branding, WhatsApp/email sharing, and authentic MLS images via CDN.
 - **Centralized API Architecture**: All Repliers API interactions consolidated in RepliersService (`server/services/repliers-service.ts`) with dedicated methods for broad search, targeted search, NLP API calls, and search execution. AgentSearchService (`server/services/agent-search-service.ts`) orchestrates dual-view functionality with parallel execution for optimal performance.
+- **Repliers API Integration**: Fully corrected implementation based on Smart Rules documentation using proper parameter names (`minPrice/maxPrice`, `propertyType`, `status`, `type`), GET requests with Bearer authentication, and explicit sale property filtering to eliminate rental listings and ensure realistic purchase price data.
 
 ### System Design Choices
 - **Monorepo Structure**: Client, server, and shared code separation.

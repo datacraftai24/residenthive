@@ -89,10 +89,11 @@ class NLPSearchService {
       components.push(profile.homeType);
     }
     
-    // Features - make them preferences
-    if (profile.mustHaveFeatures && profile.mustHaveFeatures.length > 0) {
-      components.push(`preferably with ${profile.mustHaveFeatures.join(', ')}`);
-    }
+    // Skip features for investment properties to avoid restrictive filtering
+    // Features will be evaluated after getting search results
+    // if (profile.mustHaveFeatures && profile.mustHaveFeatures.length > 0) {
+    //   components.push(`preferably with ${profile.mustHaveFeatures.join(', ')}`);
+    // }
     
     return components.join(' ');
   }

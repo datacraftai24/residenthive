@@ -3,6 +3,7 @@ dotenv.config();
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import multiAgentRoutes from "./routes/multi-agent-analysis.js";
 import { log } from "./vite";
 
 // ESM-safe __dirname for all path handling
@@ -94,6 +95,9 @@ app.get('/health', async (_req: Request, res: Response) => {
 (async () => {
   // Register all custom routes first
   await registerRoutes(app);
+  
+  // Register multi-agent analysis routes
+  app.use('/api/multi-agent', multiAgentRoutes);
   
   // Test database connection on startup
   console.log('🔍 Testing database connection during startup...');

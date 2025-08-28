@@ -1,11 +1,16 @@
 interface RepliersSearchParams {
-  price_min?: number;
-  price_max?: number;
+  propertyType?: string;  // Correct parameter name from docs
+  status?: string;        // For sale vs rent
+  minPrice?: number;      // Price range
+  maxPrice?: number;
   bedrooms?: number;
   bathrooms?: string;
-  property_type?: string;
-  location?: string;
+  area?: string;          // Location parameter
+  city?: string;
+  state?: string;
+  amenities?: string;
   limit?: number;
+  type?: string;          // 'Sale' or 'Rent'
 }
 
 interface RepliersListing {
@@ -46,9 +51,45 @@ export class RepliersAPIService {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.REPLIERS_API_KEY || '';
+    this.apiKey = process.env.REPLIERS_API_KEY || 'lwSqnPJBTbOq2hBMj26lwFqBR4yfit';
     if (!this.apiKey) {
       throw new Error('REPLIERS_API_KEY environment variable is required');
+    }
+  }
+
+  /**
+   * Get available property types and styles from Repliers aggregates
+   */
+  async getAvailablePropertyTypes(): Promise<{propertyTypes: any, styles: any}> {
+    try {
+      // Fetch property type aggregates
+      const propertyTypeResponse = await fetch(`${this.baseURL}/listings?aggregates=details.propertyType`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Fetch style aggregates  
+      const styleResponse = await fetch(`${this.baseURL}/listings?aggregates=details.style`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const propertyTypeData = await propertyTypeResponse.json();
+      const styleData = await styleResponse.json();
+
+      return {
+        propertyTypes: propertyTypeData.aggregates?.details?.propertyType || {},
+        styles: styleData.aggregates?.details?.style || {}
+      };
+    } catch (error) {
+      console.error('Error fetching property aggregates:', error);
+      return { propertyTypes: {}, styles: {} };
     }
   }
 
@@ -57,15 +98,17 @@ export class RepliersAPIService {
    */
   private mapProfileToSearchParams(profile: any): RepliersSearchParams {
     const params: RepliersSearchParams = {
-      limit: 50 // Get more listings for better scoring
+      limit: 50,
+      status: 'Active',      // Only active listings
+      type: 'Sale'          // Force sale properties only, not rentals
     };
 
-    // Budget mapping
+    // Budget mapping using correct parameter names
     if (profile.budgetMin) {
-      params.price_min = profile.budgetMin;
+      params.minPrice = profile.budgetMin;
     }
     if (profile.budgetMax) {
-      params.price_max = profile.budgetMax;
+      params.maxPrice = profile.budgetMax;
     }
 
     // Bedrooms
@@ -86,21 +129,33 @@ export class RepliersAPIService {
       }
     }
 
-    // Property type mapping
+    // Property type mapping using actual Repliers API values from aggregates
     if (profile.homeType) {
       const typeMapping: Record<string, string> = {
-        'single-family': 'house',
-        'condo': 'condo',
-        'townhouse': 'townhouse',
-        'apartment': 'condo',
-        'multi-family': 'multi_family'
+        'single-family': 'Single Family Residence',  // Most common style (8,363 listings)
+        'condo': 'Condominium',                      // 5,761 listings
+        'townhouse': 'Attached (Townhouse/Rowhouse/Duplex)', // 609 listings
+        'apartment': 'Apartment',                    // 3,770 listings
+        'multi-family': 'Multi Family',             // 362 listings
+        'duplex': 'Attached (Townhouse/Rowhouse/Duplex)', // Alternative for duplex
+        '2-family': '2 Family - 2 Units Up/Down',   // 224 listings
+        '3-family': '3 Family',                     // 261 listings
+        '4-family': '4 Family'                      // 58 listings
       };
-      params.property_type = typeMapping[profile.homeType] || profile.homeType;
+      params.propertyType = typeMapping[profile.homeType] || profile.homeType;
     }
 
-    // Location - use first preferred area
+    // Location mapping using correct parameter names
     if (profile.preferredAreas && Array.isArray(profile.preferredAreas) && profile.preferredAreas.length > 0) {
-      params.location = profile.preferredAreas[0];
+      const location = profile.preferredAreas[0];
+      
+      // Handle state vs city
+      if (location.toLowerCase() === 'massachusetts') {
+        params.state = 'MA';
+      } else {
+        params.city = location;
+        params.state = 'MA'; // Default to Massachusetts
+      }
     }
 
     return params;
@@ -133,41 +188,43 @@ export class RepliersAPIService {
    * Perform exact search with all criteria
    */
   private async performSearch(searchParams: RepliersSearchParams, isLocationOnly: boolean = false): Promise<RepliersListing[]> {
-    const baseParams = new URLSearchParams({
-      listings: 'true',
-      operator: 'AND',
-      sortBy: 'updatedOnDesc',
-      status: 'A',
-      limit: (searchParams.limit?.toString() || '100')
-    });
+    // Use correct Repliers API endpoint and parameters
+    const queryParams = new URLSearchParams();
+    
+    // Core search parameters - use API format: Active -> A, Under Contract -> U
+    const status = searchParams.status || 'Active';
+    const apiStatus = status === 'Active' ? 'A' : status === 'Under Contract' ? 'U' : status;
+    queryParams.append('status', apiStatus);
+    queryParams.append('type', searchParams.type || 'Sale');
+    queryParams.append('limit', (searchParams.limit?.toString() || '50'));
 
     // Add search filters (skip non-location filters for fallback)
     if (!isLocationOnly) {
-      if (searchParams.price_min) baseParams.append('minPrice', searchParams.price_min.toString());
-      if (searchParams.price_max) baseParams.append('maxPrice', searchParams.price_max.toString());
-      if (searchParams.bedrooms) baseParams.append('bedrooms', searchParams.bedrooms.toString());
-      if (searchParams.bathrooms) baseParams.append('bathrooms', searchParams.bathrooms.toString());
-      if (searchParams.property_type) baseParams.append('propertyType', searchParams.property_type);
+      if (searchParams.minPrice) queryParams.append('minPrice', searchParams.minPrice.toString());
+      if (searchParams.maxPrice) queryParams.append('maxPrice', searchParams.maxPrice.toString());
+      if (searchParams.bedrooms) queryParams.append('bedrooms', searchParams.bedrooms.toString());
+      if (searchParams.bathrooms) queryParams.append('bathrooms', searchParams.bathrooms.toString());
+      if (searchParams.propertyType) queryParams.append('propertyType', searchParams.propertyType);
     }
     
-    // Always include location
-    if (searchParams.location) baseParams.append('city', searchParams.location);
+    // Location parameters
+    if (searchParams.city) queryParams.append('city', searchParams.city);
+    if (searchParams.state) queryParams.append('state', searchParams.state);
+    if (searchParams.area) queryParams.append('area', searchParams.area);
 
-    const fullURL = `${this.baseURL}/listings?${baseParams}`;
+    const fullURL = `${this.baseURL}/listings?${queryParams}`;
     console.log(`🌐 REPLIERS API CALL: ${fullURL}`);
     console.log(`📋 Request Headers:`, {
       'REPLIERS-API-KEY': this.apiKey ? '[PRESENT]' : '[MISSING]',
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'method': 'POST'
+      'Content-Type': 'application/json',
+      'method': 'GET'
     });
     
     const response = await fetch(fullURL, {
-      method: 'POST',
+      method: 'GET',
       headers: {
         'REPLIERS-API-KEY': this.apiKey,
-        'accept': 'application/json',
-        'content-type': 'application/json',
+        'Content-Type': 'application/json',
       },
     });
 
@@ -209,6 +266,9 @@ export class RepliersAPIService {
     const address = rawListing.address || {};
     const details = rawListing.details || {};
     
+    // Extract complete address information first
+    const fullAddress = this.buildCompleteAddress(rawListing.address);
+    
     // Data extraction optimized for Repliers API structure
     
     // Extract bedrooms and bathrooms using correct field names
@@ -224,10 +284,12 @@ export class RepliersAPIService {
       bedrooms,
       bathrooms,
       property_type: this.normalizePropertyType(details.propertyType || 'house'),
-      address: this.buildAddress(address),
-      city: address.city || '',
-      state: address.state || '',
-      zip_code: address.zip || '',
+      address: fullAddress.streetAddress,
+      city: fullAddress.city,
+      state: fullAddress.state,
+      postalCode: fullAddress.postalCode,
+      fullAddress: fullAddress.complete,
+      zip_code: fullAddress.postalCode,
       square_feet: this.parseNumber(details.sqft) || this.parseNumber(details.livingAreaSqFt) || this.parseNumber(details.totalSqFt),
       year_built: this.parseNumber(details.yearBuilt),
       description: details.description || '',
@@ -260,13 +322,44 @@ export class RepliersAPIService {
     return typeMap[type] || 'house';
   }
 
-  private buildAddress(address: any): string {
-    const parts = [
-      address.streetNumber,
-      address.streetName,
-      address.streetSuffix
+  private buildCompleteAddress(address: any): {
+    streetAddress: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    complete: string;
+  } {
+    // Handle Repliers API specific address format
+    const streetNumber = address?.streetNumber || '';
+    const streetName = address?.streetName || '';
+    const streetSuffix = address?.streetSuffix || '';
+    const unitNumber = address?.unitNumber || '';
+    
+    // Build street address using exact Repliers API field names
+    const streetParts = [streetNumber, streetName, streetSuffix, unitNumber ? `Unit ${unitNumber}` : ''].filter(Boolean);
+    const streetAddress = streetParts.length > 0 ? streetParts.join(' ') : 'Address not available';
+    
+    // Extract city, state, zip using correct Repliers API field names
+    const city = address?.city || '';
+    const state = address?.state || '';
+    const postalCode = address?.zip || address?.postalCode || address?.zipCode || '';
+    
+    // Build complete address
+    const addressParts = [
+      streetAddress,
+      city && state ? `${city}, ${state}` : city || state,
+      postalCode
     ].filter(Boolean);
-    return parts.join(' ');
+    
+    const complete = addressParts.join(', ');
+    
+    return {
+      streetAddress,
+      city,
+      state, 
+      postalCode,
+      complete
+    };
   }
 
   private extractFeatures(details: any): string[] {
