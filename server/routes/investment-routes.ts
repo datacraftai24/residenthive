@@ -9,6 +9,7 @@ import { db } from '../db';
 import { buyerProfiles, investmentStrategies } from '@shared/schema';
 import { investmentChatService } from '../services/investment-chat-service';
 import { investmentStrategyGenerator } from '../services/investment-strategy-mcp';
+import { enhancedInvestmentStrategy } from '../services/investment-strategy-enhanced';
 import { v4 as uuidv4 } from 'uuid';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -59,16 +60,32 @@ router.post('/api/investment-chat', async (req, res) => {
           createdAt: new Date().toISOString()
         });
       
-      // Trigger async strategy generation
-      console.log('🚀 Triggering strategy generation for profile:', savedProfile.id);
-      investmentStrategyGenerator.generateStrategy(savedProfile, response.strategyId)
-        .then(() => {
-          console.log('✅ Strategy generation completed successfully');
-        })
-        .catch(error => {
-          console.error('❌ Strategy generation failed:', error);
-          console.error('Stack trace:', error.stack);
-        });
+      // Trigger async strategy generation (use enhanced version if enabled)
+      console.log('🚀 Triggering enhanced strategy generation for profile:', savedProfile.id);
+      
+      // Use enhanced strategy with research
+      const useEnhanced = process.env.USE_ENHANCED_STRATEGY !== 'false';
+      
+      if (useEnhanced) {
+        enhancedInvestmentStrategy.generateStrategy(savedProfile, response.strategyId)
+          .then(() => {
+            console.log('✅ Enhanced strategy generation completed successfully');
+          })
+          .catch(error => {
+            console.error('❌ Enhanced strategy generation failed:', error);
+            console.error('Stack trace:', error.stack);
+          });
+      } else {
+        // Fallback to original
+        investmentStrategyGenerator.generateStrategy(savedProfile, response.strategyId)
+          .then(() => {
+            console.log('✅ Strategy generation completed successfully');
+          })
+          .catch(error => {
+            console.error('❌ Strategy generation failed:', error);
+            console.error('Stack trace:', error.stack);
+          });
+      }
     }
     
     res.json(response);
@@ -98,30 +115,25 @@ router.get('/api/investment-strategy/:sessionId', async (req, res) => {
       return res.status(404).json({ error: 'Strategy not found' });
     }
     
-    // If complete, include document content
-    if (strategy.status === 'complete' && strategy.documentUrl) {
-      try {
-        const documentPath = path.join(process.cwd(), strategy.documentUrl);
-        const documentContent = await fs.readFile(documentPath, 'utf-8');
-        
-        return res.json({
-          status: strategy.status,
-          strategy: strategy.strategyJson,
-          document: documentContent,
-          generationTime: strategy.generationTime,
-          completedAt: strategy.completedAt
-        });
-      } catch (error) {
-        console.error('Error reading strategy document:', error);
-      }
+    // If completed (not 'complete'), return the strategy data
+    if (strategy.status === 'completed') {
+      return res.json({
+        status: strategy.status,
+        strategy: strategy.strategyJson,
+        propertyRecommendations: strategy.propertyRecommendations,
+        marketAnalysis: strategy.marketAnalysis,
+        financialProjections: strategy.financialProjections,
+        generationTime: strategy.generationTime,
+        completedAt: strategy.completedAt || strategy.updatedAt
+      });
     }
     
-    // Return status only
+    // Return status only for non-completed
     res.json({
       status: strategy.status,
       message: strategy.status === 'generating' 
         ? 'Your investment strategy is being generated. This typically takes 5-10 minutes.'
-        : 'Strategy generation failed. Please try again.'
+        : strategy.error || 'Strategy generation failed. Please try again.'
     });
     
   } catch (error) {
