@@ -18,12 +18,13 @@ import {
   MapPin, Heart, Users, Settings, Mic, Sparkles 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import VoiceInput from "./voice-input";
 import { 
   buyerFormSchema, 
   type BuyerFormData, 
   type ExtractedProfile,
+  type InsertBuyerProfile,
   HOME_TYPES,
   MUST_HAVE_FEATURES,
   LIFESTYLE_DRIVERS,
@@ -62,16 +63,77 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
     }
   });
 
+  // Save profile to database after enhancement
+  const saveProfileMutation = useMutation({
+    mutationFn: async (data: { enhancedProfile: ExtractedProfile; originalFormData: BuyerFormData }) => {
+      const { enhancedProfile, originalFormData } = data;
+      
+      // Transform ExtractedProfile to InsertBuyerProfile format
+      const savePayload: InsertBuyerProfile = {
+        name: enhancedProfile.name,
+        email: enhancedProfile.email || "",
+        location: enhancedProfile.location,
+        budget: enhancedProfile.budget,
+        budgetMin: enhancedProfile.budgetMin,
+        budgetMax: enhancedProfile.budgetMax,
+        homeType: enhancedProfile.homeType,
+        bedrooms: enhancedProfile.bedrooms,
+        bathrooms: enhancedProfile.bathrooms,
+        mustHaveFeatures: enhancedProfile.mustHaveFeatures || [],
+        dealbreakers: enhancedProfile.dealbreakers || [],
+        preferredAreas: enhancedProfile.preferredAreas || [],
+        lifestyleDrivers: enhancedProfile.lifestyleDrivers || [],
+        specialNeeds: enhancedProfile.specialNeeds || [],
+        budgetFlexibility: originalFormData.budgetFlexibility,
+        locationFlexibility: originalFormData.locationFlexibility,
+        timingFlexibility: originalFormData.timingFlexibility,
+        emotionalContext: enhancedProfile.emotionalContext,
+        voiceTranscript: originalFormData.voiceTranscript,
+        inferredTags: enhancedProfile.inferredTags || [],
+        emotionalTone: enhancedProfile.emotionalTone,
+        priorityScore: enhancedProfile.priorityScore || 50,
+        rawInput: originalFormData.voiceTranscript || JSON.stringify(originalFormData),
+        inputMethod: originalFormData.voiceTranscript ? "voice" : "form",
+        nlpConfidence: 100, // Form input has high confidence
+        version: 1,
+        agentId: 28 // Default agent for testing - TODO: get from context
+      };
+      
+      const response = await apiRequest("POST", "/api/buyer-profiles", savePayload);
+      return response.json();
+    },
+    onSuccess: (savedProfile) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+      toast({
+        title: "Profile Saved Successfully",
+        description: "Buyer profile has been saved to your database.",
+      });
+    },
+    onError: (error) => {
+      console.error("Save profile error:", error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save buyer profile. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const enhanceMutation = useMutation({
     mutationFn: async (formData: BuyerFormData) => {
       const response = await apiRequest("POST", "/api/enhance-profile", { formData });
       return response.json();
     },
-    onSuccess: (data: ExtractedProfile) => {
-      onProfileExtracted(data);
+    onSuccess: (enhancedProfile: ExtractedProfile, originalFormData: BuyerFormData) => {
+      // First, call the onProfileExtracted callback
+      onProfileExtracted(enhancedProfile);
+      
+      // Then save the profile to database
+      saveProfileMutation.mutate({ enhancedProfile, originalFormData });
+      
       toast({
-        title: "Profile Created Successfully",
-        description: "Buyer profile has been analyzed and enhanced with AI insights.",
+        title: "Profile Enhanced",
+        description: "Buyer profile has been analyzed with AI insights and is being saved...",
       });
     },
     onError: (error) => {
