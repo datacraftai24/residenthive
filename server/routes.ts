@@ -20,6 +20,7 @@ import { db } from "./db.js";
 import { eq } from "drizzle-orm";
 import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
 import configRoutes from "./routes/config.js";
+import { withAgent } from "./middleware/clerk-auth.js";
 
 // Helper function to create NLP prompt from buyer profile
 function createNLPPromptFromProfile(profile: any): string {
@@ -173,6 +174,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profileToSave = {
         ...profileData,
         // Set agentId to default if not provided (for testing)
+        // TODO: Update this to use Clerk auth
         agentId: profileData.agentId || 28,
         // Set createdAt server-side (will be overridden in storage.createBuyerProfile)
         createdAt: new Date().toISOString()
@@ -195,21 +197,24 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Get all buyer profiles (agent-specific)
-  app.get("/api/buyer-profiles", async (req, res) => {
+  app.get("/api/buyer-profiles", withAgent, async (req, res) => {
     try {
-      // In development, use default agent for testing
-      // In production, this should be extracted from session/JWT
-      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 28; // Default to same agent as save endpoint
-      
+      // Get agent ID from Clerk auth
+      const agentId = req.agent?.id;
+
+      if (!agentId) {
+        return res.status(403).json({ error: "Agent not found" });
+      }
+
       console.log(`Fetching profiles for agent ID: ${agentId}`);
-      
+
       const profiles = await storage.getBuyerProfilesByAgent(agentId);
       res.json(profiles);
     } catch (error) {
       console.error("Error in /api/buyer-profiles GET:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to fetch profiles",
-        message: (error as Error).message 
+        message: (error as Error).message
       });
     }
   });

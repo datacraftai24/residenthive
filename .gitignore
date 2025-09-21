@@ -14,6 +14,7 @@ build/
 .env.production.local
 .env.production
 .env.repliers
+client/.env
 
 # Database files
 *.db
@@ -93,3 +94,6 @@ CLAUDE.md
 REQUIRED_CHANGES.md
 SYSTEM_FLOW_ANALYSIS.md
 FIX_PLAN.md
+
+# Files with sensitive keys
+CLERK_MIGRATION_PLAN.md
