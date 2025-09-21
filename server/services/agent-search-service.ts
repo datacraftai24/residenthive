@@ -257,7 +257,7 @@ export class AgentSearchService {
       // Sort by score and take top matches
       const topMatches = scoredListings
         .sort((a, b) => b.match_score - a.match_score)
-        .slice(0, 30); // Top 30 for AI to analyze and find hidden gems
+        .slice(0, 15); // Top 15 for AI to analyze and find hidden gems (reduced from 30 to prevent token limit issues)
 
       // TEMPORARILY DISABLED: Visual analysis causing 89s delays
       // TODO: Re-enable after optimization
