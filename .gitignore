@@ -13,6 +13,7 @@ build/
 .env.test.local
 .env.production.local
 .env.production
+.env.repliers
 
 # Database files
 *.db
