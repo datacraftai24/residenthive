@@ -1,0 +1,91 @@
+{
+  "mortgageRates": {
+    "conventional30": 7.125,
+    "conventional15": 6.625,
+    "fha30": 6.875,
+    "va30": 6.750,
+    "jumbo30": 7.375,
+    "updatedAt": "2025-01-09T00:00:00Z",
+    "source": "Freddie Mac Primary Mortgage Market Survey",
+    "confidence": "HIGH"
+  },
+  "propertyTaxRates": {
+    "Cambridge": {
+      "rate": 0.0054,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Boston": {
+      "rate": 0.0056,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Brookline": {
+      "rate": 0.0105,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Newton": {
+      "rate": 0.0107,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Worcester": {
+      "rate": 0.0135,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Springfield": {
+      "rate": 0.0118,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Lowell": {
+      "rate": 0.0128,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "New Bedford": {
+      "rate": 0.0097,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Fitchburg": {
+      "rate": 0.0142,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Lawrence": {
+      "rate": 0.0154,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "Haverhill": {
+      "rate": 0.0148,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    },
+    "STATE_AVG": {
+      "rate": 0.0104,
+      "effectiveDate": "2024-07-01",
+      "source": "MA Department of Revenue"
+    }
+  },
+  "insuranceCosts": {
+    "homeownersPerThousand": 3.5,
+    "floodZones": {
+      "X": 0.5,
+      "A": 2.5,
+      "AE": 3.0,
+      "V": 4.5,
+      "VE": 5.0
+    },
+    "updatedAt": "2025-01-01T00:00:00Z"
+  },
+  "marketTrends": {
+    "nationalAppreciation": 0.045,
+    "inflationRate": 0.028,
+    "rentGrowthRate": 0.035,
+    "updatedAt": "2025-01-01T00:00:00Z"
+  }
+}

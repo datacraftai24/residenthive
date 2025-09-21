@@ -1,0 +1,748 @@
+🚀 STARTING MARKET DISCOVERY TEST
+
+INVESTOR PROFILE: {
+  "availableCash": 250000,
+  "monthlyIncomeTarget": 2500,
+  "location": "Massachusetts",
+  "timeline": "3 months",
+  "willingToOwnerOccupy": false,
+  "investmentExperience": "beginner",
+  "investmentGoals": "cash flow focused"
+} 
+
+🔍 [MarketDiscoveryAgent] Starting discovery for Massachusetts
+   No hardcoded rules - letting LLM determine what matters
+
+📊 Pass A: Meta-discovery phase
+
+================================================================================
+LLM PROMPT [market_discovery]
+================================================================================
+
+SYSTEM PROMPT:
+You are a real estate investment analyst doing market discovery.
+Your job is to determine what data points are needed to find the best cities for THIS SPECIFIC investor.
+Do not assume standard metrics - think about what matters for their unique situation.
+
+USER PROMPT:
+An investor wants to find the best cities for real estate investment.
+Analyze their profile and determine what metrics we need to research.
+
+INVESTOR PROFILE:
+- Available Cash: $250,000
+- Monthly Income Goal: $2,500
+- Location Preference: Massachusetts (statewide search)
+- Timeline: 3 months
+- Owner Occupancy: No, pure investment
+- Experience: beginner
+- Goals: cash flow focused
+
+
+Think about:
+1. What metrics would identify cities where this investor can afford properties?
+2. What data points would predict if they can achieve their income goals?
+3. What factors matter given their timeline and experience level?
+4. What regulations or market conditions affect their strategy?
+
+DO NOT assume standard metrics. Think specifically about THIS investor.
+For each metric, explain WHY it matters and WHERE to find reliable data.
+
+Return JSON:
+{
+  "essentialMetrics": [
+    {
+      "metric": "specific data point needed",
+      "reason": "why this matters for this investor",
+      "suggestedSources": ["Zillow", "HUD", "Census.gov", etc.]
+    }
+  ],
+  "investorSpecificFactors": [
+    "factors unique to this investor's situation"
+  ],
+  "marketScreeningCriteria": "overall approach to filtering cities"
+}
+
+PARAMETERS:
+- Model: gpt-4o
+- Temperature: 0.7
+- Response Format: json_object
+--------------------------------------------------------------------------------
+
+LLM RESPONSE:
+{
+  "essentialMetrics": [
+    {
+      "metric": "Median Property Price",
+      "reason": "To determine if the investor can afford properties with their available cash of $250,000.",
+      "suggestedSources": ["Zillow", "Realtor.com", "Redfin"]
+    },
+    {
+      "metric": "Median Rent Prices",
+      "reason": "To assess potential rental income and evaluate if the $2,500 monthly income goal is achievable.",
+      "suggestedSources": ["Zillow Rent Index", "HUD Rent Data", "RentCafe"]
+    },
+    {
+...[truncated]
+================================================================================
+
+   LLM identified 6 essential metrics
+     - Median Property Price: To determine if the investor can afford properties with their available cash of $250,000.
+     - Median Rent Prices: To assess potential rental income and evaluate if the $2,500 monthly income goal is achievable.
+     - Property Tax Rates: To calculate net income and ensure it aligns with cash flow goals, especially since property taxes in Massachusetts can vary widely.
+     - Local Economic Indicators: To understand job growth, population trends, and economic stability which affect rental demand.
+     - Rental Demand and Vacancy Rates: To ensure there's a high demand for rental properties, reducing the risk of vacancy.
+     - Local Landlord-Tenant Laws: To understand the regulatory environment and ensure compliance, important for a beginner investor.
+
+🔎 Pass B: Query generation phase
+
+================================================================================
+LLM PROMPT [market_discovery]
+================================================================================
+
+SYSTEM PROMPT:
+You are a research query specialist.
+Generate specific queries to discover the required metrics across ALL cities in the target area.
+Each query must specify WHERE to find the data for accuracy and freshness.
+
+USER PROMPT:
+Generate research queries to discover these metrics across Massachusetts.
+
+REQUIRED METRICS:
+[
+  {
+    "metric": "Median Property Price",
+    "reason": "To determine if the investor can afford properties with their available cash of $250,000.",
+    "suggestedSources": [
+      "Zillow",
+      "Realtor.com",
+      "Redfin"
+    ]
+  },
+  {
+    "metric": "Median Rent Prices",
+    "reason": "To assess potential rental income and evaluate if the $2,500 monthly income goal is achievable.",
+    "suggestedSources": [
+      "Zillow Rent Index",
+      "HUD Rent Data",
+      "RentCafe"
+    ]
+  },
+  {
+    "metric": "Property Tax Rates",
+    "reason": "To calculate net income and ensure it aligns with cash flow goals, especially since property taxes in Massachusetts can vary widely.",
+    "suggestedSources": [
+      "Massachusetts Department of Revenue",
+      "Local Assessor's Office"
+    ]
+  },
+  {
+    "metric": "Local Economic Indicators",
+    "reason": "To understand job growth, population trends, and economic stability which affect rental demand.",
+    "suggestedSources": [
+      "Census.gov",
+      "Bureau of Labor Statistics",
+      "Massachusetts Economic Research"
+    ]
+  },
+  {
+    "metric": "Rental Demand and Vacancy Rates",
+    "reason": "To ensure there's a high demand for rental properties, reducing the risk of vacancy.",
+    "suggestedSources": [
+      "HUD",
+      "Local Real Estate Agencies",
+      "U.S. Census Bureau"
+    ]
+  },
+  {
+    "metric": "Local Landlord-Tenant Laws",
+    "reason": "To understand the regulatory environment and ensure compliance, important for a beginner investor.",
+    "suggestedSources": [
+      "Massachusetts Government Website",
+      "Local Real Estate Legal Advisors"
+    ]
+  }
+]
+
+INVESTOR CONTEXT:
+- Location: Massachusetts (search ALL cities in this area)
+- Available Cash: $250,000
+- Purchase Power: Can afford properties $500,000 to $1,000,000 (with 25% down)
+- Income Target: $2500/month
+
+IMPORTANT: The investor has $250,000 for down payment, NOT as a max property price.
+With standard 25% down, they can buy up to $1,000,000 properties.
+Look for cities with median prices in the $500k-$1000k range.
+
+REQUIREMENTS:
+1. Queries must be comparative ("Which cities..." not "What is Springfield's...")
+2. Each query must specify the data source (site:domain.com)
+3. Include date qualifiers (2024, latest, current) for freshness
+4. One query per metric per source (we'll validate across sources)
+5. Include validation criteria (how to check if data is reliable)
+
+Return JSON:
+{
+  "queries": [
+    {
+      "query": "Which cities in Massachusetts have median home prices under $500000 site:zillow.com 2024",
+      "metric": "median_home_price",
+      "sources": ["zillow.com"],
+      "validation": "Check if data is from last 90 days"
+    }
+  ]
+}
+
+Generate 2-3 queries per metric (different sources) for validation.
+
+PARAMETERS:
+- Model: gpt-4o
+- Temperature: 0.5
+- Response Format: json_object
+--------------------------------------------------------------------------------
+
+LLM RESPONSE:
+{
+  "queries": [
+    {
+      "query": "Which cities in Massachusetts have median home prices between $500000 and $1000000 site:zillow.com 2024",
+      "metric": "median_home_price",
+      "sources": ["zillow.com"],
+      "validation": "Check if data is from last 90 days"
+    },
+    {
+      "query": "Which cities in Massachusetts have median property prices in the range of $500000 to $1000000 site:realtor.com current",
+      "metric": "median_home_price",
+      "sources": ["realtor.com"],
+      "...[truncated]
+================================================================================
+
+   Generated 14 source-specific queries
+
+🌐 Pass C: Multi-source research phase
+   Researching median_home_price from 3 sources...
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median home prices between $500000 and $1000000 site:zillow.com 2024
+
+TAVILY RESPONSE: {
+  "answer": "Massachusetts cities median home prices December 2024: Springfield $340,000, Worcester $425,000, Fitchburg $285,000",
+  "sources": [
+    {
+      "title": "Zillow",
+      "url": "zillow.com"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median property prices in the range of $500000 to $1000000 site:realtor.com current
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median real estate prices between $500000 and $1000000 site:redfin.com latest
+
+TAVILY RESPONSE: {
+  "answer": "No data",
+  "sources": [],
+  "confidence": "LOW"
+}
+
+     ⚠️ Cross-metric mismatch: Expected prices, got rent data
+   Researching median_rent_price from 3 sources...
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median rent prices that meet or exceed $2500 per month site:zillow.com 2024
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median rent prices around $2500 per month site:rentcafe.com current
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have median rental prices around $2500 site:huduser.gov latest
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+   Researching property_tax_rate from 2 sources...
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have property tax rates below 1.5% site:mass.gov 2024
+
+TAVILY RESPONSE: {
+  "answer": "No data",
+  "sources": [],
+  "confidence": "LOW"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have property tax rates under 2% site:localassessor.net current
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+   Researching local_economic_indicators from 2 sources...
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts show positive job growth and stable population trends site:census.gov latest
+
+TAVILY RESPONSE: {
+  "answer": "No data",
+  "sources": [],
+  "confidence": "LOW"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have increasing job opportunities and stable populations site:bls.gov 2024
+
+TAVILY RESPONSE: {
+  "answer": "No data",
+  "sources": [],
+  "confidence": "LOW"
+}
+
+   Researching rental_demand_vacancy_rates from 2 sources...
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have low rental vacancy rates indicating high demand site:huduser.gov 2024
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+Which cities in Massachusetts have high rental demand and low vacancy site:census.gov current
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+     ⚠️ Cross-metric mismatch: Expected vacancy rates
+     ⚠️ Cross-metric mismatch: Expected vacancy rates
+   Researching local_landlord_tenant_laws from 2 sources...
+
+📡 TAVILY SEARCH QUERY:
+What are the current landlord-tenant laws affecting rental properties in Massachusetts site:mass.gov 2024
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+
+📡 TAVILY SEARCH QUERY:
+What are the latest landlord-tenant regulations in Massachusetts cities site:realestatelawyers.com current
+
+TAVILY RESPONSE: {
+  "answer": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200",
+  "sources": [
+    {
+      "title": "RentData",
+      "url": "rentdata.org"
+    }
+  ],
+  "confidence": "HIGH"
+}
+
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+     ⚠️ Mirrored payload detected: unknown mirrors unknown
+   Collected 6 research findings
+
+🏙️ Pass D: Market extraction and analysis
+
+================================================================================
+LLM PROMPT [market_discovery]
+================================================================================
+
+SYSTEM PROMPT:
+You are a market analyst extracting and analyzing cities from research data.
+Do NOT score cities with a formula. Instead, analyze how well each city fits the investor's needs.
+
+USER PROMPT:
+Extract cities from this research and analyze them for the investor.
+
+INVESTOR PROFILE:
+{
+  "cash": 250000,
+  "incomeGoal": 2500,
+  "location": "Massachusetts",
+  "timeline": "3 months",
+  "ownerOccupy": false
+}
+
+METRICS WE RESEARCHED:
+[
+  {
+    "metric": "Median Property Price",
+    "whyItMatters": "To determine if the investor can afford properties with their available cash of $250,000."
+  },
+  {
+    "metric": "Median Rent Prices",
+    "whyItMatters": "To assess potential rental income and evaluate if the $2,500 monthly income goal is achievable."
+  },
+  {
+    "metric": "Property Tax Rates",
+    "whyItMatters": "To calculate net income and ensure it aligns with cash flow goals, especially since property taxes in Massachusetts can vary widely."
+  },
+  {
+    "metric": "Local Economic Indicators",
+    "whyItMatters": "To understand job growth, population trends, and economic stability which affect rental demand."
+  },
+  {
+    "metric": "Rental Demand and Vacancy Rates",
+    "whyItMatters": "To ensure there's a high demand for rental properties, reducing the risk of vacancy."
+  },
+  {
+    "metric": "Local Landlord-Tenant Laws",
+    "whyItMatters": "To understand the regulatory environment and ensure compliance, important for a beginner investor."
+  }
+]
+
+RESEARCH FINDINGS:
+[
+  {
+    "source": "unknown",
+    "confidence": "MEDIUM",
+    "data": "Massachusetts cities median home prices December 2024: Springfield $340,000, Worcester $425,000, Fitchburg $285,000"
+  },
+  {
+    "source": "unknown",
+    "confidence": "LOW",
+    "data": "Median rents: Springfield $1,650, Worcester $1,950, Fitchburg $1,200"
+  },
+  {
+    "source": "unknown",
+    "confidence": "NONE",
+    "data": "No data"
+  },
+  {
+    "source": "unknown",
+    "confidence": "NONE",
+    "data": "No data"
+  },
+  {
+    "source": "unknown",
+    "confidence": "NONE",
+    "data": "No data"
+  },
+  {
+    "source": "unknown",
+    "confidence": "NONE",
+    "data": "No data"
+  }
+]
+
+For each city found in the research:
+1. Extract all available metrics (don't force a structure)
+2. Note which sources agree/disagree on data
+3. Analyze strengths/weaknesses for THIS investor's goals
+4. Explain alignment with their specific needs
+5. Flag any data quality issues
+
+DO NOT create arbitrary scores. Provide nuanced analysis.
+
+Return JSON:
+{
+  "markets": [
+    {
+      "city": "City Name",
+      "state": "MA",
+      "metrics": {
+        // Whatever metrics were found - don't force structure
+      },
+      "dataQuality": {
+        "sourcesCount": 3,
+        "agreementLevel": "HIGH",
+        "lastUpdated": "2024-Q4"
+      },
+      "analysis": {
+        "strengths": ["specific advantages"],
+        "weaknesses": ["specific concerns"],
+        "investorAlignment": "How well it matches their goals",
+        "confidenceLevel": 85
+      },
+      "recommendation": "Plain English explanation"
+    }
+  ],
+  "dataIssues": ["Any problems with the research data"]
+}
+
+PARAMETERS:
+- Model: gpt-4o
+- Temperature: 0.3
+- Response Format: json_object
+--------------------------------------------------------------------------------
+
+LLM RESPONSE:
+{
+  "markets": [
+    {
+      "city": "Springfield",
+      "state": "MA",
+      "metrics": {
+        "Median Property Price": "$340,000",
+        "Median Rent Prices": "$1,650"
+      },
+      "dataQuality": {
+        "sourcesCount": 1,
+        "agreementLevel": "MEDIUM",
+        "lastUpdated": "2024-Q4"
+      },
+      "analysis": {
+        "strengths": [
+          "Relatively lower median property price compared to other cities in the research, which could be beneficial if the investor can negoti...[truncated]
+================================================================================
+
+
+🎯 Pass E: Holistic ranking for investor goals
+
+================================================================================
+LLM PROMPT [market_discovery]
+================================================================================
+
+SYSTEM PROMPT:
+You are an investment advisor ranking cities for a specific investor.
+Rank based on likelihood of achieving their goals, not abstract scores.
+
+USER PROMPT:
+Rank these cities for the investor based on their specific goals.
+
+INVESTOR'S PRIMARY GOAL:
+Generate $2500/month passive income with $250000 capital
+
+INVESTOR'S CONSTRAINTS:
+- Timeline: 3 months
+- Location: Must be in Massachusetts
+- Owner Occupancy: No
+
+WHAT MATTERS TO THIS INVESTOR:
+Beginner-level experience demands straightforward, low-risk investment options.
+Short timeline of 3 months requires readily available properties and clear market data.
+Cash flow focus necessitates reliable rental income streams.
+
+CITIES TO RANK:
+[
+  {
+    "city": "Springfield",
+    "state": "MA",
+    "metrics": {
+      "Median Property Price": "$340,000",
+      "Median Rent Prices": "$1,650"
+    },
+    "dataQuality": {
+      "sourcesCount": 1,
+      "agreementLevel": "MEDIUM",
+      "lastUpdated": "2024-Q4"
+    },
+    "analysis": {
+      "strengths": [
+        "Relatively lower median property price compared to other cities in the research, which could be beneficial if the investor can negotiate a lower purchase price or find a distressed property.",
+        "Potential for rental income, though below the investor's goal, could be supplemented by multiple units or other income strategies."
+      ],
+      "weaknesses": [
+        "Median property price exceeds the investor's cash budget, requiring financing or a significant price reduction.",
+        "Rental income is below the $2,500 monthly goal, necessitating additional income strategies or higher rent units."
+      ],
+      "investorAlignment": "Springfield presents challenges with property affordability and rental income goals, but could be viable with creative financing or income strategies.",
+      "confidenceLevel": 60
+    },
+    "recommendation": "Consider Springfield if willing to explore financing options or creative income strategies. The property price exceeds cash budget, and rental income falls short of goals."
+  },
+  {
+    "city": "Worcester",
+    "state": "MA",
+    "metrics": {
+      "Median Property Price": "$425,000",
+      "Median Rent Prices": "$1,950"
+    },
+    "dataQuality": {
+      "sourcesCount": 1,
+      "agreementLevel": "MEDIUM",
+      "lastUpdated": "2024-Q4"
+    },
+    "analysis": {
+      "strengths": [
+        "Higher rental income potential compared to Springfield, closer to the investor's goal."
+      ],
+      "weaknesses": [
+        "Significantly higher property price, well beyond the investor's cash budget, requiring substantial financing.",
+        "Rental income still falls short of the $2,500 monthly goal."
+      ],
+      "investorAlignment": "Worcester's high property prices and insufficient rental income make it less aligned with the investor's goals without significant financing and income adjustments.",
+      "confidenceLevel": 50
+    },
+    "recommendation": "Worcester is not recommended due to high property prices and insufficient rental income relative to goals. Consider if willing to leverage financing and explore additional income sources."
+  },
+  {
+    "city": "Fitchburg",
+    "state": "MA",
+    "metrics": {
+      "Median Property Price": "$285,000",
+      "Median Rent Prices": "$1,200"
+    },
+    "dataQuality": {
+      "sourcesCount": 1,
+      "agreementLevel": "MEDIUM",
+      "lastUpdated": "2024-Q4"
+    },
+    "analysis": {
+      "strengths": [
+        "Lowest property price among the cities researched, closer to the investor's cash budget."
+      ],
+      "weaknesses": [
+        "Rental income is significantly below the investor's goal, requiring multiple units or additional income strategies.",
+        "Property price still slightly exceeds the cash budget, necessitating negotiation or financing."
+      ],
+      "investorAlignment": "Fitchburg aligns better with the investor's budget constraints but fails to meet income goals, requiring creative solutions.",
+      "confidenceLevel": 65
+    },
+    "recommendation": "Fitchburg is worth considering for its lower property prices. Explore options for increasing rental income or reducing purchase costs to better align with goals."
+  }
+]
+
+Rank cities by likelihood of achieving the investor's goals.
+Consider the whole picture, not just individual metrics.
+Explain your ranking methodology.
+
+Return JSON:
+{
+  "rankedMarkets": [
+    {
+      ...existingMarketData,
+      "rank": 1,
+      "rankingRationale": "Why this city ranks here"
+    }
+  ],
+  "methodology": "How you decided the ranking",
+  "eliminatedMarkets": [
+    {
+      "city": "City Name",
+      "reason": "Why it was eliminated"
+    }
+  ]
+}
+
+PARAMETERS:
+- Model: gpt-4o
+- Temperature: 0.4
+- Response Format: json_object
+--------------------------------------------------------------------------------
+
+LLM RESPONSE:
+{
+  "rankedMarkets": [
+    {
+      "city": "Fitchburg",
+      "state": "MA",
+      "metrics": {
+        "Median Property Price": "$285,000",
+        "Median Rent Prices": "$1,200"
+      },
+      "dataQuality": {
+        "sourcesCount": 1,
+        "agreementLevel": "MEDIUM",
+        "lastUpdated": "2024-Q4"
+      },
+      "analysis": {
+        "strengths": [
+          "Lowest property price among the cities researched, closer to the investor's cash budget."
+        ],
+        "weaknesses": [
+    ...[truncated]
+================================================================================
+
+
+🔍 Pass F: Cross-metric validation
+
+✅ [MarketDiscoveryAgent] Discovery complete
+   Top markets: Fitchburg, Springfield
+   Confidence: LOW
+
+✅ DISCOVERY COMPLETE
+
+Markets found: 2
+Confidence: LOW
+
+Top markets:
+1. Fitchburg, MA - Score: 65%
+2. Springfield, MA - Score: 60%

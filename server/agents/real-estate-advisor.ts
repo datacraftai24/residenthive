@@ -32,6 +32,141 @@ export interface PropertyEnhancementAnalysis {
 
 export class RealEstateAdvisorAgent {
   
+  /**
+   * Generate recommendations for multiple properties - used by orchestrator
+   */
+  async generateRecommendations(
+    properties: any[],
+    financialAnalyses: any[],
+    marketAnalyses: any[],
+    investmentProfile: any
+  ): Promise<any[]> {
+    console.log(`🎯 [Real Estate Advisor] Generating recommendations for ${properties.length} properties...`);
+    
+    const recommendations = [];
+    
+    for (const property of properties) {
+      const financial = financialAnalyses.find(f => f.propertyId === (property.id || property.address));
+      const market = marketAnalyses.find(m => m.location === property.city || m.location === property.location);
+      
+      const score = this.calculateInvestmentScore(property, financial, market, investmentProfile);
+      const pros = this.identifyPros(property, financial, market);
+      const cons = this.identifyCons(property, financial, market);
+      
+      recommendations.push({
+        propertyId: property.id || property.address,
+        score,
+        pros,
+        cons,
+        keyInsights: this.generateKeyInsights(property, financial, market),
+        investmentThesis: this.generateInvestmentThesis(property, financial, score),
+        riskAssessment: this.assessRisks(property, financial, market),
+        exitStrategy: this.suggestExitStrategy(property, market)
+      });
+    }
+    
+    return recommendations.sort((a, b) => b.score - a.score);
+  }
+  
+  private calculateInvestmentScore(property: any, financial: any, market: any, profile: any): number {
+    let score = 50; // Base score
+    
+    // Financial metrics
+    if (financial && !financial.calc_error) {
+      const bestScenario = financial.scenarios?.[0];
+      if (bestScenario) {
+        if (bestScenario.monthlyCashFlow > 0) score += 20;
+        if (bestScenario.monthlyCashFlow > 500) score += 10;
+        if (bestScenario.capRate > 6) score += 10;
+      }
+    }
+    
+    // Market factors
+    if (market) {
+      if (market.rentGrowth > 3) score += 10;
+      if (market.occupancyRate > 95) score += 10;
+    }
+    
+    // Property factors
+    if (property.propertyType?.includes('MULTI')) score += 10;
+    if (property.yearBuilt > 1990) score += 5;
+    
+    return Math.min(100, Math.max(0, score));
+  }
+  
+  private identifyPros(property: any, financial: any, market: any): string[] {
+    const pros = [];
+    
+    if (financial?.scenarios?.[0]?.monthlyCashFlow > 0) {
+      pros.push(`Positive cash flow of $${Math.round(financial.scenarios[0].monthlyCashFlow)}/month`);
+    }
+    if (market?.rentGrowth > 3) {
+      pros.push(`Strong rent growth at ${market.rentGrowth}% annually`);
+    }
+    if (property.propertyType?.includes('MULTI')) {
+      pros.push('Multiple units reduce vacancy risk');
+    }
+    if (property.yearBuilt > 2000) {
+      pros.push('Newer construction with lower maintenance costs');
+    }
+    
+    return pros.length > 0 ? pros : ['Investment opportunity identified'];
+  }
+  
+  private identifyCons(property: any, financial: any, market: any): string[] {
+    const cons = [];
+    
+    if (financial?.scenarios?.[0]?.monthlyCashFlow < -200) {
+      cons.push(`Negative cash flow of $${Math.round(financial.scenarios[0].monthlyCashFlow)}/month`);
+    }
+    if (property.yearBuilt < 1970) {
+      cons.push('Older property may require significant maintenance');
+    }
+    if (market?.occupancyRate < 90) {
+      cons.push(`Lower occupancy rate at ${market.occupancyRate}%`);
+    }
+    
+    return cons.length > 0 ? cons : ['Standard investment risks apply'];
+  }
+  
+  private generateKeyInsights(property: any, financial: any, market: any): string {
+    if (financial?.scenarios?.[0]?.monthlyCashFlow > 500) {
+      return 'Strong cash flow property suitable for passive income generation';
+    }
+    if (property.propertyType?.includes('MULTI')) {
+      return 'Multi-family property offers diversified rental income streams';
+    }
+    return 'Investment property with potential for appreciation and rental income';
+  }
+  
+  private generateInvestmentThesis(property: any, financial: any, score: number): string {
+    if (score > 80) {
+      return 'High-quality investment with strong cash flow and appreciation potential';
+    }
+    if (score > 60) {
+      return 'Solid investment opportunity with balanced risk-return profile';
+    }
+    return 'Entry-level investment suitable for portfolio diversification';
+  }
+  
+  private assessRisks(property: any, financial: any, market: any): string {
+    const risks = [];
+    if (financial?.scenarios?.[0]?.monthlyCashFlow < 0) risks.push('negative cash flow');
+    if (property.yearBuilt < 1980) risks.push('deferred maintenance');
+    if (market?.occupancyRate < 92) risks.push('vacancy risk');
+    
+    return risks.length > 0 
+      ? `Key risks: ${risks.join(', ')}`
+      : 'Standard market risks with stable profile';
+  }
+  
+  private suggestExitStrategy(property: any, market: any): string {
+    if (market?.rentGrowth > 4) {
+      return 'Hold for rental income with potential refinance in 5-7 years';
+    }
+    return 'Long-term buy-and-hold with option to sell after 5+ years';
+  }
+  
   async analyzePropertyPotential(property: any, location: string): Promise<PropertyEnhancementAnalysis> {
     console.log(`🏡 [Real Estate Advisor] Analyzing enhancement potential for ${property.address}...`);
 

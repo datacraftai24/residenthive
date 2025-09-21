@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, json, numeric, boolean, timestamp, uuid, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, numeric, boolean, timestamp, bigint, uuid, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -497,6 +497,82 @@ export const chatSearchContext = pgTable("chat_search_context", {
   createdAt: text("created_at").notNull()
 });
 
+// LLM Decision Logging for ML Training and Analysis
+export const llmDecisions = pgTable("llm_decisions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(), // Chat or analysis session
+  agentName: text("agent_name").notNull(), // Which agent made decision
+  decisionType: text("decision_type").notNull(), // financing_strategy, budget_calc, property_score, etc.
+  
+  // User Context
+  userRequirements: json("user_requirements"), // Complete user context
+  marketContext: json("market_context"), // Market conditions at decision time
+  
+  // Prompts
+  systemPrompt: text("system_prompt"),
+  userPrompt: text("user_prompt").notNull(),
+  
+  // Response
+  rawResponse: text("raw_response").notNull(),
+  parsedResponse: json("parsed_response"), // Structured decision
+  reasoning: json("reasoning"), // Array of reasoning steps
+  
+  // Metrics
+  confidence: numeric("confidence", { precision: 3, scale: 2 }), // 0.00-1.00
+  model: text("model").notNull().default('gpt-4o'),
+  temperature: numeric("temperature", { precision: 2, scale: 1 }).default('0.7'),
+  tokensUsed: integer("tokens_used"),
+  responseTimeMs: integer("response_time_ms"),
+  
+  // Decision Chain
+  parentDecisionId: integer("parent_decision_id").references(() => llmDecisions.id),
+  decisionPath: json("decision_path"), // Array of decision IDs in chain
+  
+  // Outcome Tracking
+  outcomeSuccess: boolean("outcome_success"), // Was decision successful?
+  outcomeNotes: text("outcome_notes"), // What happened as result
+  humanOverride: boolean("human_override").default(false), // Did human override?
+  
+  timestamp: timestamp("timestamp").notNull().defaultNow()
+});
+
+// Investment Strategy Scores - All properties scored against all strategies
+export const investmentStrategyScores = pgTable("investment_strategy_scores", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  propertyId: text("property_id").notNull(), // MLS listing ID
+  strategyId: text("strategy_id").notNull(), // Template ID
+  
+  // Property Details Snapshot
+  propertyAddress: text("property_address").notNull(),
+  propertyPrice: integer("property_price").notNull(),
+  propertyData: json("property_data").notNull(), // Full property details
+  
+  // Strategy Applied
+  strategyName: text("strategy_name").notNull(),
+  strategyType: text("strategy_type"), // conservative/innovative/aggressive
+  
+  // Financial Analysis
+  downPaymentPercent: numeric("down_payment_percent", { precision: 5, scale: 2 }),
+  downPaymentAmount: integer("down_payment_amount"),
+  monthlyIncome: integer("monthly_income"),
+  monthlyExpenses: integer("monthly_expenses"),
+  monthlyCashFlow: integer("monthly_cash_flow"),
+  capRate: numeric("cap_rate", { precision: 5, scale: 2 }),
+  cashOnCashReturn: numeric("cash_on_cash_return", { precision: 5, scale: 2 }),
+  
+  // Scoring
+  overallScore: numeric("overall_score", { precision: 5, scale: 2 }).notNull(),
+  scoringFactors: json("scoring_factors"), // Breakdown of score components
+  aiReasoning: text("ai_reasoning"), // Why this score
+  
+  // Feasibility
+  isFeasible: boolean("is_feasible").notNull().default(true),
+  feasibilityIssues: json("feasibility_issues"), // Array of issues if not feasible
+  
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
 export const insertRepliersListingSchema = createInsertSchema(repliersListings).omit({
   createdAt: true
 });
@@ -818,7 +894,7 @@ export const investmentStrategies = pgTable("investment_strategies", {
   financialProjections: json("financial_projections").notNull(), // ROI, cash flow calculations
   
   // Generation Metadata
-  generationTime: integer("generation_time").notNull(), // milliseconds
+  generationTime: bigint("generation_time", { mode: 'number' }).notNull(), // milliseconds
   dataSourcesUsed: json("data_sources_used").notNull(), // ['repliers', 'tavily', 'market_stats']
   
   // Strategy Status
@@ -846,4 +922,64 @@ export const insertInvestmentStrategySchema = createInsertSchema(investmentStrat
   id: true,
   createdAt: true,
   completedAt: true
+});
+
+// ============================================================================
+// Configuration Management Tables
+// ============================================================================
+
+// Config Values - Store all configuration values with TTL support
+export const configValues = pgTable("config_values", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(), // e.g., 'market-data.mortgageRates'
+  value: text("value").notNull(), // JSON stringified value
+  version: integer("version").notNull().default(1),
+  
+  // Metadata
+  updatedBy: text("updated_by").notNull(), // agent name or user ID
+  updatedAt: text("updated_at").notNull(),
+  ttlExpiresAt: text("ttl_expires_at"), // When this config expires (ISO string)
+  
+  // Provenance - where did this value come from?
+  provenance: text("provenance").notNull() // JSON: { source, agent?, researchQuery?, confidence? }
+});
+
+// Config Audit Log - Track all changes for compliance and debugging
+export const configAuditLog = pgTable("config_audit_log", {
+  id: serial("id").primaryKey(),
+  configKey: text("config_key").notNull(),
+  previousValue: text("previous_value"), // null for first insert
+  newValue: text("new_value").notNull(),
+  
+  // Who and when
+  updatedBy: text("updated_by").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  
+  // Why
+  provenance: text("provenance").notNull(), // Same as configValues.provenance
+  changeReason: text("change_reason") // Optional human-readable reason
+});
+
+// Config Access Log - Track who reads configs (optional, for analytics)
+export const configAccessLog = pgTable("config_access_log", {
+  id: serial("id").primaryKey(),
+  configKey: text("config_key").notNull(),
+  accessedBy: text("accessed_by").notNull(),
+  accessedAt: text("accessed_at").notNull(),
+  purpose: text("purpose") // e.g., 'market-discovery', 'reconciliation'
+});
+
+// Export types for config tables
+export type ConfigValue = typeof configValues.$inferSelect;
+export type InsertConfigValue = typeof configValues.$inferInsert;
+export type ConfigAuditLogEntry = typeof configAuditLog.$inferSelect;
+export type InsertConfigAuditLog = typeof configAuditLog.$inferInsert;
+
+export const insertConfigValueSchema = createInsertSchema(configValues).omit({
+  id: true,
+  version: true
+});
+
+export const insertConfigAuditLogSchema = createInsertSchema(configAuditLog).omit({
+  id: true
 });

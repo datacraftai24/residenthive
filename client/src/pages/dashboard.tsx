@@ -51,9 +51,9 @@ export default function Dashboard() {
         const parsedAgent = JSON.parse(savedAgent);
         console.log("Loaded agent from localStorage:", parsedAgent);
         
-        // Validate agent ID is one of the existing agents (28 or 29)
-        if (parsedAgent.id !== 28 && parsedAgent.id !== 29) {
-          console.error(`Invalid agent ID ${parsedAgent.id}. Clearing localStorage and forcing re-login.`);
+        // Validate agent has required fields
+        if (!parsedAgent.id || !parsedAgent.email) {
+          console.error(`Invalid agent data. Clearing localStorage and forcing re-login.`);
           localStorage.removeItem("agent");
           setLocation("/agent-login");
           return;

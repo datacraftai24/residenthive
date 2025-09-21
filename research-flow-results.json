@@ -1,0 +1,235 @@
+{
+  "timestamp": "2025-08-24T14:31:07.067Z",
+  "client": {
+    "id": "test_client",
+    "availableCash": 250000,
+    "monthlyIncomeTarget": 500,
+    "location": "Quincy, MA",
+    "creditScore": 740,
+    "investmentExperience": "first_time",
+    "timeline": "3 months",
+    "willingToOwnerOccupy": false,
+    "usePropertyManagement": true
+  },
+  "researchNeeds": {
+    "total": 16,
+    "queries": [
+      {
+        "query": "What is the current average purchase price for multi-family properties in Quincy, MA?",
+        "category": "Property Prices",
+        "priority": "HIGH",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What are the current mortgage interest rates for investment properties in Massachusetts?",
+        "category": "Financing",
+        "priority": "HIGH",
+        "requiredFor": [
+          "traditional",
+          "fha"
+        ]
+      },
+      {
+        "query": "What are the FHA loan limits for Norfolk County Massachusetts in 2023?",
+        "category": "Financing",
+        "priority": "HIGH",
+        "requiredFor": [
+          "fha"
+        ]
+      },
+      {
+        "query": "What is the average market rent for a 2-bedroom apartment in Quincy, MA?",
+        "category": "Rental Income",
+        "priority": "HIGH",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What are the property management fees as a percentage of rental income in Quincy, MA?",
+        "category": "Operating Expenses",
+        "priority": "HIGH",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What is the current property tax rate in Quincy, MA?",
+        "category": "Operating Expenses",
+        "priority": "HIGH",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What are the utility costs for a multi-family property in Quincy, MA?",
+        "category": "Operating Expenses",
+        "priority": "MEDIUM",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What are the current vacancy rates for rental properties in Quincy, MA?",
+        "category": "Market Trends",
+        "priority": "MEDIUM",
+        "requiredFor": [
+          "traditional",
+          "fha",
+          "adu",
+          "section8",
+          "midterm"
+        ]
+      },
+      {
+        "query": "What are the Section 8 rental payment standards for Norfolk County, MA?",
+        "category": "Rental Income",
+        "priority": "HIGH",
+        "requiredFor": [
+          "section8"
+        ]
+      },
+      {
+        "query": "What are the regulations for adding an Accessory Dwelling Unit (ADU) in Quincy, MA?",
+        "category": "Regulations",
+        "priority": "HIGH",
+        "requiredFor": [
+          "adu"
+        ]
+      }
+    ]
+  },
+  "executedQueries": [
+    {
+      "query": "What is the current average purchase price for multi-family properties in Quincy, MA?",
+      "category": "Property Prices",
+      "priority": "HIGH",
+      "requiredFor": [
+        "traditional",
+        "fha",
+        "adu",
+        "section8",
+        "midterm"
+      ]
+    },
+    {
+      "query": "What are the current mortgage interest rates for investment properties in Massachusetts?",
+      "category": "Financing",
+      "priority": "HIGH",
+      "requiredFor": [
+        "traditional",
+        "fha"
+      ]
+    },
+    {
+      "query": "What are the FHA loan limits for Norfolk County Massachusetts in 2023?",
+      "category": "Financing",
+      "priority": "HIGH",
+      "requiredFor": [
+        "fha"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "question": "What is the current average purchase price for multi-family properties in Quincy, MA?",
+      "searchQuery": "What is the current average purchase price for multi-family properties in Quincy, MA?",
+      "answer": 704450,
+      "confidence": "MEDIUM",
+      "sources": [
+        {
+          "title": "Duplex & Multi Family For Sale in Quincy, MA - Movoto",
+          "url": "https://www.movoto.com/quincy-ma/multi-family/",
+          "relevantContent": "... Multi-family homes for sale in Quincy, MA. 1. Movoto Logo. Don't see what ... Quincy, MA Real Estate Snapshot. Sold Price. $689,499. $/Sqft. $485. Homes For"
+        },
+        {
+          "title": "Quincy, MA Market Trends - Movoto",
+          "url": "https://www.movoto.com/quincy-ma/market-trends/",
+          "relevantContent": "In Quincy, MA, homes sold for a median price of $689,499 in July 2025. On average, properties in Quincy, MA sell after 39 days on the market compared to 20"
+        },
+        {
+          "title": "02169 Duplex & Triplex Homes For Sale - 11 Homes - Zillow",
+          "url": "https://www.zillow.com/quincy-ma-02169/duplex/",
+          "relevantContent": "Sorted by Homes for You. 21 Arthur St, Quincy, MA 02169. NEXTGEN REALTY, INC., Andrew Sebaaly. $1,100,000. 6 bds; 4 ba; 2,645 sqft. - Multi-family home for sale."
+        }
+      ],
+      "context": "The current average purchase price for multi-family properties in Quincy, MA, is approximately $704,450 as of August 24, 2025.",
+      "timestamp": 1756045867066,
+      "category": "Property Prices"
+    },
+    {
+      "question": "What are the current mortgage interest rates for investment properties in Massachusetts?",
+      "searchQuery": "What are the current mortgage interest rates for investment properties in Massachusetts?",
+      "answer": 6.83,
+      "confidence": "MEDIUM",
+      "sources": [
+        {
+          "title": "Compare Today's Massachusetts Mortgage and Refinance Rates",
+          "url": "https://www.bankrate.com/mortgages/mortgage-rates/massachusetts/",
+          "relevantContent": "As of Sunday, August 24, 2025, current interest rates in Massachusetts are 6.83% for a 30-year fixed mortgage and 5.96% for a 15-year fixed mortgage."
+        },
+        {
+          "title": "Compare Today's Mortgage Rates in Massachusetts - Zillow",
+          "url": "https://www.zillow.com/mortgage-rates/ma/",
+          "relevantContent": "The current average 30-year fixed mortgage rate in Massachusetts increased 10 basis points from 6.74% to 6.84%. Massachusetts mortgage rates today are 19 basis"
+        },
+        {
+          "title": "Compare Today's Mortgage Rates in Massachusetts - SmartAsset.com",
+          "url": "https://smartasset.com/mortgage/massachusetts-mortgage-rates",
+          "relevantContent": "The average Massachusetts rate for a fixed 30-year mortgage is 6.85% (Zillow, Jan. 2025). Massachusetts Jumbo Loan Rates. In most U.S. counties, any loan that's"
+        }
+      ],
+      "context": "Current mortgage interest rates for investment properties in Massachusetts are around 6.83%, with variations noted from other sources.",
+      "timestamp": 1756045866944,
+      "category": "Financing"
+    },
+    {
+      "question": "What are the FHA loan limits for Norfolk County Massachusetts in 2023?",
+      "searchQuery": "What are the FHA loan limits for Norfolk County Massachusetts in 2023?",
+      "answer": 914250,
+      "confidence": "HIGH",
+      "sources": [
+        {
+          "title": "Massachusetts Conforming And FHA Loan Limits By County | Bankrate",
+          "url": "https://www.bankrate.com/mortgages/massachusetts-jumbo-loan-limits-by-county/",
+          "relevantContent": "2025 Massachusetts conforming and FHA loan limits by county ; Norfolk, $914,250, $914,250 ; Plymouth, $914,250, $914,250 ; Suffolk, $914,250"
+        },
+        {
+          "title": "[PDF] Full County Loan Limit List2025 - FHFA",
+          "url": "https://www.fhfa.gov/sites/default/files/2024-11/FullCountyLoanLimitList2025_HERA-BASED_FINAL_FLAT.pdf",
+          "relevantContent": "MA. 12700. $. 806,500 $ 1,032,650 $ 1,248,150 $ 1,551,250. 25. 003 ... NORFOLK COUNTY. MA. 14460. $. 914,250 $ 1,170,400 $ 1,414,750 $ 1,758,200. 25. 023."
+        },
+        {
+          "title": "2025 Mortgage Loan Limits for Norfolk County, Massachusetts",
+          "url": "https://homebuyer.com/mortgage-loan-limits/norfolk-county-massachusetts",
+          "relevantContent": "2025 mortgage loan limits for Norfolk County: Conventional $914250, FHA $914250. Compare all loan types and find your local limits."
+        }
+      ],
+      "context": "The FHA loan limit for Norfolk County, Massachusetts in 2023 is $914,250 for single-family homes.",
+      "timestamp": 1756045866878,
+      "category": "Financing"
+    }
+  ]
+}

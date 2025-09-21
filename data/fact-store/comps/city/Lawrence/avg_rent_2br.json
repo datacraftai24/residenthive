@@ -1,0 +1,14 @@
+{
+  "topic": "comps",
+  "scopeLevel": "city",
+  "scopeValue": "Lawrence",
+  "key": "avg_rent_2br",
+  "value": 1700,
+  "confidence": 0.8,
+  "status": "current",
+  "expiresAt": "2025-09-12T15:31:08.906Z",
+  "id": "FACT_1755099068906_a0kqc1db1",
+  "version": 1,
+  "createdAt": "2025-08-13T15:31:08.906Z",
+  "updatedAt": "2025-08-13T15:31:08.906Z"
+}

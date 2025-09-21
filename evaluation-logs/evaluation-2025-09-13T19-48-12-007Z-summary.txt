@@ -1,0 +1,52 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-13T19:52:34.920Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 195
+Phase 1 Passed: 45
+Phase 2 Completed: 45
+Total Duration: 262.9s
+  - Phase 1: 213.2s
+  - Phase 2: 49.6s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+1. 165 Ingleside Ave
+   Score: 76.0/100 | Cash Needed: $164477
+
+2. 6 Berkeley St
+   Score: 76.0/100 | Cash Needed: $229125
+
+3. 7 W Hampton St
+   Score: 75.9/100 | Cash Needed: $140977
+
+4. 4 Crown St
+   Score: 75.5/100 | Cash Needed: $155099
+
+5. 29 Scenic Dr
+   Score: 74.0/100 | Cash Needed: $103165
+
+6. 11 Montague St
+   Score: 74.0/100 | Cash Needed: $111602
+
+7. 7 Lodi St
+   Score: 74.0/100 | Cash Needed: $111625
+
+8. 17 Thenius St
+   Score: 74.0/100 | Cash Needed: $117265
+
+9. 11 Chadwick Street
+   Score: 74.0/100 | Cash Needed: $123375
+
+10. 3 Mildred Ave
+   Score: 74.0/100 | Cash Needed: $123375
+
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-13T19-48-12-007Z.json

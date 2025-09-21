@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: residenthive-db
+    environment:
+      POSTGRES_USER: residenthive
+      POSTGRES_PASSWORD: localdev123
+      POSTGRES_DB: residenthive_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U residenthive"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - residenthive-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: residenthive-app
+    ports:
+      - "3000:3000"  # Frontend
+      - "3001:3001"  # Backend API
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://residenthive:localdev123@postgres:5432/residenthive_dev
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      REPLIERS_API_KEY: ${REPLIERS_API_KEY}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      APP_URL: http://localhost:3000
+      API_URL: http://localhost:3001
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:-info@residenthive.com}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-support@residenthive.com}
+      PHOENIX_COLLECTOR_ENDPOINT: http://host.docker.internal:6007
+    volumes:
+      - ./client:/app/client
+      - ./server:/app/server
+      - ./shared:/app/shared
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - residenthive-network
+    command: npm run dev
+
+networks:
+  residenthive-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

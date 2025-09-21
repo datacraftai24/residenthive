@@ -78,12 +78,11 @@ export default function InvestmentStrategy({ profile }: InvestmentStrategyProps)
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/investment-chat', {
+      const response = await fetch('/api/investment-chat-enhanced', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          context,
           sessionId: strategyId || undefined
         })
       });
@@ -104,10 +103,13 @@ export default function InvestmentStrategy({ profile }: InvestmentStrategyProps)
       setMessages(prev => [...prev, assistantMessage]);
 
       // Check if strategy generation started
-      if (data.type === 'ready_to_analyze' && data.strategyId) {
+      if (data.type === 'ready' && data.strategyId) {
         setStrategyId(data.strategyId);
         setStrategyStatus('generating');
         pollStrategyStatus(data.strategyId);
+      } else if (data.type === 'question') {
+        // Store the session ID for next message
+        setStrategyId(data.sessionId);
       }
 
     } catch (error) {

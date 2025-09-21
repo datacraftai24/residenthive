@@ -10,7 +10,11 @@ import { PropertyHunterAgent, PropertySearchCriteria, EnrichedProperty } from '.
 import { FinancialCalculatorAgent, PropertyFinancials } from './financial-calculator.js';
 import { RealEstateAdvisorAgent, PropertyEnhancementAnalysis } from './real-estate-advisor.js';
 import { DealPackagerAgent, InvestmentReport } from './deal-packager.js';
+<<<<<<< HEAD
+import { withSpan } from '../observability/withSpan.js';
+=======
 import { agentLogger, type AgentExecutionContext } from '../services/agent-logger.js';
+>>>>>>> main
 
 export interface ComprehensiveAnalysisRequest {
   userInput: string;
@@ -47,7 +51,9 @@ export class AgentOrchestrator {
     this.dealPackager = new DealPackagerAgent();
   }
 
-  async executeComprehensiveAnalysis(request: ComprehensiveAnalysisRequest): Promise<AnalysisResult> {
+  executeComprehensiveAnalysis = withSpan(
+    'ai_orchestra',
+    async (request: ComprehensiveAnalysisRequest): Promise<AnalysisResult> => {
     const strategyId = this.generateStrategyId();
     console.log(`🎯 [Orchestrator] Starting comprehensive analysis: ${strategyId}`);
 
@@ -220,6 +226,7 @@ export class AgentOrchestrator {
       throw error;
     }
   }
+  );
 
   private async performComprehensiveAnalysis(
     properties: EnrichedProperty[],

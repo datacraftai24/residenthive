@@ -149,12 +149,17 @@ export class RepliersAPIService {
     if (profile.preferredAreas && Array.isArray(profile.preferredAreas) && profile.preferredAreas.length > 0) {
       const location = profile.preferredAreas[0];
       
-      // Handle state vs city
-      if (location.toLowerCase() === 'massachusetts') {
+      // Parse city and state from location string like "Worcester, MA" or "Raleigh, NC"
+      if (location.includes(',')) {
+        const [city, state] = location.split(',').map(s => s.trim());
+        params.city = city;
+        params.state = state;
+      } else if (location.toLowerCase() === 'massachusetts') {
         params.state = 'MA';
       } else {
+        // Assume it's a city in Massachusetts if no state specified
         params.city = location;
-        params.state = 'MA'; // Default to Massachusetts
+        params.state = 'MA';
       }
     }
 

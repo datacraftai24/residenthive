@@ -1,0 +1,52 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-14T04:30:22.433Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 193
+Phase 1 Passed: 45
+Phase 2 Completed: 45
+Total Duration: 410.7s
+  - Phase 1: 369.5s
+  - Phase 2: 41.2s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+1. 57 Swan Ave
+   Score: 76.0/100 | Cash Needed: $133927
+
+2. 24 Grand St
+   Score: 76.0/100 | Cash Needed: $140998
+
+3. 15 Russell St
+   Score: 76.0/100 | Cash Needed: $207975
+
+4. 7 W Hampton St
+   Score: 75.8/100 | Cash Needed: $140977
+
+5. 15 & 87 Boardman St / Wboylston
+   Score: 75.8/100 | Cash Needed: $317250
+
+6. 92 Greenwood St
+   Score: 75.6/100 | Cash Needed: $146875
+
+7. 54 Chatham St
+   Score: 75.6/100 | Cash Needed: $146875
+
+8. 29 Scenic Dr
+   Score: 74.0/100 | Cash Needed: $103165
+
+9. 11 Montague St
+   Score: 74.0/100 | Cash Needed: $111602
+
+10. 7 Lodi St
+   Score: 74.0/100 | Cash Needed: $111625
+
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-14T04-23-31-692Z.json

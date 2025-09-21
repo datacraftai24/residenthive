@@ -1,0 +1,34 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-13T16:01:46.431Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 158
+Phase 1 Passed: 4
+Phase 2 Completed: 4
+Total Duration: 8.4s
+  - Phase 1: 0.0s
+  - Phase 2: 8.4s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+1. 17 Thenius St
+   Score: 75.7/100 | Cash Needed: $117265
+
+2. 7 Lodi St
+   Score: 73.9/100 | Cash Needed: $111625
+
+3. 27 Lyon
+   Score: 72.9/100 | Cash Needed: $126900
+
+4. 24 Grand St
+   Score: 70.9/100 | Cash Needed: $140998
+
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-13T16-01-38-022Z.json
