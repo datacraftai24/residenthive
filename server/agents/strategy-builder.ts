@@ -30,7 +30,7 @@ export interface InvestmentProfile {
 }
 
 export class StrategyBuilderAgent {
-  private model = 'gpt-3.5-turbo';
+  private model = 'gpt-4o';  // Using GPT-4o for superior reasoning and accuracy
 
   async analyzeInvestorRequirements(userInput: string, agentInsights?: string[]): Promise<InvestmentProfile> {
     const prompt = `

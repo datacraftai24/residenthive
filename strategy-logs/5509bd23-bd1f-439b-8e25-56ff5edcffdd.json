@@ -1,0 +1,451 @@
+{
+  "timestamp": "2025-09-03T01:03:44.307Z",
+  "sessionId": "5509bd23-bd1f-439b-8e25-56ff5edcffdd",
+  "clientProfile": {
+    "budget": 500000,
+    "location": "Worcester, MA",
+    "monthlyIncome": 500
+  },
+  "metrics": {
+    "priceBands": {
+      "singleFamily": {
+        "min": 376082,
+        "max": 508818,
+        "sourceIds": [
+          "research_0"
+        ]
+      },
+      "multiFamily": {
+        "min": 500650,
+        "max": 677350,
+        "sourceIds": [
+          "research_1"
+        ]
+      }
+    },
+    "rentBands": {
+      "point2Br": {
+        "value": 2057,
+        "sourceId": "research_7"
+      },
+      "twoBr": {
+        "min": 2074,
+        "max": 2444,
+        "sourceIds": [
+          "research_8"
+        ]
+      }
+    },
+    "market": {
+      "city": "Worcester, MA",
+      "salePsf": {
+        "min": 271,
+        "max": 341,
+        "sourceIds": [
+          "research_9"
+        ]
+      }
+    },
+    "rates": {
+      "sourceIds": [
+        "research_2",
+        "research_3"
+      ],
+      "conventional": 0.0659,
+      "fha": 0.0668
+    }
+  },
+  "output": {
+    "brief": "Professional investment strategies for Worcester, MA with $500000 capital",
+    "market": {
+      "city": "Worcester, MA",
+      "focus_neighborhoods": [],
+      "demand_signals": []
+    },
+    "strategies": [
+      {
+        "name": "Multi-Family Cashflow Strategy",
+        "objective": "Maximize rental income through 2-4 unit properties",
+        "buy_box": {
+          "property_types": [
+            "2 Family",
+            "3 Family",
+            "4 Family"
+          ],
+          "submarkets": [
+            "Downtown",
+            "University District"
+          ],
+          "zoning_required": [
+            "R2",
+            "R3"
+          ],
+          "lot_constraints": {
+            "min_lot_sqft": null,
+            "setbacks_notes": "Standard residential"
+          },
+          "building_constraints": {
+            "min_ceiling_ft": null,
+            "egress_req": "Two exits per unit",
+            "parking": "Off-street preferred"
+          },
+          "proximity": [
+            {
+              "to": "Employment centers",
+              "within_miles": 5
+            }
+          ],
+          "price_band_usd": {
+            "min": 500650,
+            "max": 677350
+          },
+          "beds_baths_min": {
+            "beds": 2,
+            "baths": 1
+          },
+          "exclude_flags": [
+            "major repairs",
+            "foundation issues"
+          ]
+        },
+        "evaluation_rules": {
+          "min_cap_rate_pct": null,
+          "min_monthly_cashflow_usd": null,
+          "min_dscr_base": null,
+          "fha_self_sufficiency_rule": {
+            "required": false,
+            "note": ""
+          },
+          "strategy_specific_metrics": []
+        },
+        "financing": {
+          "primary": {
+            "type": "Conventional",
+            "notes": "30-year fixed 6.59% (source: research_2, research_3)"
+          },
+          "alternatives": [
+            "FHA House-Hack",
+            "DSCR"
+          ]
+        },
+        "comps_bands": {
+          "rent": [
+            {
+              "unit_type": "2br",
+              "range_monthly": [
+                2074,
+                2444
+              ],
+              "notes": "",
+              "sources": [
+                "research_8"
+              ]
+            }
+          ],
+          "sale_psf": {
+            "range": [
+              271,
+              341
+            ],
+            "sources": [
+              "research_9"
+            ]
+          },
+          "dom_band": {
+            "range_days": [
+              null,
+              null
+            ],
+            "notes": "",
+            "sources": []
+          }
+        },
+        "execution": {
+          "typical_stabilization_months": 3,
+          "top_risks": [
+            "vacancy",
+            "maintenance"
+          ],
+          "mitigation_playbook": [
+            "thorough screening",
+            "preventive maintenance"
+          ]
+        },
+        "handoff_checklist": [
+          "property inspection",
+          "rental market analysis"
+        ],
+        "scorecard": {
+          "liquidity_0_20": 15,
+          "cashflow_quality_0_25": 20,
+          "execution_risk_0_25": 15,
+          "location_durability_0_15": 10,
+          "strategic_fit_0_15": 10,
+          "rationale": "Based on market metrics"
+        },
+        "status": "NEEDS_RESEARCH",
+        "data_asks": [
+          "Days on market (10th-90th percentile) for Worcester, MA"
+        ]
+      },
+      {
+        "name": "Single-Family Appreciation Focus",
+        "objective": "Invest in single-family homes in appreciating neighborhoods",
+        "buy_box": {
+          "property_types": [
+            "Single Family"
+          ],
+          "submarkets": [
+            "West Side",
+            "Shrewsbury Street"
+          ],
+          "zoning_required": [
+            "R1"
+          ],
+          "lot_constraints": {
+            "min_lot_sqft": null,
+            "setbacks_notes": "Standard single-family"
+          },
+          "building_constraints": {
+            "min_ceiling_ft": null,
+            "egress_req": "Standard residential",
+            "parking": "Garage preferred"
+          },
+          "proximity": [
+            {
+              "to": "Schools",
+              "within_miles": 2
+            }
+          ],
+          "price_band_usd": {
+            "min": 376082,
+            "max": 508818
+          },
+          "beds_baths_min": {
+            "beds": 3,
+            "baths": 2
+          },
+          "exclude_flags": [
+            "major structural issues",
+            "flood zone"
+          ]
+        },
+        "evaluation_rules": {
+          "min_cap_rate_pct": null,
+          "min_monthly_cashflow_usd": null,
+          "min_dscr_base": null,
+          "fha_self_sufficiency_rule": {
+            "required": false,
+            "note": ""
+          },
+          "strategy_specific_metrics": []
+        },
+        "financing": {
+          "primary": {
+            "type": "Conventional",
+            "notes": "30-year fixed 6.59% (source: research_2, research_3)"
+          },
+          "alternatives": [
+            "HELOC",
+            "Bridge Loan"
+          ]
+        },
+        "comps_bands": {
+          "rent": [
+            {
+              "unit_type": "2br",
+              "range_monthly": [
+                2074,
+                2444
+              ],
+              "notes": "",
+              "sources": [
+                "research_8"
+              ]
+            }
+          ],
+          "sale_psf": {
+            "range": [
+              271,
+              341
+            ],
+            "sources": [
+              "research_9"
+            ]
+          },
+          "dom_band": {
+            "range_days": [
+              null,
+              null
+            ],
+            "notes": "",
+            "sources": []
+          }
+        },
+        "execution": {
+          "typical_stabilization_months": 6,
+          "top_risks": [
+            "market fluctuations",
+            "longer vacancy"
+          ],
+          "mitigation_playbook": [
+            "hold strategy",
+            "strong lease agreements"
+          ]
+        },
+        "handoff_checklist": [
+          "appraisal",
+          "neighborhood growth analysis"
+        ],
+        "scorecard": {
+          "liquidity_0_20": 15,
+          "cashflow_quality_0_25": 20,
+          "execution_risk_0_25": 15,
+          "location_durability_0_15": 10,
+          "strategic_fit_0_15": 10,
+          "rationale": "Based on market metrics"
+        },
+        "status": "NEEDS_RESEARCH",
+        "data_asks": [
+          "Days on market (10th-90th percentile) for Worcester, MA"
+        ]
+      },
+      {
+        "name": "Commercial Mixed-Use Investment",
+        "objective": "Diversify income with commercial and residential units",
+        "buy_box": {
+          "property_types": [
+            "Mixed-Use"
+          ],
+          "submarkets": [
+            "Canal District",
+            "Main South"
+          ],
+          "zoning_required": [
+            "MU",
+            "BD"
+          ],
+          "lot_constraints": {
+            "min_lot_sqft": null,
+            "setbacks_notes": "Per zoning"
+          },
+          "building_constraints": {
+            "min_ceiling_ft": null,
+            "egress_req": "Commercial standards",
+            "parking": "Adequate for mixed-use"
+          },
+          "proximity": [
+            {
+              "to": "Public transport",
+              "within_miles": 1
+            }
+          ],
+          "price_band_usd": {
+            "min": 376082,
+            "max": 508818
+          },
+          "beds_baths_min": {
+            "beds": 1,
+            "baths": 1
+          },
+          "exclude_flags": [
+            "environmental hazards",
+            "unresolved zoning"
+          ]
+        },
+        "evaluation_rules": {
+          "min_cap_rate_pct": null,
+          "min_monthly_cashflow_usd": null,
+          "min_dscr_base": null,
+          "fha_self_sufficiency_rule": {
+            "required": false,
+            "note": ""
+          },
+          "strategy_specific_metrics": []
+        },
+        "financing": {
+          "primary": {
+            "type": "Conventional",
+            "notes": "30-year fixed 6.59% (source: research_2, research_3)"
+          },
+          "alternatives": [
+            "Commercial Loan",
+            "SBA"
+          ]
+        },
+        "comps_bands": {
+          "rent": [
+            {
+              "unit_type": "2br",
+              "range_monthly": [
+                2074,
+                2444
+              ],
+              "notes": "",
+              "sources": [
+                "research_8"
+              ]
+            }
+          ],
+          "sale_psf": {
+            "range": [
+              271,
+              341
+            ],
+            "sources": [
+              "research_9"
+            ]
+          },
+          "dom_band": {
+            "range_days": [
+              null,
+              null
+            ],
+            "notes": "",
+            "sources": []
+          }
+        },
+        "execution": {
+          "typical_stabilization_months": 12,
+          "top_risks": [
+            "commercial tenant turnover",
+            "regulatory changes"
+          ],
+          "mitigation_playbook": [
+            "diversified tenant base",
+            "regular audits"
+          ]
+        },
+        "handoff_checklist": [
+          "commercial lease review",
+          "mixed-use compliance"
+        ],
+        "scorecard": {
+          "liquidity_0_20": 15,
+          "cashflow_quality_0_25": 20,
+          "execution_risk_0_25": 15,
+          "location_durability_0_15": 10,
+          "strategic_fit_0_15": 10,
+          "rationale": "Based on market metrics"
+        },
+        "status": "NEEDS_RESEARCH",
+        "data_asks": [
+          "Days on market (10th-90th percentile) for Worcester, MA"
+        ]
+      }
+    ],
+    "research_log": [
+      "What is the median price for single-family homes in Worcester, MA? → 442450",
+      "What is the median price for 2-4 unit properties in Worcester, MA? → 589000",
+      "What is the current 30-year conventional mortgage rate? → 6.59",
+      "What is the current FHA mortgage interest rate? → 6.68",
+      "What is the FHA loan limit in Worcester, MA? → 1032650",
+      "What is the current vacancy rate for rental properties in Worcester, MA? → 0.048",
+      "What is the current property tax rate in Worcester, MA? → 13.19",
+      "What is the average rent for a 2-bedroom apartment in Worcester, MA? → 2057",
+      "What is the rent range for 2-bedroom apartments in Worcester, MA? → {\"min\":2074,\"max\":2444}",
+      "What is the price per square foot range for properties in Worcester, MA? → {\"min\":271,\"max\":341}",
+      "What is the average cost of homeowner's insurance in Worcester, MA? → 1623"
+    ]
+  }
+}

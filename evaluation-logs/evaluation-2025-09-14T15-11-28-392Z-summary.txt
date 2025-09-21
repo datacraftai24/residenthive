@@ -1,0 +1,52 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-14T15:20:03.103Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 191
+Phase 1 Passed: 45
+Phase 2 Completed: 45
+Total Duration: 514.7s
+  - Phase 1: 460.7s
+  - Phase 2: 54.0s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+1. 29 Scenic Dr
+   Score: NaN/100 | Cash Needed: $103165
+
+2. 11 Montague St
+   Score: NaN/100 | Cash Needed: $111602
+
+3. 7 Lodi St
+   Score: NaN/100 | Cash Needed: $111625
+
+4. 17 Thenius St
+   Score: NaN/100 | Cash Needed: $117265
+
+5. 11 Chadwick Street
+   Score: NaN/100 | Cash Needed: $123375
+
+6. 3 Mildred Ave
+   Score: NaN/100 | Cash Needed: $123375
+
+7. 629 Cambridge Street
+   Score: NaN/100 | Cash Needed: $124315
+
+8. 12 Stoneland Rd
+   Score: NaN/100 | Cash Needed: $124315
+
+9. 27 Lyon
+   Score: NaN/100 | Cash Needed: $126900
+
+10. 620 Franklin St
+   Score: NaN/100 | Cash Needed: $129015
+
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-14T15-11-28-392Z.json

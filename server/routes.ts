@@ -19,6 +19,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db.js";
 import { eq } from "drizzle-orm";
 import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
+import configRoutes from "./routes/config.js";
 
 // Helper function to create NLP prompt from buyer profile
 function createNLPPromptFromProfile(profile: any): string {
@@ -123,6 +124,9 @@ function validateChatApiKey(req: any, res: any, next: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<void> {
+  // Register config routes
+  app.use("/api/config", configRoutes);
+  
   // Extract buyer profile from raw text input
   app.post("/api/extract-profile", async (req, res) => {
     try {

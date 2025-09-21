@@ -4,6 +4,27 @@
  * Responsibility: Comprehensive financial modeling and scenario analysis
  */
 
+import { configRegistry } from '../config/config-registry.js';
+
+export interface LoanLimitValidation {
+  valid: boolean;
+  maxFHAPurchase: number;
+  maxConventionalPurchase: number;
+  reason?: string;
+  county?: string;
+  fhaLimit?: number;
+  conformingLimit?: number;
+}
+
+export interface DTIDSCRValidation {
+  valid: boolean;
+  dti?: number;
+  dscr?: number;
+  maxAllowedDTI: number;
+  minRequiredDSCR: number;
+  reason?: string;
+}
+
 export interface FinancialScenario {
   scenario: string;
   downPaymentPercent: number;
@@ -37,8 +58,59 @@ export class FinancialCalculatorAgent {
   private operatingExpenseRatio = 0.35; // 35% of rent
   private appreciationRate = 0.03; // 3% annually
 
+  /**
+   * Analyze multiple properties - used by orchestrator
+   */
+  async analyzeFinancials(
+    properties: any[], 
+    capital: number, 
+    targetReturn?: number
+  ): Promise<any[]> {
+    console.log(`💰 [Financial Calculator] Analyzing ${properties.length} properties...`);
+    
+    const results = [];
+    for (const property of properties) {
+      try {
+        const analysis = await this.analyzeProperty(property, { capital, targetReturn });
+        results.push({
+          propertyId: property.id || property.address,
+          scenarios: analysis.scenarios.map(s => ({
+            scenarioName: s.name,
+            downPayment: s.downPaymentAmount,
+            loanAmount: s.loanAmount,
+            monthlyPayment: s.monthlyPayment,
+            totalMonthlyExpenses: s.totalMonthlyExpenses,
+            monthlyRentalIncome: s.monthlyRentalIncome,
+            monthlyCashFlow: s.monthlyCashFlow,
+            annualReturn: s.returnOnEquity,
+            capRate: analysis.baseAnalysis.capRate,
+            cashOnCashReturn: s.cashOnCashReturn
+          })),
+          bestScenario: analysis.recommendedScenario.name
+        });
+      } catch (error) {
+        console.error(`❌ Error analyzing property ${property.id}:`, error);
+        results.push({
+          propertyId: property.id || property.address,
+          scenarios: [],
+          calc_error: true,
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+    
+    return results;
+  }
+
   async analyzeProperty(property: any, investmentProfile: any): Promise<PropertyFinancials> {
     console.log(`💰 [Financial Calculator] Analyzing ${property.address || 'Property'}...`);
+
+    // NEW: Validate loan limits first
+    const loanValidation = await this.validateLoanLimits(property, investmentProfile);
+    if (!loanValidation.valid) {
+      console.log(`❌ Property fails loan limit validation: ${loanValidation.reason}`);
+      // Still analyze but flag the issue
+    }
 
     // Base analysis
     const baseAnalysis = this.calculateBaseAnalysis(property);
@@ -46,18 +118,40 @@ export class FinancialCalculatorAgent {
     // Generate multiple scenarios
     const scenarios = this.generateScenarios(property, baseAnalysis);
     
-    // Determine recommended scenario
-    const recommendedScenario = this.selectRecommendedScenario(scenarios, investmentProfile);
+    // NEW: Validate DTI/DSCR for each scenario
+    const validatedScenarios = await Promise.all(
+      scenarios.map(async (scenario) => {
+        const dtiDscrValidation = await this.validateDTIDSCR(
+          property,
+          scenario,
+          investmentProfile,
+          baseAnalysis.estimatedRent
+        );
+        return {
+          ...scenario,
+          dtiDscrValidation
+        };
+      })
+    );
+    
+    // Determine recommended scenario (prefer valid ones)
+    const recommendedScenario = this.selectRecommendedScenario(validatedScenarios, investmentProfile);
     
     // Identify risk factors
     const riskFactors = this.assessRiskFactors(property, baseAnalysis, investmentProfile);
+    
+    // Add loan limit warning if applicable
+    if (!loanValidation.valid) {
+      riskFactors.unshift(`⚠️ LOAN LIMITS: ${loanValidation.reason}`);
+    }
 
     return {
       property,
       baseAnalysis,
-      scenarios,
+      scenarios: validatedScenarios,
       recommendedScenario,
-      riskFactors
+      riskFactors,
+      loanValidation
     };
   }
 

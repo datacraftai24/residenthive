@@ -1,0 +1,22 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-11T00:36:13.137Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 18
+Phase 1 Passed: 0
+Phase 2 Completed: 0
+Total Duration: 0.0s
+  - Phase 1: 0.0s
+  - Phase 2: 0.0s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-11T00-36-13-128Z.json

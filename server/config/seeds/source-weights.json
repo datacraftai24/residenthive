@@ -1,0 +1,38 @@
+{
+  "weights": {
+    "hud.gov": 1.0,
+    "census.gov": 0.95,
+    "mls.com": 0.95,
+    "mass.gov": 0.95,
+    "city.gov": 0.95,
+    "state.ma.us": 0.95,
+    "zillow.com": 0.9,
+    "rentdata.org": 0.9,
+    "redfin.com": 0.85,
+    "realtor.com": 0.85,
+    "trulia.com": 0.85,
+    "apartments.com": 0.8,
+    "rent.com": 0.85,
+    "rentometer.com": 0.85,
+    "bls.gov": 0.85,
+    "loopnet.com": 0.75,
+    "facebook.com": 0.5,
+    "forbes.com": 0.5,
+    "businessinsider.com": 0.4,
+    "craigslist.org": 0.4,
+    "blog": 0.3,
+    "unknown": 0.2
+  },
+  "categories": {
+    "government": ["hud.gov", "census.gov", "mass.gov", "city.gov", "state.ma.us", "bls.gov"],
+    "mls": ["mls.com"],
+    "aggregators": ["zillow.com", "redfin.com", "realtor.com", "trulia.com", "rentdata.org", "apartments.com", "rent.com", "rentometer.com"],
+    "news": ["forbes.com", "businessinsider.com"],
+    "userGenerated": ["craigslist.org", "facebook.com", "blog"]
+  },
+  "adjustments": {
+    "ageDecayRate": 0.1,
+    "disputePenalty": 0.2,
+    "accuracyBonus": 0.15
+  }
+}

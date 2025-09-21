@@ -1,0 +1,134 @@
+{
+  "lending": {
+    "fha": {
+      "minDownPayment": 0.035,
+      "maxDTI": 0.43,
+      "upfrontMIP": 0.0175,
+      "annualMIP": 0.0055,
+      "selfSufficiencyTest": {
+        "applies": [3, 4],
+        "minNetRentalIncome": 0.75
+      }
+    },
+    "conventional": {
+      "minDownPaymentOwnerOccupied": 0.05,
+      "minDownPaymentInvestment": 0.20,
+      "maxDTI": 0.45,
+      "pmiThreshold": 0.80
+    },
+    "dscr": {
+      "minRatio": 1.2,
+      "minDownPayment": 0.20,
+      "available": true
+    }
+  },
+  "loanLimits": {
+    "fha": {
+      "Suffolk": {
+        "oneUnit": 498257,
+        "twoUnit": 638100,
+        "threeUnit": 771525,
+        "fourUnit": 959325
+      },
+      "Middlesex": {
+        "oneUnit": 498257,
+        "twoUnit": 638100,
+        "threeUnit": 771525,
+        "fourUnit": 959325
+      },
+      "Norfolk": {
+        "oneUnit": 498257,
+        "twoUnit": 638100,
+        "threeUnit": 771525,
+        "fourUnit": 959325
+      },
+      "Essex": {
+        "oneUnit": 498257,
+        "twoUnit": 638100,
+        "threeUnit": 771525,
+        "fourUnit": 959325
+      },
+      "Plymouth": {
+        "oneUnit": 498257,
+        "twoUnit": 638100,
+        "threeUnit": 771525,
+        "fourUnit": 959325
+      },
+      "Worcester": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      },
+      "Hampden": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      },
+      "Bristol": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      },
+      "Hampshire": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      },
+      "Berkshire": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      },
+      "Barnstable": {
+        "oneUnit": 472030,
+        "twoUnit": 604400,
+        "threeUnit": 730950,
+        "fourUnit": 908775
+      },
+      "BASELINE": {
+        "oneUnit": 431250,
+        "twoUnit": 552300,
+        "threeUnit": 667650,
+        "fourUnit": 830300
+      }
+    },
+    "conforming": {
+      "Suffolk": 1149825,
+      "Middlesex": 1149825,
+      "Norfolk": 1149825,
+      "Essex": 1149825,
+      "Plymouth": 1149825,
+      "Worcester": 766550,
+      "Hampden": 766550,
+      "Bristol": 766550,
+      "Hampshire": 766550,
+      "Berkshire": 766550,
+      "Barnstable": 977500,
+      "BASELINE": 766550
+    },
+    "highCostMultiplier": 1.5
+  },
+  "investorLimits": {
+    "maxProperties": 10,
+    "minReserves": 6,
+    "experienceRequirements": {
+      "firstTime": {
+        "maxLoanAmount": 500000,
+        "requiresCourse": true
+      },
+      "intermediate": {
+        "minPriorProperties": 1,
+        "minYearsExperience": 2
+      },
+      "advanced": {
+        "minPriorProperties": 3,
+        "minYearsExperience": 5
+      }
+    }
+  }
+}

@@ -3,8 +3,10 @@ dotenv.config();
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import multiAgentRoutes from "./routes/multi-agent-analysis.js";
+// Removed: ai-investment-advisor route (replaced with investment-chat enhanced)
+import enhancedInvestmentRoutes from "./routes/investment-routes-enhanced.js";
 import { log } from "./vite";
+import { marketStatsStore } from "./services/market-stats-store.js";
 
 // ESM-safe __dirname for all path handling
 import path from "path";
@@ -93,11 +95,21 @@ app.get('/health', async (_req: Request, res: Response) => {
 });
 
 (async () => {
+  // Initialize MarketStatsStore
+  try {
+    await marketStatsStore.initialize();
+    console.log('✅ MarketStatsStore initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize MarketStatsStore:', error);
+    // Continue anyway - will use fallbacks
+  }
+  
   // Register all custom routes first
   await registerRoutes(app);
   
-  // Register multi-agent analysis routes
-  app.use('/api/multi-agent', multiAgentRoutes);
+  // Register AI Investment Advisor routes
+  // Removed: /api/ai-investment-advisor (using /api/investment-chat-enhanced instead)
+  app.use(enhancedInvestmentRoutes);
   
   // Test database connection on startup
   console.log('🔍 Testing database connection during startup...');

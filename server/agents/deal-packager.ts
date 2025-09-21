@@ -27,7 +27,69 @@ export interface InvestmentReport {
 }
 
 export class DealPackagerAgent {
-  private model = 'gpt-3.5-turbo';
+  private model = 'gpt-4o';  // Using GPT-4o for consistent quality across all agents
+
+  /**
+   * Package investment strategy - used by orchestrator
+   */
+  async packageInvestmentStrategy(
+    investmentProfile: any,
+    marketAnalyses: any[],
+    properties: any[],
+    financialAnalyses: any[],
+    recommendations: any[]
+  ): Promise<any> {
+    console.log(`📦 [Deal Packager] Packaging investment strategy...`);
+    
+    // Calculate executive summary metrics
+    const totalCapital = investmentProfile.capital || 150000;
+    const propertyCount = properties.length;
+    
+    // Calculate projected returns from financial analyses
+    let totalCashFlow = 0;
+    let totalAnnualReturn = 0;
+    let validAnalyses = 0;
+    
+    for (const analysis of financialAnalyses) {
+      if (!analysis.calc_error && analysis.scenarios?.length > 0) {
+        const bestScenario = analysis.scenarios[0];
+        totalCashFlow += bestScenario.monthlyCashFlow || 0;
+        totalAnnualReturn += bestScenario.annualReturn || 0;
+        validAnalyses++;
+      }
+    }
+    
+    const projectedMonthlyCashFlow = validAnalyses > 0 ? Math.round(totalCashFlow / validAnalyses) : 0;
+    const projectedAnnualReturn = validAnalyses > 0 ? totalAnnualReturn / validAnalyses : 0;
+    
+    // Get top recommendations
+    const topRecommendations = recommendations
+      .slice(0, 3)
+      .map(r => `${r.propertyId}: Score ${r.score}/100`);
+    
+    // Identify key risks
+    const keyRisks = [];
+    if (projectedMonthlyCashFlow < 0) keyRisks.push('Negative cash flow properties');
+    if (propertyCount === 0) keyRisks.push('No suitable properties found');
+    if (marketAnalyses.some(m => m.rentGrowth < 2)) keyRisks.push('Low rent growth markets');
+    
+    return {
+      reportFilePath: `/reports/investment_${Date.now()}.pdf`,
+      executiveSummary: {
+        totalCapital,
+        propertyCount,
+        projectedAnnualReturn: Math.round(projectedAnnualReturn * 100) / 100,
+        projectedMonthlyCashFlow,
+        topRecommendations,
+        keyRisks
+      },
+      purchasingPower: investmentProfile,
+      marketAnalyses,
+      enhancedProperties: properties,
+      financialAnalyses,
+      recommendations
+    };
+  }
 
   async generateComprehensiveReport(
     investmentProfile: any,

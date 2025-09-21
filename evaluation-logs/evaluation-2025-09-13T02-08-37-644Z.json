@@ -1,0 +1,5581 @@
+{
+  "timestamp": "2025-09-13T02:08:37.645Z",
+  "strategy": {
+    "name": "Multi-Family Cashflow Strategy",
+    "objective": "Maximize rental income through 2-4 unit properties",
+    "buy_box": {
+      "property_types": [
+        "Multi Family",
+        "2 Family",
+        "3 Family",
+        "4 Family"
+      ],
+      "submarkets": [
+        "Downtown",
+        "University District"
+      ],
+      "zoning_required": [
+        "R2",
+        "R3"
+      ],
+      "lot_constraints": {
+        "min_lot_sqft": null,
+        "setbacks_notes": "Standard residential"
+      },
+      "building_constraints": {
+        "min_ceiling_ft": null,
+        "egress_req": "Two exits per unit",
+        "parking": "Off-street preferred"
+      },
+      "proximity": [
+        {
+          "to": "Employment centers",
+          "within_miles": 5
+        }
+      ],
+      "price_band_usd": {
+        "min": 1061224,
+        "max": 2653061,
+        "provenance": {
+          "source": "affordability",
+          "afford_range": "1061224-2653061",
+          "market_statistical_range": "382415-517385",
+          "note": "Using full affordability - evaluation gates will filter"
+        }
+      },
+      "beds_baths_min": {
+        "beds": 2,
+        "baths": 1
+      },
+      "exclude_flags": [
+        "major repairs",
+        "foundation issues"
+      ]
+    },
+    "evaluation_rules": {
+      "min_cap_rate_pct": 0.045,
+      "min_monthly_cashflow_usd": 150,
+      "min_dscr_base": 1.05,
+      "stress_dscr_floor": 1,
+      "vacancy_assumption_pct": 10,
+      "fha_self_sufficiency_required": true,
+      "dom_max_days": 120,
+      "allowed_property_types": [
+        "Multi Family",
+        "2 Family",
+        "3 Family",
+        "4 Family",
+        "Duplex",
+        "Triplex",
+        "Fourplex"
+      ],
+      "strategy_specific_metrics": [],
+      "provenance": {
+        "source": "server_defaults"
+      }
+    },
+    "financing": {
+      "primary": {
+        "type": "Conventional",
+        "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+      },
+      "alternatives": [
+        "FHA House-Hack",
+        "DSCR"
+      ]
+    },
+    "comps_bands": {
+      "rent": [],
+      "sale_psf": {
+        "range": [
+          null,
+          null
+        ],
+        "sources": []
+      },
+      "dom_band": {
+        "range_days": [
+          null,
+          null
+        ],
+        "notes": "",
+        "sources": []
+      }
+    },
+    "execution": {
+      "typical_stabilization_months": 3,
+      "top_risks": [
+        "vacancy",
+        "maintenance"
+      ],
+      "mitigation_playbook": [
+        "thorough screening",
+        "preventive maintenance"
+      ]
+    },
+    "handoff_checklist": [
+      "property inspection",
+      "rental market analysis"
+    ],
+    "scorecard": {
+      "liquidity_0_20": 15,
+      "cashflow_quality_0_25": 20,
+      "execution_risk_0_25": 15,
+      "location_durability_0_15": 10,
+      "strategic_fit_0_15": 10,
+      "rationale": "Based on market metrics"
+    },
+    "status": "NEEDS_RESEARCH",
+    "rent_table": {
+      "STUDIO": {
+        "A": 2440,
+        "B": 1601,
+        "C": 1270
+      },
+      "1BR": {
+        "A": 4300,
+        "B": 1900,
+        "C": 1000
+      },
+      "2BR": {
+        "A": 4300,
+        "B": 2100,
+        "C": 1432
+      },
+      "3BR": {
+        "A": 4015,
+        "B": 2495,
+        "C": 1594
+      }
+    },
+    "data_asks": [
+      "2-bedroom rental rates for Worcester MA",
+      "Sale price per square foot (10th-90th percentile) for Worcester MA",
+      "Days on market (10th-90th percentile) for Worcester MA"
+    ],
+    "search_space": {
+      "absolute_range": {
+        "min": 1061224,
+        "max": 2653061
+      },
+      "sweet_spot": {
+        "min": 325052,
+        "max": 646732,
+        "note": "Statistical center - reference only"
+      },
+      "dynamic_gates": {
+        "base_cap_rate": 0.065,
+        "base_coc": 0.08,
+        "base_dscr": 1.25,
+        "cap_rate_slope": 0.1,
+        "coc_slope": 0.2,
+        "dscr_floor": 1.2
+      },
+      "evaluation_directive": "COMPREHENSIVE",
+      "market_context": {
+        "median_price": 449900
+      }
+    },
+    "evaluation_directive": "COMPREHENSIVE",
+    "market_context": {
+      "median_price": 449900,
+      "statistical_market_band": {
+        "min": 382415,
+        "max": 517385,
+        "source": "multiFamily",
+        "note": "Reference only - not a constraint"
+      },
+      "search_range": {
+        "min": 1061224,
+        "max": 2653061,
+        "notes": [
+          "20% down, closing≈3.5%"
+        ]
+      },
+      "median_ppsf": null
+    },
+    "stress_params": {
+      "rate_bump_bps": 75,
+      "vacancy_bump_pct": 8,
+      "expense_inflation_pct": 3
+    }
+  },
+  "totalProperties": 9,
+  "phase1Results": [
+    {
+      "property": {
+        "id": "73403751",
+        "address": "10 Imperial Rd",
+        "price": 1100000,
+        "bedrooms": 9,
+        "bathrooms": 3,
+        "propertyType": "3 Family",
+        "units": 3,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01604",
+        "fullAddress": "10 Imperial Rd, Worcester, MA",
+        "mls_id": "73403751",
+        "strategicScore": 81,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73403751",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1100000,
+          "listDate": "2025-07-31T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1100000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Imperial Rd",
+            "streetNumber": "10",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01604",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "10imperialrdworcester"
+          },
+          "map": {
+            "latitude": 42.271416,
+            "longitude": -71.776842,
+            "point": "POINT (-71.776842 42.271416)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73403751_1.jpg",
+            "mlspin/IMG-73403751_2.jpg",
+            "mlspin/IMG-73403751_3.jpg",
+            "mlspin/IMG-73403751_4.jpg",
+            "mlspin/IMG-73403751_5.jpg",
+            "mlspin/IMG-73403751_6.jpg",
+            "mlspin/IMG-73403751_7.jpg",
+            "mlspin/IMG-73403751_8.jpg",
+            "mlspin/IMG-73403751_9.jpg",
+            "mlspin/IMG-73403751_10.jpg",
+            "mlspin/IMG-73403751_11.jpg",
+            "mlspin/IMG-73403751_12.jpg",
+            "mlspin/IMG-73403751_13.jpg",
+            "mlspin/IMG-73403751_14.jpg",
+            "mlspin/IMG-73403751_15.jpg",
+            "mlspin/IMG-73403751_16.jpg",
+            "mlspin/IMG-73403751_17.jpg",
+            "mlspin/IMG-73403751_18.jpg"
+          ],
+          "photoCount": 18,
+          "details": {
+            "airConditioning": null,
+            "basement1": "Full, Walk-Out Access, Interior Entry, Concrete, Unfinished",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Exceptional Multi-Family with Income & Expansion Potential! Each ~1,500 sq ft unit offers 3 large bedrooms, 2 living rooms (or option for 4th bedroom), a spacious eat-in kitchen, in-unit laundry, enclosed porch, and private storage. Located on a corner lot just off Shrewsbury St—near top dining, nightlife, UMASS hospitals, and urgent care. The property includes a large, commercial-zoned basement with separate entrance—ideal for future apartment or business space (buyer to verify use). Rare opportunity to invest or live in a highly desirable Worcester location with strong rental income and room to grow. Group Showing 8/8/25 11 am to 1 pm",
+            "elevator": null,
+            "exteriorConstruction1": null,
+            "exteriorConstruction2": null,
+            "extras": null,
+            "furnished": null,
+            "garage": null,
+            "heating": "Hot Water, Natural Gas",
+            "numBathrooms": 3,
+            "numBathroomsPlus": null,
+            "numBedrooms": 9,
+            "numBedroomsPlus": null,
+            "numFireplaces": null,
+            "numGarageSpaces": 7,
+            "numParkingSpaces": null,
+            "numRooms": 19,
+            "numRoomsPlus": null,
+            "patio": "Enclosed, Patio",
+            "propertyType": "Residential Income",
+            "sqft": "4704",
+            "style": "3 Family",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1900",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Tile, Varies, Laminate, Hardwood, Wood",
+            "foundationType": "Brick/Mortar",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "BG-2",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": null
+          },
+          "daysOnMarket": 40,
+          "occupancy": null,
+          "updatedOn": "2025-09-09T17:36:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.14,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.14,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 6000,
+            "features": "Corner Lot, Level",
+            "taxLot": "00039"
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Pool",
+              "Park",
+              "Medical Facility",
+              "Laundromat"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [
+            {
+              "date": "2025-08-08",
+              "startTime": "2025-08-08T15:00:00.000-00:00",
+              "endTime": "2025-08-08T17:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            }
+          ],
+          "rooms": [],
+          "taxes": {
+            "annualAmount": 9038,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-09T17:36:00.000-00:00",
+            "listingUpdated": "2025-09-09T17:36:00.000-00:00",
+            "photosUpdated": "2025-07-31T13:29:10.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-07-31T07:05:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-09T17:57:12.389Z",
+            "imageInsightsUpdatedOn": "2025-07-31T13:29:10.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 51176,
+              "boardAgentId": "G8000593",
+              "officeId": 24356,
+              "updatedOn": "2024-03-03 05:00:00",
+              "name": "Kennia Mejia",
+              "board": null,
+              "boardOfficeId": "AN7014",
+              "position": null,
+              "phones": [
+                "978-360-7273",
+                "978-208-0449"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Century 21 North East",
+                "address": {
+                  "address1": "Suite 14",
+                  "address2": null,
+                  "city": "Lawrence",
+                  "state": "MA",
+                  "postal": "01843",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "boardId": 68,
+          "simpleDaysOnMarket": 45,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 153,
+            "page": 2
+          }
+        },
+        "strategy": "Multi-Family Cashflow Strategy",
+        "strategyDetails": {
+          "name": "Multi-Family Cashflow Strategy",
+          "objective": "Maximize rental income through 2-4 unit properties",
+          "buy_box": {
+            "property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family"
+            ],
+            "submarkets": [
+              "Downtown",
+              "University District"
+            ],
+            "zoning_required": [
+              "R2",
+              "R3"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "Two exits per unit",
+              "parking": "Off-street preferred"
+            },
+            "proximity": [
+              {
+                "to": "Employment centers",
+                "within_miles": 5
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 2,
+              "baths": 1
+            },
+            "exclude_flags": [
+              "major repairs",
+              "foundation issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": 0.045,
+            "min_monthly_cashflow_usd": 150,
+            "min_dscr_base": 1.05,
+            "stress_dscr_floor": 1,
+            "vacancy_assumption_pct": 10,
+            "fha_self_sufficiency_required": true,
+            "dom_max_days": 120,
+            "allowed_property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family",
+              "Duplex",
+              "Triplex",
+              "Fourplex"
+            ],
+            "strategy_specific_metrics": [],
+            "provenance": {
+              "source": "server_defaults"
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA House-Hack",
+              "DSCR"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 3,
+            "top_risks": [
+              "vacancy",
+              "maintenance"
+            ],
+            "mitigation_playbook": [
+              "thorough screening",
+              "preventive maintenance"
+            ]
+          },
+          "handoff_checklist": [
+            "property inspection",
+            "rental market analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          },
+          "stress_params": {
+            "rate_bump_bps": 75,
+            "vacancy_bump_pct": 8,
+            "expense_inflation_pct": 3
+          }
+        }
+      },
+      "uw": {
+        "NOI": 35358.7,
+        "CapRate": 0.03214427272727272,
+        "DSCR": 0.5297470553755212,
+        "CoC": -0.12142237245979554,
+        "cashNeeded": 258500.00000000003,
+        "stress": {
+          "NOI": 24644.196,
+          "DSCR": 0.3421008249694573,
+          "CoC": -0.1833408865529349,
+          "passed": false
+        },
+        "pass": false,
+        "reasons": [
+          "Failed stress test: DSCR 0.34 < 1"
+        ]
+      },
+      "pass": false,
+      "score": 0.0548815066633883,
+      "scores": {
+        "uw_base": 0,
+        "loc_score": 0.5,
+        "ppsf_score": 0.5,
+        "dom_score": 0.5,
+        "age_score": 1,
+        "tax_score": 0.5,
+        "photo_score": 0,
+        "composite": 0.35
+      },
+      "reasons": [
+        "Cap rate 3.2% < 4.5%",
+        "DSCR 0.53 < 1.05",
+        "Stress DSCR 0.34 < 1"
+      ],
+      "rentEstimate": {
+        "point": 1900,
+        "band": [
+          1805,
+          1995
+        ],
+        "confidence": "MARKET_MODELED",
+        "method": "frozen_table:Worcester:unit_mix",
+        "provenance": {
+          "source": "city_rent_table",
+          "n_samples": 3
+        },
+        "notes": [
+          "Total rent: $5700/mo for 3 units"
+        ]
+      },
+      "dualOutput": {
+        "asIs": {
+          "price": 1100000,
+          "units": 3,
+          "sources": {
+            "price": "MLS listing",
+            "units": "3 units"
+          }
+        },
+        "proForma": {
+          "assumptions": {
+            "rentEstimate": 5700,
+            "rentMethod": "ESTIMATED",
+            "vacancy": 0.05,
+            "management": 0.08,
+            "maintenance": 0.05,
+            "reserves": 0.05,
+            "insurance": 4400,
+            "taxes": 13200
+          },
+          "financials": {
+            "GSR": 68400,
+            "vacancy": 3420,
+            "EGI": 64980,
+            "opex": 29621.300000000003,
+            "NOI": 35358.7,
+            "capRate": 0.03214427272727272,
+            "loan": 880000,
+            "payment": 5562.198606738095,
+            "DSCR": 0.5297470553755212,
+            "cashFlow": -31387.68328085715,
+            "CoC": -0.12142237245979554,
+            "cashNeeded": 258500.00000000003
+          },
+          "stress": {
+            "assumptions": {
+              "rentDrop": 0.1,
+              "rateIncrease": 0.0075,
+              "opexIncrease": 0.08,
+              "vacancyIncrease": 0.03
+            },
+            "results": {
+              "NOI": 24644.196,
+              "DSCR": 0.3421008249694573,
+              "CoC": -0.1833408865529349,
+              "passed": false
+            }
+          }
+        },
+        "verdict": {
+          "pass": false,
+          "confidence": "LOW",
+          "reasons": [
+            "Failed stress test: DSCR 0.34 < 1"
+          ],
+          "dataQuality": "Missing rent and expenses"
+        }
+      }
+    },
+    {
+      "property": {
+        "id": "73417803",
+        "address": "139 Lincoln St",
+        "price": 1174999,
+        "bedrooms": 12,
+        "bathrooms": 3,
+        "propertyType": "3 Family",
+        "units": 3,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01605",
+        "fullAddress": "139 Lincoln St, Worcester, MA",
+        "mls_id": "73417803",
+        "strategicScore": 81,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73417803",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1174999,
+          "listDate": "2025-08-13T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1199999,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Lincoln St",
+            "streetNumber": "139",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01605",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "139lincolnstworcester"
+          },
+          "map": {
+            "latitude": 42.27842,
+            "longitude": -71.793759,
+            "point": "POINT (-71.793759 42.27842)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73417803_1.jpg",
+            "mlspin/IMG-73417803_2.jpg",
+            "mlspin/IMG-73417803_3.jpg",
+            "mlspin/IMG-73417803_4.jpg",
+            "mlspin/IMG-73417803_5.jpg",
+            "mlspin/IMG-73417803_6.jpg",
+            "mlspin/IMG-73417803_7.jpg",
+            "mlspin/IMG-73417803_8.jpg",
+            "mlspin/IMG-73417803_9.jpg",
+            "mlspin/IMG-73417803_10.jpg",
+            "mlspin/IMG-73417803_11.jpg",
+            "mlspin/IMG-73417803_12.jpg",
+            "mlspin/IMG-73417803_13.jpg",
+            "mlspin/IMG-73417803_14.jpg",
+            "mlspin/IMG-73417803_15.jpg",
+            "mlspin/IMG-73417803_16.jpg",
+            "mlspin/IMG-73417803_17.jpg",
+            "mlspin/IMG-73417803_18.jpg",
+            "mlspin/IMG-73417803_19.jpg",
+            "mlspin/IMG-73417803_20.jpg",
+            "mlspin/IMG-73417803_21.jpg",
+            "mlspin/IMG-73417803_22.jpg",
+            "mlspin/IMG-73417803_23.jpg",
+            "mlspin/IMG-73417803_24.jpg",
+            "mlspin/IMG-73417803_25.jpg",
+            "mlspin/IMG-73417803_26.jpg",
+            "mlspin/IMG-73417803_27.jpg",
+            "mlspin/IMG-73417803_28.jpg",
+            "mlspin/IMG-73417803_29.jpg",
+            "mlspin/IMG-73417803_30.jpg",
+            "mlspin/IMG-73417803_31.jpg",
+            "mlspin/IMG-73417803_32.jpg",
+            "mlspin/IMG-73417803_33.jpg",
+            "mlspin/IMG-73417803_34.jpg",
+            "mlspin/IMG-73417803_35.jpg",
+            "mlspin/IMG-73417803_36.jpg"
+          ],
+          "photoCount": 36,
+          "details": {
+            "airConditioning": null,
+            "basement1": "Unfinished",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Rare investment opportunity in Worcester! This fully gut-renovated 3-family features three spacious 4BR/1BA units. Each unit boasts brand-new kitchens, bathrooms, appliances, and HVAC systems, plus a brand new roof for peace of mind. Modern finishes throughout blend perfectly with durable design for long term value. Ample parking available. Prime location just minutes to I-290, shops, restaurants, Green Hill Park & Golf Course, and only 2 miles to vibrant Kelley Square. A true turnkey, this income generating property is perfect for investors or owner-occupants looking for strong cash flow! All 3 units are vacant.",
+            "elevator": null,
+            "exteriorConstruction1": null,
+            "exteriorConstruction2": null,
+            "extras": "Range, Refrigerator",
+            "furnished": null,
+            "garage": null,
+            "heating": null,
+            "numBathrooms": 3,
+            "numBathroomsPlus": null,
+            "numBedrooms": 12,
+            "numBedroomsPlus": null,
+            "numFireplaces": "4",
+            "numGarageSpaces": null,
+            "numParkingSpaces": 2,
+            "numRooms": 18,
+            "numRoomsPlus": null,
+            "patio": "Deck - Wood",
+            "propertyType": "Residential Income",
+            "sqft": "4870",
+            "style": "3 Family",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1903",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Wood",
+            "foundationType": "Stone, Irregular",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RG-5",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": null
+          },
+          "daysOnMarket": 30,
+          "occupancy": null,
+          "updatedOn": "2025-09-12T07:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.15,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.15,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 6502,
+            "features": "Other",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Park",
+              "Medical Facility",
+              "Laundromat"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [
+            {
+              "date": "2025-08-16",
+              "startTime": "2025-08-16T15:00:00.000-00:00",
+              "endTime": "2025-08-16T17:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-08-17",
+              "startTime": "2025-08-17T15:00:00.000-00:00",
+              "endTime": "2025-08-17T17:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            }
+          ],
+          "rooms": [],
+          "taxes": {
+            "annualAmount": 12126,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-12T07:05:00.000-00:00",
+            "listingUpdated": "2025-09-12T07:05:00.000-00:00",
+            "photosUpdated": "2025-08-14T02:33:15.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-08-14T02:29:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-12T07:43:01.328Z",
+            "lastPriceChanged": "2025-09-08T16:12:03.574-00:00",
+            "imageInsightsUpdatedOn": "2025-08-14T02:33:15.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 214055,
+              "boardAgentId": "CN214055",
+              "officeId": 3935,
+              "updatedOn": "2024-04-02 04:00:00",
+              "name": "Jennifer French",
+              "board": null,
+              "boardOfficeId": "BB9805",
+              "position": null,
+              "phones": [
+                "617-997-2207",
+                "508-435-6700"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "RE/MAX Executive Realty",
+                "address": {
+                  "address1": "Suite 203",
+                  "address2": null,
+                  "city": "Hopkinton",
+                  "state": "MA",
+                  "postal": "01748",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "virtualTours": [
+            {
+              "url": "https://www.seetheproperty.com/u/485511",
+              "description": "HomeDiary Virtual Tour"
+            }
+          ],
+          "listPriceLog": [
+            {
+              "updatedOn": "2025-09-08T16:12:03.574Z",
+              "type": "decrease",
+              "currentListPrice": "1174999.00",
+              "previousListPrice": "1199999.00"
+            }
+          ],
+          "lastPriceChangeType": "decrease",
+          "boardId": 68,
+          "simpleDaysOnMarket": 32,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 170,
+            "page": 2
+          }
+        },
+        "strategy": "Multi-Family Cashflow Strategy",
+        "strategyDetails": {
+          "name": "Multi-Family Cashflow Strategy",
+          "objective": "Maximize rental income through 2-4 unit properties",
+          "buy_box": {
+            "property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family"
+            ],
+            "submarkets": [
+              "Downtown",
+              "University District"
+            ],
+            "zoning_required": [
+              "R2",
+              "R3"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "Two exits per unit",
+              "parking": "Off-street preferred"
+            },
+            "proximity": [
+              {
+                "to": "Employment centers",
+                "within_miles": 5
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 2,
+              "baths": 1
+            },
+            "exclude_flags": [
+              "major repairs",
+              "foundation issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": 0.045,
+            "min_monthly_cashflow_usd": 150,
+            "min_dscr_base": 1.05,
+            "stress_dscr_floor": 1,
+            "vacancy_assumption_pct": 10,
+            "fha_self_sufficiency_required": true,
+            "dom_max_days": 120,
+            "allowed_property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family",
+              "Duplex",
+              "Triplex",
+              "Fourplex"
+            ],
+            "strategy_specific_metrics": [],
+            "provenance": {
+              "source": "server_defaults"
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA House-Hack",
+              "DSCR"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 3,
+            "top_risks": [
+              "vacancy",
+              "maintenance"
+            ],
+            "mitigation_playbook": [
+              "thorough screening",
+              "preventive maintenance"
+            ]
+          },
+          "handoff_checklist": [
+            "property inspection",
+            "rental market analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          },
+          "stress_params": {
+            "rate_bump_bps": 75,
+            "vacancy_bump_pct": 8,
+            "expense_inflation_pct": 3
+          }
+        }
+      },
+      "uw": {
+        "NOI": 34158.716,
+        "CapRate": 0.029071272401082895,
+        "DSCR": 0.4791031074542519,
+        "CoC": -0.13449896959251822,
+        "cashNeeded": 276124.765,
+        "stress": {
+          "NOI": 23348.213279999996,
+          "DSCR": 0.3034228667784071,
+          "CoC": -0.19411951557990595,
+          "passed": false
+        },
+        "pass": false,
+        "reasons": [
+          "Failed stress test: DSCR 0.30 < 1"
+        ]
+      },
+      "pass": false,
+      "score": 0.03729251841491614,
+      "scores": {
+        "uw_base": 0,
+        "loc_score": 0.5,
+        "ppsf_score": 0.5,
+        "dom_score": 0.5,
+        "age_score": 1,
+        "tax_score": 0.5,
+        "photo_score": 0,
+        "composite": 0.35
+      },
+      "reasons": [
+        "Cap rate 2.9% < 4.5%",
+        "DSCR 0.48 < 1.05",
+        "Stress DSCR 0.30 < 1"
+      ],
+      "rentEstimate": {
+        "point": 1900,
+        "band": [
+          1805,
+          1995
+        ],
+        "confidence": "MARKET_MODELED",
+        "method": "frozen_table:Worcester:unit_mix",
+        "provenance": {
+          "source": "city_rent_table",
+          "n_samples": 3
+        },
+        "notes": [
+          "Total rent: $5700/mo for 3 units"
+        ]
+      },
+      "dualOutput": {
+        "asIs": {
+          "price": 1174999,
+          "units": 3,
+          "sources": {
+            "price": "MLS listing",
+            "units": "3 units"
+          }
+        },
+        "proForma": {
+          "assumptions": {
+            "rentEstimate": 5700,
+            "rentMethod": "ESTIMATED",
+            "vacancy": 0.05,
+            "management": 0.08,
+            "maintenance": 0.05,
+            "reserves": 0.05,
+            "insurance": 4699.996,
+            "taxes": 14099.988000000001
+          },
+          "financials": {
+            "GSR": 68400,
+            "vacancy": 3420,
+            "EGI": 64980,
+            "opex": 30821.284000000003,
+            "NOI": 34158.716,
+            "capRate": 0.029071272401082895,
+            "loan": 939999.2000000001,
+            "payment": 5941.4343642896865,
+            "DSCR": 0.4791031074542519,
+            "cashFlow": -37138.49637147624,
+            "CoC": -0.13449896959251822,
+            "cashNeeded": 276124.765
+          },
+          "stress": {
+            "assumptions": {
+              "rentDrop": 0.1,
+              "rateIncrease": 0.0075,
+              "opexIncrease": 0.08,
+              "vacancyIncrease": 0.03
+            },
+            "results": {
+              "NOI": 23348.213279999996,
+              "DSCR": 0.3034228667784071,
+              "CoC": -0.19411951557990595,
+              "passed": false
+            }
+          }
+        },
+        "verdict": {
+          "pass": false,
+          "confidence": "LOW",
+          "reasons": [
+            "Failed stress test: DSCR 0.30 < 1"
+          ],
+          "dataQuality": "Missing rent and expenses"
+        }
+      }
+    },
+    {
+      "property": {
+        "id": "73417015",
+        "address": "6 Pelham Street",
+        "price": 1200000,
+        "bedrooms": 9,
+        "bathrooms": 3,
+        "propertyType": "3 Family",
+        "units": 3,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01609",
+        "fullAddress": "6 Pelham Street, Worcester, MA",
+        "mls_id": "73417015",
+        "strategicScore": 81,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73417015",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1200000,
+          "listDate": "2025-08-12T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1100000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Pelham Street",
+            "streetNumber": "6",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01609",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "6pelhamstreetworcester"
+          },
+          "map": {
+            "latitude": 42.265397,
+            "longitude": -71.814165,
+            "point": "POINT (-71.814165 42.265397)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73417015_1.jpg",
+            "mlspin/IMG-73417015_2.jpg",
+            "mlspin/IMG-73417015_3.jpg",
+            "mlspin/IMG-73417015_4.jpg",
+            "mlspin/IMG-73417015_5.jpg",
+            "mlspin/IMG-73417015_6.jpg",
+            "mlspin/IMG-73417015_7.jpg",
+            "mlspin/IMG-73417015_8.jpg",
+            "mlspin/IMG-73417015_9.jpg",
+            "mlspin/IMG-73417015_10.jpg",
+            "mlspin/IMG-73417015_11.jpg",
+            "mlspin/IMG-73417015_12.jpg",
+            "mlspin/IMG-73417015_13.jpg",
+            "mlspin/IMG-73417015_14.jpg",
+            "mlspin/IMG-73417015_15.jpg",
+            "mlspin/IMG-73417015_16.jpg",
+            "mlspin/IMG-73417015_17.jpg",
+            "mlspin/IMG-73417015_18.jpg",
+            "mlspin/IMG-73417015_19.jpg",
+            "mlspin/IMG-73417015_20.jpg",
+            "mlspin/IMG-73417015_21.jpg",
+            "mlspin/IMG-73417015_22.jpg",
+            "mlspin/IMG-73417015_23.jpg"
+          ],
+          "photoCount": 23,
+          "details": {
+            "airConditioning": null,
+            "basement1": "Full, Unfinished",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "DON'T MISS THIS OPPORTUNITY! RECENT UPDATES AND REMODELED. A LARGE 3 FAMILY WITH 9 BEDROOMS 3 FULL BATHS, APPROXIMATELY 1,400+ SQ FT EACH UNIT OFFER A LARGE EAT IN KITCHENS, DINING ROOMS, LIVING ROOMS, IN UNIT LAUNDRY ROOMS AND OFF STREET PARKING. THE PERFECT PLACE FOR AN OWNER OCCUPANT OR INVESTOR - GAS HEAT.  HARDWOODS THROUGHOUT (SOME ARE COVERED). A LARGE CLEAN BASEMENT, PLENTY OF OFF STREET PARKING.  LOCATION IS THE KEY HERE, WALKING DISTANCE TO ELM PARK AND NEAR WPI.",
+            "elevator": null,
+            "exteriorConstruction1": "Frame",
+            "exteriorConstruction2": null,
+            "extras": null,
+            "furnished": null,
+            "garage": null,
+            "heating": "Central, Forced Air",
+            "numBathrooms": 3,
+            "numBathroomsPlus": null,
+            "numBedrooms": 9,
+            "numBedroomsPlus": null,
+            "numFireplaces": null,
+            "numGarageSpaces": null,
+            "numParkingSpaces": 6,
+            "numRooms": 24,
+            "numRoomsPlus": null,
+            "patio": null,
+            "propertyType": "Residential Income",
+            "sqft": "4452",
+            "style": "3 Family",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1890",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": null,
+            "foundationType": "Stone, Brick/Mortar",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RG-5",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": null
+          },
+          "daysOnMarket": 4,
+          "occupancy": null,
+          "updatedOn": "2025-08-16T07:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.12,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.12,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 5257,
+            "features": "Other",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Park",
+              "Medical Facility",
+              "Highway Access",
+              "House of Worship"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [],
+          "rooms": [],
+          "taxes": {
+            "annualAmount": 7946,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-08-16T07:05:00.000-00:00",
+            "listingUpdated": "2025-08-16T07:05:00.000-00:00",
+            "photosUpdated": "2025-08-13T00:27:00.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-08-13T00:27:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-08-16T07:41:47.372Z",
+            "lastPriceChanged": "2025-08-13T01:42:06.276-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 71850,
+              "boardAgentId": "K8002013",
+              "officeId": 15052,
+              "updatedOn": "2024-02-03 05:00:00",
+              "name": "Christina Kelly",
+              "board": null,
+              "boardOfficeId": "K95624",
+              "position": null,
+              "phones": [
+                "774-239-9825",
+                "508-366-4888"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "ALL CAPITAL REALTY, LLC",
+                "address": {
+                  "address1": "486 Grafton Street",
+                  "address2": null,
+                  "city": "Westborough",
+                  "state": "MA",
+                  "postal": "01581",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "listPriceLog": [
+            {
+              "updatedOn": "2025-08-13T01:42:06.276Z",
+              "type": "increase",
+              "currentListPrice": "1200000.00",
+              "previousListPrice": "1100000.00"
+            }
+          ],
+          "lastPriceChangeType": "increase",
+          "boardId": 68,
+          "simpleDaysOnMarket": 33,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 176,
+            "page": 2
+          }
+        },
+        "strategy": "Multi-Family Cashflow Strategy",
+        "strategyDetails": {
+          "name": "Multi-Family Cashflow Strategy",
+          "objective": "Maximize rental income through 2-4 unit properties",
+          "buy_box": {
+            "property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family"
+            ],
+            "submarkets": [
+              "Downtown",
+              "University District"
+            ],
+            "zoning_required": [
+              "R2",
+              "R3"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "Two exits per unit",
+              "parking": "Off-street preferred"
+            },
+            "proximity": [
+              {
+                "to": "Employment centers",
+                "within_miles": 5
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 2,
+              "baths": 1
+            },
+            "exclude_flags": [
+              "major repairs",
+              "foundation issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": 0.045,
+            "min_monthly_cashflow_usd": 150,
+            "min_dscr_base": 1.05,
+            "stress_dscr_floor": 1,
+            "vacancy_assumption_pct": 10,
+            "fha_self_sufficiency_required": true,
+            "dom_max_days": 120,
+            "allowed_property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family",
+              "Duplex",
+              "Triplex",
+              "Fourplex"
+            ],
+            "strategy_specific_metrics": [],
+            "provenance": {
+              "source": "server_defaults"
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA House-Hack",
+              "DSCR"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 3,
+            "top_risks": [
+              "vacancy",
+              "maintenance"
+            ],
+            "mitigation_playbook": [
+              "thorough screening",
+              "preventive maintenance"
+            ]
+          },
+          "handoff_checklist": [
+            "property inspection",
+            "rental market analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          },
+          "stress_params": {
+            "rate_bump_bps": 75,
+            "vacancy_bump_pct": 8,
+            "expense_inflation_pct": 3
+          }
+        }
+      },
+      "uw": {
+        "NOI": 33758.7,
+        "CapRate": 0.028132249999999998,
+        "DSCR": 0.4636277424918566,
+        "CoC": -0.13849480959712626,
+        "cashNeeded": 282000,
+        "stress": {
+          "NOI": 22916.195999999996,
+          "DSCR": 0.2916039714597152,
+          "CoC": -0.19741316121444363,
+          "passed": false
+        },
+        "pass": false,
+        "reasons": [
+          "Failed stress test: DSCR 0.29 < 1"
+        ]
+      },
+      "pass": false,
+      "score": 0.031917818699808205,
+      "scores": {
+        "uw_base": 0,
+        "loc_score": 0.5,
+        "ppsf_score": 0.5,
+        "dom_score": 0.5,
+        "age_score": 1,
+        "tax_score": 0.5,
+        "photo_score": 0,
+        "composite": 0.35
+      },
+      "reasons": [
+        "Cap rate 2.8% < 4.5%",
+        "DSCR 0.46 < 1.05",
+        "Stress DSCR 0.29 < 1"
+      ],
+      "rentEstimate": {
+        "point": 1900,
+        "band": [
+          1805,
+          1995
+        ],
+        "confidence": "MARKET_MODELED",
+        "method": "frozen_table:Worcester:unit_mix",
+        "provenance": {
+          "source": "city_rent_table",
+          "n_samples": 3
+        },
+        "notes": [
+          "Total rent: $5700/mo for 3 units"
+        ]
+      },
+      "dualOutput": {
+        "asIs": {
+          "price": 1200000,
+          "units": 3,
+          "sources": {
+            "price": "MLS listing",
+            "units": "3 units"
+          }
+        },
+        "proForma": {
+          "assumptions": {
+            "rentEstimate": 5700,
+            "rentMethod": "ESTIMATED",
+            "vacancy": 0.05,
+            "management": 0.08,
+            "maintenance": 0.05,
+            "reserves": 0.05,
+            "insurance": 4800,
+            "taxes": 14400
+          },
+          "financials": {
+            "GSR": 68400,
+            "vacancy": 3420,
+            "EGI": 64980,
+            "opex": 31221.300000000003,
+            "NOI": 33758.7,
+            "capRate": 0.028132249999999998,
+            "loan": 960000,
+            "payment": 6067.853025532467,
+            "DSCR": 0.4636277424918566,
+            "cashFlow": -39055.53630638961,
+            "CoC": -0.13849480959712626,
+            "cashNeeded": 282000
+          },
+          "stress": {
+            "assumptions": {
+              "rentDrop": 0.1,
+              "rateIncrease": 0.0075,
+              "opexIncrease": 0.08,
+              "vacancyIncrease": 0.03
+            },
+            "results": {
+              "NOI": 22916.195999999996,
+              "DSCR": 0.2916039714597152,
+              "CoC": -0.19741316121444363,
+              "passed": false
+            }
+          }
+        },
+        "verdict": {
+          "pass": false,
+          "confidence": "LOW",
+          "reasons": [
+            "Failed stress test: DSCR 0.29 < 1"
+          ],
+          "dataQuality": "Missing rent and expenses"
+        }
+      }
+    },
+    {
+      "property": {
+        "id": "73426964",
+        "address": "15 & 87 Boardman St / Wboylston",
+        "price": 1350000,
+        "bedrooms": 16,
+        "bathrooms": 6,
+        "propertyType": "3 Family",
+        "units": 3,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01606",
+        "fullAddress": "15 & 87 Boardman St / Wboylston, Worcester, MA",
+        "mls_id": "73426964",
+        "strategicScore": 81,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73426964",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1350000,
+          "listDate": "2025-09-06T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1350000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": "Greendale",
+            "streetDirection": null,
+            "streetName": "Boardman St / Wboylston",
+            "streetNumber": "15 & 87",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01606",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "1587boardmanstwboylstonworcester"
+          },
+          "map": {
+            "latitude": 42.294182,
+            "longitude": -71.805738,
+            "point": "POINT (-71.805738 42.294182)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73426964_1.jpg",
+            "mlspin/IMG-73426964_2.jpg",
+            "mlspin/IMG-73426964_3.jpg",
+            "mlspin/IMG-73426964_4.jpg",
+            "mlspin/IMG-73426964_5.jpg",
+            "mlspin/IMG-73426964_6.jpg",
+            "mlspin/IMG-73426964_7.jpg",
+            "mlspin/IMG-73426964_8.jpg",
+            "mlspin/IMG-73426964_9.jpg",
+            "mlspin/IMG-73426964_10.jpg",
+            "mlspin/IMG-73426964_11.jpg",
+            "mlspin/IMG-73426964_12.jpg",
+            "mlspin/IMG-73426964_13.jpg",
+            "mlspin/IMG-73426964_14.jpg",
+            "mlspin/IMG-73426964_15.jpg",
+            "mlspin/IMG-73426964_16.jpg",
+            "mlspin/IMG-73426964_17.jpg",
+            "mlspin/IMG-73426964_18.jpg",
+            "mlspin/IMG-73426964_19.jpg",
+            "mlspin/IMG-73426964_20.jpg",
+            "mlspin/IMG-73426964_21.jpg",
+            "mlspin/IMG-73426964_22.jpg",
+            "mlspin/IMG-73426964_23.jpg",
+            "mlspin/IMG-73426964_24.jpg",
+            "mlspin/IMG-73426964_25.jpg",
+            "mlspin/IMG-73426964_26.jpg",
+            "mlspin/IMG-73426964_27.jpg",
+            "mlspin/IMG-73426964_28.jpg",
+            "mlspin/IMG-73426964_29.jpg",
+            "mlspin/IMG-73426964_30.jpg",
+            "mlspin/IMG-73426964_31.jpg",
+            "mlspin/IMG-73426964_32.jpg",
+            "mlspin/IMG-73426964_33.jpg"
+          ],
+          "photoCount": 33,
+          "details": {
+            "airConditioning": null,
+            "basement1": null,
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Well-maintained (2) 3-family property offers charm, space, and convenience in one of the most desirable locations— Each floor is 3 bedroom 1bath, 1st and 2nd floor is occupied and 3rd floor is vacant.  2nd floor was recently updated and the property is minutes away from I-290, I-190, close to  universities, restaurants, hospital, shopping and public transportation, this property is sold with (MLS #: 73399878) 87 Wboyslton st Worcester 1st floor is 3 bedroom 1 bath (Occupied ), 2nd floor is 2 bedroom 1 bath (occupied) and 3rd floor is 2 bedroom 1 bath vacant.",
+            "elevator": null,
+            "exteriorConstruction1": null,
+            "exteriorConstruction2": null,
+            "extras": null,
+            "furnished": null,
+            "garage": null,
+            "heating": null,
+            "numBathrooms": 6,
+            "numBathroomsPlus": null,
+            "numBedrooms": 16,
+            "numBedroomsPlus": null,
+            "numFireplaces": null,
+            "numGarageSpaces": null,
+            "numParkingSpaces": null,
+            "numRooms": 38,
+            "numRoomsPlus": null,
+            "patio": null,
+            "propertyType": "Residential Income",
+            "sqft": "3591",
+            "style": "3 Family",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1920",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": null,
+            "foundationType": "Stone",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": null,
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RL-7",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": null
+          },
+          "daysOnMarket": 4,
+          "occupancy": null,
+          "updatedOn": "2025-09-10T07:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.17,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.17,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 7189,
+            "features": "Corner Lot",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": []
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [],
+          "rooms": [],
+          "taxes": {
+            "annualAmount": 7446,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-10T07:05:00.000-00:00",
+            "listingUpdated": "2025-09-10T07:05:00.000-00:00",
+            "photosUpdated": "2025-09-06T08:29:57.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-09-06T08:27:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-10T07:42:10.075Z",
+            "imageInsightsUpdatedOn": "2025-09-06T08:29:57.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 226155,
+              "boardAgentId": "CN226155",
+              "officeId": 25003,
+              "updatedOn": "2024-01-27 05:00:00",
+              "name": "Olusola Samuel Esan",
+              "board": null,
+              "boardOfficeId": "AN5003",
+              "position": null,
+              "phones": [
+                "347-444-1515",
+                "508-795-3885"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Weichert REALTORS®, Hope & Associates",
+                "address": {
+                  "address1": "1st Floor",
+                  "address2": null,
+                  "city": "Worcester",
+                  "state": "MA",
+                  "postal": "01610",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "boardId": 68,
+          "simpleDaysOnMarket": 8,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 210,
+            "page": 1
+          }
+        },
+        "strategy": "Multi-Family Cashflow Strategy",
+        "strategyDetails": {
+          "name": "Multi-Family Cashflow Strategy",
+          "objective": "Maximize rental income through 2-4 unit properties",
+          "buy_box": {
+            "property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family"
+            ],
+            "submarkets": [
+              "Downtown",
+              "University District"
+            ],
+            "zoning_required": [
+              "R2",
+              "R3"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "Two exits per unit",
+              "parking": "Off-street preferred"
+            },
+            "proximity": [
+              {
+                "to": "Employment centers",
+                "within_miles": 5
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 2,
+              "baths": 1
+            },
+            "exclude_flags": [
+              "major repairs",
+              "foundation issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": 0.045,
+            "min_monthly_cashflow_usd": 150,
+            "min_dscr_base": 1.05,
+            "stress_dscr_floor": 1,
+            "vacancy_assumption_pct": 10,
+            "fha_self_sufficiency_required": true,
+            "dom_max_days": 120,
+            "allowed_property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family",
+              "Duplex",
+              "Triplex",
+              "Fourplex"
+            ],
+            "strategy_specific_metrics": [],
+            "provenance": {
+              "source": "server_defaults"
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA House-Hack",
+              "DSCR"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 3,
+            "top_risks": [
+              "vacancy",
+              "maintenance"
+            ],
+            "mitigation_playbook": [
+              "thorough screening",
+              "preventive maintenance"
+            ]
+          },
+          "handoff_checklist": [
+            "property inspection",
+            "rental market analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          },
+          "stress_params": {
+            "rate_bump_bps": 75,
+            "vacancy_bump_pct": 8,
+            "expense_inflation_pct": 3
+          }
+        }
+      },
+      "uw": {
+        "NOI": 31358.699999999997,
+        "CapRate": 0.023228666666666665,
+        "DSCR": 0.3828152489673775,
+        "CoC": -0.15936112165386387,
+        "cashNeeded": 317250,
+        "stress": {
+          "NOI": 20324.195999999996,
+          "DSCR": 0.22988559494780827,
+          "CoC": -0.21461260802295432,
+          "passed": false
+        },
+        "pass": false,
+        "reasons": [
+          "Failed stress test: DSCR 0.23 < 1"
+        ]
+      },
+      "pass": false,
+      "score": 0.00385108896654357,
+      "scores": {
+        "uw_base": 0,
+        "loc_score": 0.5,
+        "ppsf_score": 0.5,
+        "dom_score": 0.5,
+        "age_score": 1,
+        "tax_score": 0.5,
+        "photo_score": 0,
+        "composite": 0.35
+      },
+      "reasons": [
+        "Cap rate 2.3% < 4.5%",
+        "DSCR 0.38 < 1.05",
+        "Stress DSCR 0.23 < 1"
+      ],
+      "rentEstimate": {
+        "point": 1900,
+        "band": [
+          1805,
+          1995
+        ],
+        "confidence": "MARKET_MODELED",
+        "method": "frozen_table:Worcester:unit_mix",
+        "provenance": {
+          "source": "city_rent_table",
+          "n_samples": 3
+        },
+        "notes": [
+          "Total rent: $5700/mo for 3 units"
+        ]
+      },
+      "dualOutput": {
+        "asIs": {
+          "price": 1350000,
+          "units": 3,
+          "sources": {
+            "price": "MLS listing",
+            "units": "3 units"
+          }
+        },
+        "proForma": {
+          "assumptions": {
+            "rentEstimate": 5700,
+            "rentMethod": "ESTIMATED",
+            "vacancy": 0.05,
+            "management": 0.08,
+            "maintenance": 0.05,
+            "reserves": 0.05,
+            "insurance": 5400,
+            "taxes": 16200
+          },
+          "financials": {
+            "GSR": 68400,
+            "vacancy": 3420,
+            "EGI": 64980,
+            "opex": 33621.3,
+            "NOI": 31358.699999999997,
+            "capRate": 0.023228666666666665,
+            "loan": 1080000,
+            "payment": 6826.334653724026,
+            "DSCR": 0.3828152489673775,
+            "cashFlow": -50557.31584468832,
+            "CoC": -0.15936112165386387,
+            "cashNeeded": 317250
+          },
+          "stress": {
+            "assumptions": {
+              "rentDrop": 0.1,
+              "rateIncrease": 0.0075,
+              "opexIncrease": 0.08,
+              "vacancyIncrease": 0.03
+            },
+            "results": {
+              "NOI": 20324.195999999996,
+              "DSCR": 0.22988559494780827,
+              "CoC": -0.21461260802295432,
+              "passed": false
+            }
+          }
+        },
+        "verdict": {
+          "pass": false,
+          "confidence": "LOW",
+          "reasons": [
+            "Failed stress test: DSCR 0.23 < 1"
+          ],
+          "dataQuality": "Missing rent and expenses"
+        }
+      }
+    },
+    {
+      "property": {
+        "id": "73396791",
+        "address": "18 Catharine St",
+        "price": 1395000,
+        "bedrooms": 11,
+        "bathrooms": 4,
+        "propertyType": "4 Family",
+        "units": 4,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01605",
+        "fullAddress": "18 Catharine St, Worcester, MA",
+        "mls_id": "73396791",
+        "strategicScore": 82,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73396791",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1395000,
+          "listDate": "2025-06-25T00:00:00.000-00:00",
+          "lastStatus": "Sc",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1450000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Catharine St",
+            "streetNumber": "18",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01605",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "18catharinestworcester"
+          },
+          "map": {
+            "latitude": 42.275371,
+            "longitude": -71.793038,
+            "point": "POINT (-71.793038 42.275371)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73396791_1.jpg",
+            "mlspin/IMG-73396791_2.jpg",
+            "mlspin/IMG-73396791_3.jpg",
+            "mlspin/IMG-73396791_4.jpg",
+            "mlspin/IMG-73396791_5.jpg",
+            "mlspin/IMG-73396791_6.jpg",
+            "mlspin/IMG-73396791_7.jpg",
+            "mlspin/IMG-73396791_8.jpg",
+            "mlspin/IMG-73396791_9.jpg",
+            "mlspin/IMG-73396791_10.jpg",
+            "mlspin/IMG-73396791_11.jpg",
+            "mlspin/IMG-73396791_12.jpg",
+            "mlspin/IMG-73396791_13.jpg",
+            "mlspin/IMG-73396791_14.jpg",
+            "mlspin/IMG-73396791_15.jpg",
+            "mlspin/IMG-73396791_16.jpg",
+            "mlspin/IMG-73396791_17.jpg",
+            "mlspin/IMG-73396791_18.jpg",
+            "mlspin/IMG-73396791_19.jpg",
+            "mlspin/IMG-73396791_20.jpg",
+            "mlspin/IMG-73396791_21.jpg",
+            "mlspin/IMG-73396791_22.jpg",
+            "mlspin/IMG-73396791_23.jpg",
+            "mlspin/IMG-73396791_24.jpg"
+          ],
+          "photoCount": 24,
+          "details": {
+            "airConditioning": null,
+            "basement1": "Full, Partially Finished, Walk-Out Access",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Rare opportunity: Renovated 3-family plus a legal ADU and a 8-car garage offering over 6,000 sqft of living space. Massive apartmemts units features 3 beds/1 bath with potential to convert to 4 beds. The ADU offers 2 beds/1 bath with a modern mini-split. All renovations were FULLY PERMITTED, including new electrical, plumbing, kitchens, baths, sheetrock, and trim. High ceilings (9 ft), newer windows, vinyl siding, and internal covered rear porches add comfort and charm. A $100K sprinkler system with copper main line, new fire panel, and sole path communicator were completed in 2025. Heating includes Navien systems and mini-splits. Garage is fully renovated—perfect for rental income or personal use. Estimated rental potential of $11,000+/mo, with additional income from garage (approx. $200 per bay) and off-street parking. Great mix of space, upgrades, and cash flow potential.",
+            "elevator": null,
+            "exteriorConstruction1": "Frame",
+            "exteriorConstruction2": null,
+            "extras": null,
+            "furnished": null,
+            "garage": null,
+            "heating": null,
+            "numBathrooms": 4,
+            "numBathroomsPlus": null,
+            "numBedrooms": 11,
+            "numBedroomsPlus": null,
+            "numFireplaces": null,
+            "numGarageSpaces": 8,
+            "numParkingSpaces": 20,
+            "numRooms": 24,
+            "numRoomsPlus": null,
+            "patio": "Porch, Deck",
+            "propertyType": "Residential Income",
+            "sqft": "6246",
+            "style": "4 Family",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1900",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Tile, Vinyl, Hardwood",
+            "foundationType": "Stone, Brick/Mortar",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RG-5",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": null
+          },
+          "daysOnMarket": 72,
+          "occupancy": null,
+          "updatedOn": "2025-09-05T13:10:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.27,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.27,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 11850,
+            "features": "Gentle Sloping",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Park",
+              "Golf",
+              "Medical Facility",
+              "Laundromat"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [],
+          "rooms": [],
+          "taxes": {
+            "annualAmount": 12484,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-05T13:10:00.000-00:00",
+            "listingUpdated": "2025-09-05T13:10:00.000-00:00",
+            "photosUpdated": "2025-07-03T23:46:54.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-06-26T00:47:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-05T13:27:00.258Z",
+            "imageInsightsUpdatedOn": "2025-07-03T23:46:54.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 354945,
+              "boardAgentId": "TM354945",
+              "officeId": 26259,
+              "updatedOn": "2024-03-20 04:00:00",
+              "name": "The Torres Group",
+              "board": null,
+              "boardOfficeId": "AN6259",
+              "position": null,
+              "phones": [
+                "508-801-1607",
+                "774-413-0272"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Property Investors & Advisors, LLC",
+                "address": {
+                  "address1": "Suite 300",
+                  "address2": null,
+                  "city": "Worcester",
+                  "state": "MA",
+                  "postal": "01608",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "boardId": 68,
+          "simpleDaysOnMarket": 81,
+          "standardStatus": "Active Under Contract",
+          "search_metadata": {
+            "above_median_pct": 221,
+            "page": 3
+          }
+        },
+        "strategy": "Multi-Family Cashflow Strategy",
+        "strategyDetails": {
+          "name": "Multi-Family Cashflow Strategy",
+          "objective": "Maximize rental income through 2-4 unit properties",
+          "buy_box": {
+            "property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family"
+            ],
+            "submarkets": [
+              "Downtown",
+              "University District"
+            ],
+            "zoning_required": [
+              "R2",
+              "R3"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "Two exits per unit",
+              "parking": "Off-street preferred"
+            },
+            "proximity": [
+              {
+                "to": "Employment centers",
+                "within_miles": 5
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 2,
+              "baths": 1
+            },
+            "exclude_flags": [
+              "major repairs",
+              "foundation issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": 0.045,
+            "min_monthly_cashflow_usd": 150,
+            "min_dscr_base": 1.05,
+            "stress_dscr_floor": 1,
+            "vacancy_assumption_pct": 10,
+            "fha_self_sufficiency_required": true,
+            "dom_max_days": 120,
+            "allowed_property_types": [
+              "Multi Family",
+              "2 Family",
+              "3 Family",
+              "4 Family",
+              "Duplex",
+              "Triplex",
+              "Fourplex"
+            ],
+            "strategy_specific_metrics": [],
+            "provenance": {
+              "source": "server_defaults"
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA House-Hack",
+              "DSCR"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 3,
+            "top_risks": [
+              "vacancy",
+              "maintenance"
+            ],
+            "mitigation_playbook": [
+              "thorough screening",
+              "preventive maintenance"
+            ]
+          },
+          "handoff_checklist": [
+            "property inspection",
+            "rental market analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          },
+          "stress_params": {
+            "rate_bump_bps": 75,
+            "vacancy_bump_pct": 8,
+            "expense_inflation_pct": 3
+          }
+        }
+      },
+      "uw": {
+        "NOI": 48291.6,
+        "CapRate": 0.034617634408602146,
+        "DSCR": 0.5705087823145548,
+        "CoC": -0.11089742913498946,
+        "cashNeeded": 327825,
+        "stress": {
+          "NOI": 34097.328,
+          "DSCR": 0.3732315016851405,
+          "CoC": -0.17466550575802636,
+          "passed": false
+        },
+        "pass": false,
+        "reasons": [
+          "Failed stress test: DSCR 0.37 < 1"
+        ]
+      },
+      "pass": false,
+      "score": 0.06903833221799688,
+      "scores": {
+        "uw_base": 0,
+        "loc_score": 0.5,
+        "ppsf_score": 0.5,
+        "dom_score": 0.5,
+        "age_score": 1,
+        "tax_score": 0.5,
+        "photo_score": 0,
+        "composite": 0.35
+      },
+      "reasons": [
+        "Cap rate 3.5% < 4.5%",
+        "DSCR 0.57 < 1.05",
+        "Stress DSCR 0.37 < 1"
+      ],
+      "rentEstimate": {
+        "point": 1900,
+        "band": [
+          1805,
+          1995
+        ],
+        "confidence": "MARKET_MODELED",
+        "method": "frozen_table:Worcester:unit_mix",
+        "provenance": {
+          "source": "city_rent_table",
+          "n_samples": 4
+        },
+        "notes": [
+          "Total rent: $7600/mo for 4 units"
+        ]
+      },
+      "dualOutput": {
+        "asIs": {
+          "price": 1395000,
+          "units": 4,
+          "sources": {
+            "price": "MLS listing",
+            "units": "4 units"
+          }
+        },
+        "proForma": {
+          "assumptions": {
+            "rentEstimate": 7600,
+            "rentMethod": "ESTIMATED",
+            "vacancy": 0.05,
+            "management": 0.08,
+            "maintenance": 0.05,
+            "reserves": 0.05,
+            "insurance": 5580,
+            "taxes": 16740
+          },
+          "financials": {
+            "GSR": 91200,
+            "vacancy": 4560,
+            "EGI": 86640,
+            "opex": 38348.4,
+            "NOI": 48291.6,
+            "capRate": 0.034617634408602146,
+            "loan": 1116000,
+            "payment": 7053.879142181493,
+            "DSCR": 0.5705087823145548,
+            "cashFlow": -36354.94970617792,
+            "CoC": -0.11089742913498946,
+            "cashNeeded": 327825
+          },
+          "stress": {
+            "assumptions": {
+              "rentDrop": 0.1,
+              "rateIncrease": 0.0075,
+              "opexIncrease": 0.08,
+              "vacancyIncrease": 0.03
+            },
+            "results": {
+              "NOI": 34097.328,
+              "DSCR": 0.3732315016851405,
+              "CoC": -0.17466550575802636,
+              "passed": false
+            }
+          }
+        },
+        "verdict": {
+          "pass": false,
+          "confidence": "LOW",
+          "reasons": [
+            "Failed stress test: DSCR 0.37 < 1"
+          ],
+          "dataQuality": "Missing rent and expenses"
+        }
+      }
+    },
+    {
+      "property": {
+        "id": "73426282",
+        "address": "3 Westwood Drive",
+        "price": 1100000,
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "propertyType": "Single Family Residence",
+        "units": 1,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01609",
+        "fullAddress": "3 Westwood Drive, Worcester, MA",
+        "mls_id": "73426282",
+        "strategicScore": 72,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73426282",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "CondoProperty",
+          "type": "Sale",
+          "listPrice": 1100000,
+          "listDate": "2025-09-04T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1100000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": "Westwood Hills",
+            "streetDirection": null,
+            "streetName": "Westwood Drive",
+            "streetNumber": "3",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01609",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "3westwooddriveworcester"
+          },
+          "map": {
+            "latitude": 42.286559,
+            "longitude": -71.827257,
+            "point": "POINT (-71.827257 42.286559)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73426282_1.jpg",
+            "mlspin/IMG-73426282_2.jpg",
+            "mlspin/IMG-73426282_3.jpg",
+            "mlspin/IMG-73426282_4.jpg",
+            "mlspin/IMG-73426282_5.jpg",
+            "mlspin/IMG-73426282_6.jpg",
+            "mlspin/IMG-73426282_7.jpg",
+            "mlspin/IMG-73426282_8.jpg",
+            "mlspin/IMG-73426282_9.jpg",
+            "mlspin/IMG-73426282_10.jpg",
+            "mlspin/IMG-73426282_11.jpg",
+            "mlspin/IMG-73426282_12.jpg",
+            "mlspin/IMG-73426282_13.jpg",
+            "mlspin/IMG-73426282_14.jpg",
+            "mlspin/IMG-73426282_15.jpg",
+            "mlspin/IMG-73426282_16.jpg",
+            "mlspin/IMG-73426282_17.jpg",
+            "mlspin/IMG-73426282_18.jpg",
+            "mlspin/IMG-73426282_19.jpg",
+            "mlspin/IMG-73426282_20.jpg",
+            "mlspin/IMG-73426282_21.jpg",
+            "mlspin/IMG-73426282_22.jpg",
+            "mlspin/IMG-73426282_23.jpg",
+            "mlspin/IMG-73426282_24.jpg",
+            "mlspin/IMG-73426282_25.jpg",
+            "mlspin/IMG-73426282_26.jpg",
+            "mlspin/IMG-73426282_27.jpg",
+            "mlspin/IMG-73426282_28.jpg",
+            "mlspin/IMG-73426282_29.jpg",
+            "mlspin/IMG-73426282_30.jpg",
+            "mlspin/IMG-73426282_31.jpg",
+            "mlspin/IMG-73426282_32.jpg",
+            "mlspin/IMG-73426282_33.jpg",
+            "mlspin/IMG-73426282_34.jpg",
+            "mlspin/IMG-73426282_35.jpg",
+            "mlspin/IMG-73426282_36.jpg",
+            "mlspin/IMG-73426282_37.jpg",
+            "mlspin/IMG-73426282_38.jpg"
+          ],
+          "photoCount": 38,
+          "details": {
+            "airConditioning": "Central Air, Wall Unit(s)",
+            "basement1": "Full, Partially Finished",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "An extraordinary opportunity to own one of Worcester’s premier estates in a neighborhood of distinguished custom homes. Enter through the grand center foyer with its sweeping bridal staircase and be captivated by timeless architectural details blended with modern refinement. The formal fireplaced living room, expansive dining room, and paneled library offer sophistication for entertaining, while the brand-new designer kitchen with marble floors and breakfast room elevates everyday living. With 4 bedrooms, 4.5 baths, dual staircases, hardwood floors, and a lavish primary suite boasting 5 closets, no detail has been overlooked. Relax in the heated sunroom, host on the stunning patio, and enjoy beautifully landscaped grounds. A lower-level bonus room and ample storage complete this exceptional residence. Perfectly situated with convenient access to cultural landmarks, fine dining, and travel, this is a rare offering for the discerning buyer.",
+            "elevator": null,
+            "exteriorConstruction1": "Frame",
+            "exteriorConstruction2": null,
+            "extras": "Gas Water Heater, Water Heater, Range, Dishwasher, Microwave, Refrigerator, Washer, Dryer",
+            "furnished": null,
+            "garage": null,
+            "heating": "Central, Steam, Natural Gas, Fireplace",
+            "numBathrooms": 5,
+            "numBathroomsPlus": null,
+            "numBedrooms": 4,
+            "numBedroomsPlus": null,
+            "numFireplaces": "3",
+            "numGarageSpaces": 2,
+            "numParkingSpaces": 4,
+            "numRooms": 11,
+            "numRoomsPlus": null,
+            "patio": "Porch - Enclosed, Patio",
+            "propertyType": "Residential",
+            "sqft": "4915",
+            "style": "Single Family Residence",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1930",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Tile, Hardwood, Flooring - Stone/Ceramic Tile, Flooring - Hardwood, Flooring - Wall to Wall Carpet",
+            "foundationType": "Concrete Perimeter",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Slate",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": "Thermostat",
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "Res",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "balcony": "Porch - Enclosed, Patio",
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": "800",
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [
+              {
+                "level": "Second",
+                "count": null,
+                "pieces": null
+              },
+              {
+                "level": "Second",
+                "count": null,
+                "pieces": null
+              }
+            ],
+            "numBathroomsHalf": 2
+          },
+          "daysOnMarket": 4,
+          "occupancy": null,
+          "updatedOn": "2025-09-08T07:05:00.000-00:00",
+          "condominium": {
+            "buildingInsurance": null,
+            "condoCorp": null,
+            "condoCorpNum": null,
+            "exposure": null,
+            "lockerNumber": null,
+            "locker": null,
+            "parkingType": "Attached, Off Street, Paved",
+            "pets": null,
+            "propertyMgr": null,
+            "stories": null,
+            "fees": {
+              "cableInlc": null,
+              "heatIncl": null,
+              "hydroIncl": null,
+              "maintenance": 800,
+              "parkingIncl": null,
+              "taxesIncl": null,
+              "waterIncl": null
+            },
+            "lockerUnitNumber": null,
+            "ensuiteLaundry": null,
+            "sharesPercentage": null,
+            "lockerLevel": null,
+            "unitNumber": null,
+            "amenities": []
+          },
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.66,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.66,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 28891,
+            "features": "Corner Lot",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Tennis Court(s)",
+              "Park",
+              "Medical Facility",
+              "Laundromat"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [
+            {
+              "date": "2025-09-05",
+              "startTime": "2025-09-05T20:00:00.000-00:00",
+              "endTime": "2025-09-05T22:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-09-06",
+              "startTime": "2025-09-06T16:00:00.000-00:00",
+              "endTime": "2025-09-06T18:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-09-13",
+              "startTime": "2025-09-13T15:30:00.000-00:00",
+              "endTime": "2025-09-13T17:30:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            }
+          ],
+          "rooms": [
+            {
+              "description": "Living Room",
+              "features": "Beamed Ceilings, Flooring - Hardwood, Window(s) - Bay/Bow/Box",
+              "features2": null,
+              "features3": null,
+              "length": "26",
+              "width": "16",
+              "level": "First"
+            },
+            {
+              "description": "Dining Room",
+              "features": "Flooring - Hardwood, Open Floorplan, Lighting - Overhead",
+              "features2": null,
+              "features3": null,
+              "length": "14",
+              "width": "16",
+              "level": "First"
+            },
+            {
+              "description": "Kitchen",
+              "features": "Flooring - Stone/Ceramic Tile, Dining Area, Pantry, Countertops - Stone/Granite/Solid, Breakfast Bar / Nook, Cabinets - Upgraded, Recessed Lighting, Lighting - Pendant",
+              "features2": null,
+              "features3": null,
+              "length": "15",
+              "width": "15",
+              "level": "First"
+            },
+            {
+              "description": "Office",
+              "features": "Flooring - Hardwood, Lighting - Overhead, Crown Molding",
+              "features2": null,
+              "features3": null,
+              "length": "12",
+              "width": "10",
+              "level": "Second"
+            },
+            {
+              "description": "Family Room",
+              "features": "Closet/Cabinets - Custom Built, Flooring - Hardwood, Recessed Lighting",
+              "features2": null,
+              "features3": null,
+              "length": "14",
+              "width": "14",
+              "level": "First"
+            },
+            {
+              "description": "Master Bedroom",
+              "features": "Bathroom - Full, Closet, Flooring - Hardwood, Dressing Room, Crown Molding",
+              "features2": null,
+              "features3": null,
+              "length": "24",
+              "width": "16",
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 2",
+              "features": null,
+              "features2": null,
+              "features3": null,
+              "length": "14",
+              "width": "16",
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 3",
+              "features": "Closet, Flooring - Hardwood, Lighting - Overhead",
+              "features2": null,
+              "features3": null,
+              "length": "14",
+              "width": "16",
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 4",
+              "features": "Closet, Flooring - Hardwood, Lighting - Overhead",
+              "features2": null,
+              "features3": null,
+              "length": "13",
+              "width": "19",
+              "level": "Second"
+            },
+            {
+              "description": "Bathroom 1",
+              "features": "Bathroom - Full, Bathroom - Tiled  With Shower Stall, Flooring - Stone/Ceramic Tile",
+              "features2": null,
+              "features3": null,
+              "length": "8",
+              "width": "7",
+              "level": "Second"
+            },
+            {
+              "description": "Bathroom 2",
+              "features": "Bathroom - Full, Bathroom - Tiled With Tub & Shower, Closet - Linen, Flooring - Marble",
+              "features2": null,
+              "features3": null,
+              "length": "9",
+              "width": "11",
+              "level": "Second"
+            },
+            {
+              "description": "Bathroom 3",
+              "features": "Bathroom - Full, Bathroom - Tiled  With Shower Stall, Flooring - Stone/Ceramic Tile",
+              "features2": null,
+              "features3": null,
+              "length": "8",
+              "width": "7",
+              "level": "Second"
+            }
+          ],
+          "taxes": {
+            "annualAmount": 16651,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-08T07:05:00.000-00:00",
+            "listingUpdated": "2025-09-08T07:05:00.000-00:00",
+            "photosUpdated": "2025-09-05T13:45:21.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-09-04T19:56:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-09T23:11:58.185Z",
+            "imageInsightsUpdatedOn": "2025-09-05T13:45:21.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 355587,
+              "boardAgentId": "TM355587",
+              "officeId": 11322,
+              "updatedOn": "2023-12-21 05:00:00",
+              "name": "The Diamond Group",
+              "board": null,
+              "boardOfficeId": "G95166",
+              "position": null,
+              "phones": [
+                "617-832-5584",
+                "978-692-3280"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Keller Williams Realty-Merrimack",
+                "address": {
+                  "address1": "Suite 300",
+                  "address2": null,
+                  "city": "Westford",
+                  "state": "MA",
+                  "postal": "01886",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "virtualTours": [
+            {
+              "url": "https://player.vimeo.com/video/1115901342?byline=0&title=0&owner=0&name=0&logos=0&profile=0&profilepicture=0&vimeologo=0&portrait=0",
+              "description": "Virtual Tour"
+            }
+          ],
+          "boardId": 68,
+          "simpleDaysOnMarket": 10,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 153,
+            "page": 1
+          }
+        },
+        "strategy": "Single-Family Appreciation Strategy",
+        "strategyDetails": {
+          "name": "Single-Family Appreciation Strategy",
+          "objective": "Invest in single-family homes in emerging neighborhoods",
+          "buy_box": {
+            "property_types": [
+              "Single Family"
+            ],
+            "submarkets": [
+              "Shrewsbury Street",
+              "North Worcester"
+            ],
+            "zoning_required": [
+              "R1"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "One exit per floor",
+              "parking": "Garage preferred"
+            },
+            "proximity": [
+              {
+                "to": "Schools",
+                "within_miles": 3
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 3,
+              "baths": 2
+            },
+            "exclude_flags": [
+              "flood zone",
+              "major structural issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": "N/A",
+            "min_monthly_cashflow_usd": "N/A",
+            "min_dscr_base": "N/A",
+            "stress_dscr_floor": "N/A",
+            "dom_max_days": 90,
+            "ppsf_ceiling_vs_median_pct": 0.1,
+            "negative_carry_tolerance_usd": 500,
+            "renovation_budget_pct_max": 0.15,
+            "allowed_property_types": [
+              "SingleFamily"
+            ],
+            "fha_self_sufficiency_required": false,
+            "strategy_specific_metrics": [
+              "dom_gate",
+              "ppsf_ceiling",
+              "negative_carry"
+            ],
+            "provenance": {
+              "source": "server_defaults",
+              "research_id": null
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA",
+              "VA Loan"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 6,
+            "top_risks": [
+              "market downturn",
+              "high HOA fees"
+            ],
+            "mitigation_playbook": [
+              "diversified investment",
+              "neighborhood research"
+            ]
+          },
+          "handoff_checklist": [
+            "HOA review",
+            "appreciation trend analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA",
+            "dom_percentiles_10_90",
+            "sfh_ppsf_median"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          }
+        }
+      },
+      "uw": null,
+      "pass": false,
+      "score": 0,
+      "scores": {},
+      "reasons": [
+        "Property type Single Family Residence not allowed for Multi-Family Cashflow Strategy"
+      ],
+      "blocked_by": "type_mismatch"
+    },
+    {
+      "property": {
+        "id": "73398211",
+        "address": "33 Aylesbury Rd",
+        "price": 1199000,
+        "bedrooms": 4,
+        "bathrooms": 6,
+        "propertyType": "Single Family Residence",
+        "units": 1,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01609",
+        "fullAddress": "33 Aylesbury Rd, Worcester, MA",
+        "mls_id": "73398211",
+        "strategicScore": 72,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73398211",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1199000,
+          "listDate": "2025-07-17T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1299000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Aylesbury Rd",
+            "streetNumber": "33",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01609",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "33aylesburyrdworcester"
+          },
+          "map": {
+            "latitude": 42.286996,
+            "longitude": -71.836355,
+            "point": "POINT (-71.836355 42.286996)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73398211_1.jpg",
+            "mlspin/IMG-73398211_2.jpg",
+            "mlspin/IMG-73398211_3.jpg",
+            "mlspin/IMG-73398211_4.jpg",
+            "mlspin/IMG-73398211_5.jpg",
+            "mlspin/IMG-73398211_6.jpg",
+            "mlspin/IMG-73398211_7.jpg",
+            "mlspin/IMG-73398211_8.jpg",
+            "mlspin/IMG-73398211_9.jpg",
+            "mlspin/IMG-73398211_10.jpg",
+            "mlspin/IMG-73398211_11.jpg",
+            "mlspin/IMG-73398211_12.jpg",
+            "mlspin/IMG-73398211_13.jpg",
+            "mlspin/IMG-73398211_14.jpg",
+            "mlspin/IMG-73398211_15.jpg",
+            "mlspin/IMG-73398211_16.jpg",
+            "mlspin/IMG-73398211_17.jpg",
+            "mlspin/IMG-73398211_18.jpg",
+            "mlspin/IMG-73398211_19.jpg",
+            "mlspin/IMG-73398211_20.jpg",
+            "mlspin/IMG-73398211_21.jpg",
+            "mlspin/IMG-73398211_22.jpg",
+            "mlspin/IMG-73398211_23.jpg",
+            "mlspin/IMG-73398211_24.jpg",
+            "mlspin/IMG-73398211_25.jpg",
+            "mlspin/IMG-73398211_26.jpg",
+            "mlspin/IMG-73398211_27.jpg",
+            "mlspin/IMG-73398211_28.jpg",
+            "mlspin/IMG-73398211_29.jpg",
+            "mlspin/IMG-73398211_30.jpg",
+            "mlspin/IMG-73398211_31.jpg",
+            "mlspin/IMG-73398211_32.jpg",
+            "mlspin/IMG-73398211_33.jpg",
+            "mlspin/IMG-73398211_34.jpg",
+            "mlspin/IMG-73398211_35.jpg",
+            "mlspin/IMG-73398211_36.jpg",
+            "mlspin/IMG-73398211_37.jpg",
+            "mlspin/IMG-73398211_38.jpg",
+            "mlspin/IMG-73398211_39.jpg"
+          ],
+          "photoCount": 39,
+          "details": {
+            "airConditioning": "Central Air, Heat Pump",
+            "basement1": null,
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Welcome to 33 Aylesbury Road in the highly sought after Salisbury Street neighborhood. This 5,400 sq ft mid-century modern gem, custom-designed by Irwin Regent, showcases exquisite craftsmanship throughout. From its striking brick exterior and elegant curved walls to luxurious hardware, custom flooring, and built-ins, every detail impresses. The formal living room stuns with 17-foot ceilings and oversized sliders that blend indoor and outdoor living. The family room features a custom bar, brick accent wall, and built-in entertainment center. The sleek kitchen offers high-gloss cabinetry, granite counters, and updated appliances. A private office with bath provides a quiet retreat. The primary suite spans its own level with a spa-like bath, dressing room, and ample closets. Upstairs are three spacious bedrooms and two full baths. Enjoy serene moments by your private brook and pond or host unforgettable gatherings in style.",
+            "elevator": null,
+            "exteriorConstruction1": "Brick",
+            "exteriorConstruction2": null,
+            "extras": "Dishwasher, Refrigerator",
+            "furnished": null,
+            "garage": null,
+            "heating": "Heat Pump",
+            "numBathrooms": 6,
+            "numBathroomsPlus": null,
+            "numBedrooms": 4,
+            "numBedroomsPlus": null,
+            "numFireplaces": "1",
+            "numGarageSpaces": 2,
+            "numParkingSpaces": 4,
+            "numRooms": 10,
+            "numRoomsPlus": null,
+            "patio": "Patio",
+            "propertyType": "Residential",
+            "sqft": "5472",
+            "style": "Single Family Residence",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "1966",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Tile, Carpet, Marble, Hardwood",
+            "foundationType": "Concrete Perimeter",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Wood, Metal",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RS-10",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": 2
+          },
+          "daysOnMarket": 51,
+          "occupancy": null,
+          "updatedOn": "2025-09-06T07:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 1.01,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 1.01,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 44158,
+            "features": "Wooded",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Shopping",
+              "Park",
+              "Medical Facility",
+              "Highway Access",
+              "T-Station"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [],
+          "rooms": [
+            {
+              "description": "Living Room",
+              "features": "Vaulted Ceiling(s), Flooring - Hardwood, Recessed Lighting",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Dining Room",
+              "features": "Flooring - Hardwood, Exterior Access, Open Floorplan, Slider",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Kitchen",
+              "features": "Closet/Cabinets - Custom Built, Flooring - Stone/Ceramic Tile, Dining Area, Pantry, Countertops - Stone/Granite/Solid, Recessed Lighting, Stainless Steel Appliances",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Office",
+              "features": "Bathroom - Half, Slider",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Basement"
+            },
+            {
+              "description": "Family Room",
+              "features": "Flooring - Hardwood, Wet Bar, Exterior Access, Open Floorplan, Slider, Tray Ceiling(s)",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Master Bedroom",
+              "features": "Bathroom - Full, Walk-In Closet(s), Closet/Cabinets - Custom Built, Flooring - Wall to Wall Carpet",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 2",
+              "features": null,
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Third"
+            },
+            {
+              "description": "Bedroom 3",
+              "features": "Closet/Cabinets - Custom Built, Flooring - Wall to Wall Carpet",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Third"
+            },
+            {
+              "description": "Bedroom 4",
+              "features": "Flooring - Wall to Wall Carpet",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Third"
+            }
+          ],
+          "taxes": {
+            "annualAmount": 12796,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-06T07:05:00.000-00:00",
+            "listingUpdated": "2025-09-06T07:05:00.000-00:00",
+            "photosUpdated": "2025-07-17T03:50:34.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-07-17T04:02:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-06T08:00:51.796Z",
+            "lastPriceChanged": "2025-09-06T08:00:52.745-00:00",
+            "imageInsightsUpdatedOn": "2025-07-17T03:50:34.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 20159,
+              "boardAgentId": "K0001964",
+              "officeId": 26245,
+              "updatedOn": "2024-02-18 05:00:00",
+              "name": "Jane O'Connor",
+              "board": null,
+              "boardOfficeId": "AN6245",
+              "position": null,
+              "phones": [
+                "508-641-4988",
+                "508-795-7500"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Coldwell Banker Realty - Worcester",
+                "address": {
+                  "address1": "6 Park Avenue",
+                  "address2": null,
+                  "city": "Worcester",
+                  "state": "MA",
+                  "postal": "01605",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "listPriceLog": [
+            {
+              "updatedOn": "2025-09-06T08:00:52.745Z",
+              "type": "decrease",
+              "currentListPrice": "1199000.00",
+              "previousListPrice": "1299000.00"
+            }
+          ],
+          "lastPriceChangeType": "decrease",
+          "boardId": 68,
+          "simpleDaysOnMarket": 59,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 176,
+            "page": 2
+          }
+        },
+        "strategy": "Single-Family Appreciation Strategy",
+        "strategyDetails": {
+          "name": "Single-Family Appreciation Strategy",
+          "objective": "Invest in single-family homes in emerging neighborhoods",
+          "buy_box": {
+            "property_types": [
+              "Single Family"
+            ],
+            "submarkets": [
+              "Shrewsbury Street",
+              "North Worcester"
+            ],
+            "zoning_required": [
+              "R1"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "One exit per floor",
+              "parking": "Garage preferred"
+            },
+            "proximity": [
+              {
+                "to": "Schools",
+                "within_miles": 3
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 3,
+              "baths": 2
+            },
+            "exclude_flags": [
+              "flood zone",
+              "major structural issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": "N/A",
+            "min_monthly_cashflow_usd": "N/A",
+            "min_dscr_base": "N/A",
+            "stress_dscr_floor": "N/A",
+            "dom_max_days": 90,
+            "ppsf_ceiling_vs_median_pct": 0.1,
+            "negative_carry_tolerance_usd": 500,
+            "renovation_budget_pct_max": 0.15,
+            "allowed_property_types": [
+              "SingleFamily"
+            ],
+            "fha_self_sufficiency_required": false,
+            "strategy_specific_metrics": [
+              "dom_gate",
+              "ppsf_ceiling",
+              "negative_carry"
+            ],
+            "provenance": {
+              "source": "server_defaults",
+              "research_id": null
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA",
+              "VA Loan"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 6,
+            "top_risks": [
+              "market downturn",
+              "high HOA fees"
+            ],
+            "mitigation_playbook": [
+              "diversified investment",
+              "neighborhood research"
+            ]
+          },
+          "handoff_checklist": [
+            "HOA review",
+            "appreciation trend analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA",
+            "dom_percentiles_10_90",
+            "sfh_ppsf_median"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          }
+        }
+      },
+      "uw": null,
+      "pass": false,
+      "score": 0,
+      "scores": {},
+      "reasons": [
+        "Property type Single Family Residence not allowed for Multi-Family Cashflow Strategy"
+      ],
+      "blocked_by": "type_mismatch"
+    },
+    {
+      "property": {
+        "id": "73377448",
+        "address": "31 Lenox St",
+        "price": 1345000,
+        "bedrooms": 7,
+        "bathrooms": 5,
+        "propertyType": "Single Family Residence",
+        "units": 1,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01602",
+        "fullAddress": "31 Lenox St, Worcester, MA",
+        "mls_id": "73377448",
+        "strategicScore": 72,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73377448",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1345000,
+          "listDate": "2025-05-19T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1445000,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Lenox St",
+            "streetNumber": "31",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01602",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "31lenoxstworcester"
+          },
+          "map": {
+            "latitude": 42.27771,
+            "longitude": -71.833468,
+            "point": "POINT (-71.833468 42.27771)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73377448_1.jpg",
+            "mlspin/IMG-73377448_2.jpg",
+            "mlspin/IMG-73377448_3.jpg",
+            "mlspin/IMG-73377448_4.jpg",
+            "mlspin/IMG-73377448_5.jpg",
+            "mlspin/IMG-73377448_6.jpg",
+            "mlspin/IMG-73377448_7.jpg",
+            "mlspin/IMG-73377448_8.jpg",
+            "mlspin/IMG-73377448_9.jpg",
+            "mlspin/IMG-73377448_10.jpg",
+            "mlspin/IMG-73377448_11.jpg",
+            "mlspin/IMG-73377448_12.jpg",
+            "mlspin/IMG-73377448_13.jpg",
+            "mlspin/IMG-73377448_14.jpg",
+            "mlspin/IMG-73377448_15.jpg",
+            "mlspin/IMG-73377448_16.jpg",
+            "mlspin/IMG-73377448_17.jpg",
+            "mlspin/IMG-73377448_18.jpg",
+            "mlspin/IMG-73377448_19.jpg",
+            "mlspin/IMG-73377448_20.jpg",
+            "mlspin/IMG-73377448_21.jpg",
+            "mlspin/IMG-73377448_22.jpg",
+            "mlspin/IMG-73377448_23.jpg",
+            "mlspin/IMG-73377448_24.jpg",
+            "mlspin/IMG-73377448_25.jpg",
+            "mlspin/IMG-73377448_26.jpg",
+            "mlspin/IMG-73377448_27.jpg",
+            "mlspin/IMG-73377448_28.jpg",
+            "mlspin/IMG-73377448_29.jpg",
+            "mlspin/IMG-73377448_30.jpg",
+            "mlspin/IMG-73377448_31.jpg",
+            "mlspin/IMG-73377448_32.jpg",
+            "mlspin/IMG-73377448_33.jpg",
+            "mlspin/IMG-73377448_34.jpg",
+            "mlspin/IMG-73377448_35.jpg",
+            "mlspin/IMG-73377448_36.jpg",
+            "mlspin/IMG-73377448_37.jpg",
+            "mlspin/IMG-73377448_38.jpg",
+            "mlspin/IMG-73377448_39.jpg",
+            "mlspin/IMG-73377448_40.jpg",
+            "mlspin/IMG-73377448_41.jpg",
+            "mlspin/IMG-73377448_42.jpg"
+          ],
+          "photoCount": 42,
+          "details": {
+            "airConditioning": "Window Unit(s)",
+            "basement1": "Full",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "Presenting \"The George Gabriel House,\" an exceptional property renowned as one of the area's original and most distinguished residences. This impressive 7-bedroom home, offers unparalleled luxury and historic charm, and boasts original architectural details: murals, leaded glass, and pocket doors. The gourmet kitchen is a culinary dream, featuring granite counters, top-of-the-line pro appliances, gas range, double ovens and a bright and airy breakfast nook – the perfect spot to start your day. Indulge in sophisticated living spaces, from the formal living rooms ideal for hosting memorable events to the distinguished study for quiet reflection. The magnificent great room, with an inviting fireplace and walls of French doors serves as a central gathering space and provides effortless flow to the patio, gunite pool, hot tub, and garden. Lower level game room, bar & walkout. Hardwood floors, 2-car garage with an attached shed. This is a rare opportunity in Worcester's premier neighborhood.",
+            "elevator": null,
+            "exteriorConstruction1": null,
+            "exteriorConstruction2": null,
+            "extras": "Gas Water Heater, Water Heater, Oven, Dishwasher, Disposal, Microwave, Range, Refrigerator, Range Hood",
+            "furnished": null,
+            "garage": null,
+            "heating": "Baseboard, Hot Water, Natural Gas, Fireplace",
+            "numBathrooms": 5,
+            "numBathroomsPlus": null,
+            "numBedrooms": 7,
+            "numBedroomsPlus": null,
+            "numFireplaces": "3",
+            "numGarageSpaces": 2,
+            "numParkingSpaces": 4,
+            "numRooms": 16,
+            "numRoomsPlus": null,
+            "patio": "Porch, Patio",
+            "propertyType": "Residential",
+            "sqft": "4868",
+            "style": "Single Family Residence",
+            "swimmingPool": "In Ground",
+            "virtualTourUrl": null,
+            "yearBuilt": "1897",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Flooring - Wood, Flooring - Stone/Ceramic Tile",
+            "foundationType": "Stone",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": null,
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RS-10",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": null,
+            "bathrooms": [],
+            "numBathroomsHalf": 2
+          },
+          "daysOnMarket": 83,
+          "occupancy": null,
+          "updatedOn": "2025-08-10T08:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.37,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.37,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 16111,
+            "features": "Gentle Sloping",
+            "taxLot": null
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Tennis Court(s)",
+              "Park",
+              "Walk/Jog Trails",
+              "Medical Facility"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [
+            {
+              "date": "2025-06-01",
+              "startTime": "2025-06-01T16:00:00.000-00:00",
+              "endTime": "2025-06-01T18:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-06-07",
+              "startTime": "2025-06-07T15:00:00.000-00:00",
+              "endTime": "2025-06-07T17:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-09-07",
+              "startTime": "2025-09-07T16:00:00.000-00:00",
+              "endTime": "2025-09-07T18:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            }
+          ],
+          "rooms": [
+            {
+              "description": "Living Room",
+              "features": "Flooring - Wood, Decorative Molding",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Dining Room",
+              "features": "Beamed Ceilings, Flooring - Wood, French Doors",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Kitchen",
+              "features": "Flooring - Marble, Countertops - Stone/Granite/Solid, Breakfast Bar / Nook, Recessed Lighting, Stainless Steel Appliances, Gas Stove, Peninsula, Lighting - Pendant",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Family Room",
+              "features": "Flooring - Wood, French Doors, Crown Molding, Decorative Molding",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "First"
+            },
+            {
+              "description": "Master Bedroom",
+              "features": "Closet, Flooring - Wood",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 2",
+              "features": null,
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 3",
+              "features": "Closet, Flooring - Wood",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 4",
+              "features": "Closet, Flooring - Wood",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 5",
+              "features": "Flooring - Wood",
+              "features2": null,
+              "features3": null,
+              "length": null,
+              "width": null,
+              "level": "Third"
+            }
+          ],
+          "taxes": {
+            "annualAmount": 9767,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-08-10T08:05:00.000-00:00",
+            "listingUpdated": "2025-08-10T08:05:00.000-00:00",
+            "photosUpdated": "2025-05-20T00:14:37.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-05-20T00:13:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-02T20:56:51.091Z",
+            "lastPriceChanged": "2025-08-07T00:26:52.894-00:00",
+            "imageInsightsUpdatedOn": "2025-05-20T00:14:37.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 202528,
+              "boardAgentId": "CN202528",
+              "officeId": 20394,
+              "updatedOn": "2024-03-30 04:00:00",
+              "name": "Maria Romero Vagnini",
+              "board": null,
+              "boardOfficeId": "AN0394",
+              "position": null,
+              "phones": [
+                "617-640-1400",
+                "508-366-9608"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Mathieu Newton Sotheby's International Realty",
+                "address": {
+                  "address1": "10 West Main Street",
+                  "address2": null,
+                  "city": "Westborough",
+                  "state": "MA",
+                  "postal": "01581",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "virtualTours": [
+            {
+              "url": "https://31lenox.com",
+              "description": "Virtual Tour"
+            }
+          ],
+          "listPriceLog": [
+            {
+              "updatedOn": "2025-08-07T00:26:52.894Z",
+              "type": "decrease",
+              "currentListPrice": "1345000.00",
+              "previousListPrice": "1395000.00"
+            }
+          ],
+          "lastPriceChangeType": "decrease",
+          "boardId": 68,
+          "simpleDaysOnMarket": 118,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 209,
+            "page": 3
+          }
+        },
+        "strategy": "Single-Family Appreciation Strategy",
+        "strategyDetails": {
+          "name": "Single-Family Appreciation Strategy",
+          "objective": "Invest in single-family homes in emerging neighborhoods",
+          "buy_box": {
+            "property_types": [
+              "Single Family"
+            ],
+            "submarkets": [
+              "Shrewsbury Street",
+              "North Worcester"
+            ],
+            "zoning_required": [
+              "R1"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "One exit per floor",
+              "parking": "Garage preferred"
+            },
+            "proximity": [
+              {
+                "to": "Schools",
+                "within_miles": 3
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 3,
+              "baths": 2
+            },
+            "exclude_flags": [
+              "flood zone",
+              "major structural issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": "N/A",
+            "min_monthly_cashflow_usd": "N/A",
+            "min_dscr_base": "N/A",
+            "stress_dscr_floor": "N/A",
+            "dom_max_days": 90,
+            "ppsf_ceiling_vs_median_pct": 0.1,
+            "negative_carry_tolerance_usd": 500,
+            "renovation_budget_pct_max": 0.15,
+            "allowed_property_types": [
+              "SingleFamily"
+            ],
+            "fha_self_sufficiency_required": false,
+            "strategy_specific_metrics": [
+              "dom_gate",
+              "ppsf_ceiling",
+              "negative_carry"
+            ],
+            "provenance": {
+              "source": "server_defaults",
+              "research_id": null
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA",
+              "VA Loan"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 6,
+            "top_risks": [
+              "market downturn",
+              "high HOA fees"
+            ],
+            "mitigation_playbook": [
+              "diversified investment",
+              "neighborhood research"
+            ]
+          },
+          "handoff_checklist": [
+            "HOA review",
+            "appreciation trend analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA",
+            "dom_percentiles_10_90",
+            "sfh_ppsf_median"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          }
+        }
+      },
+      "uw": null,
+      "pass": false,
+      "score": 0,
+      "scores": {},
+      "reasons": [
+        "Property type Single Family Residence not allowed for Multi-Family Cashflow Strategy"
+      ],
+      "blocked_by": "type_mismatch"
+    },
+    {
+      "property": {
+        "id": "73407227",
+        "address": "14 Bay Edge Lane",
+        "price": 1390000,
+        "bedrooms": 4,
+        "bathrooms": 4,
+        "propertyType": "Single Family Residence",
+        "units": 1,
+        "unitConfidence": "HIGH",
+        "unitSource": "style_field",
+        "location": "Worcester MA",
+        "city": "Worcester",
+        "state": "MA",
+        "postalCode": "01604",
+        "fullAddress": "14 Bay Edge Lane, Worcester, MA",
+        "mls_id": "73407227",
+        "strategicScore": 72,
+        "proximityFactors": {},
+        "rawData": {
+          "mlsNumber": "73407227",
+          "resource": "Property:7000",
+          "status": "A",
+          "class": "ResidentialProperty",
+          "type": "Sale",
+          "listPrice": 1390000,
+          "listDate": "2025-07-21T00:00:00.000-00:00",
+          "lastStatus": "New",
+          "soldPrice": null,
+          "soldDate": null,
+          "originalPrice": 1499999,
+          "assignment": null,
+          "address": {
+            "area": "Worcester",
+            "city": "Worcester",
+            "country": "US",
+            "district": null,
+            "majorIntersection": null,
+            "neighborhood": null,
+            "streetDirection": null,
+            "streetName": "Bay Edge Lane",
+            "streetNumber": "14",
+            "streetSuffix": null,
+            "unitNumber": null,
+            "zip": "01604",
+            "state": "MA",
+            "communityCode": null,
+            "streetDirectionPrefix": null,
+            "addressKey": "14bayedgelaneworcester"
+          },
+          "map": {
+            "latitude": 42.243563,
+            "longitude": -71.745977,
+            "point": "POINT (-71.745977 42.243563)"
+          },
+          "permissions": {
+            "displayAddressOnInternet": "Y",
+            "displayPublic": "Y",
+            "displayInternetEntireListing": "Y"
+          },
+          "images": [
+            "mlspin/IMG-73407227_1.jpg",
+            "mlspin/IMG-73407227_2.jpg",
+            "mlspin/IMG-73407227_3.jpg",
+            "mlspin/IMG-73407227_4.jpg",
+            "mlspin/IMG-73407227_5.jpg",
+            "mlspin/IMG-73407227_6.jpg",
+            "mlspin/IMG-73407227_7.jpg",
+            "mlspin/IMG-73407227_8.jpg",
+            "mlspin/IMG-73407227_9.jpg",
+            "mlspin/IMG-73407227_10.jpg",
+            "mlspin/IMG-73407227_11.jpg",
+            "mlspin/IMG-73407227_12.jpg",
+            "mlspin/IMG-73407227_13.jpg",
+            "mlspin/IMG-73407227_14.jpg",
+            "mlspin/IMG-73407227_15.jpg",
+            "mlspin/IMG-73407227_16.jpg",
+            "mlspin/IMG-73407227_17.jpg",
+            "mlspin/IMG-73407227_18.jpg",
+            "mlspin/IMG-73407227_19.jpg",
+            "mlspin/IMG-73407227_20.jpg",
+            "mlspin/IMG-73407227_21.jpg",
+            "mlspin/IMG-73407227_22.jpg",
+            "mlspin/IMG-73407227_23.jpg",
+            "mlspin/IMG-73407227_24.jpg",
+            "mlspin/IMG-73407227_25.jpg",
+            "mlspin/IMG-73407227_26.jpg",
+            "mlspin/IMG-73407227_27.jpg",
+            "mlspin/IMG-73407227_28.jpg"
+          ],
+          "photoCount": 28,
+          "details": {
+            "airConditioning": "Central Air",
+            "basement1": "Full, Finished, Walk-Out Access, Interior Entry",
+            "basement2": null,
+            "centralVac": null,
+            "den": null,
+            "description": "NEW PRICE ADJUSTMENT!!! Stunning luxury waterfront estate with breathtaking views and professionally landscaped grounds. A grand stone walkway leads to impressive double doors and a welcoming foyer. The chef’s kitchen features stainless steel appliances, marble countertops, large island with breakfast bar, tile floors, recessed lighting, and a spacious pantry. Dining area opens to an expansive deck overlooking the lake. Elegant living room offers tile floors, recessed lighting, bar area, and basement access. Hardwood bedrooms throughout. Lavish primary suite boasts double doors, walk-in closet, spa-like bath with double vanity, soaking tub, and tiled shower. Another ensuite bedroom includes attic access and linen closet. Finished lower level includes a stylish bonus room, private salon/spa, full bath, home office/bedroom, and a tiled dog-washing station. The backyard oasis has a dock, serene pond, screened retreat, patio, deck, and 4-car driveway—true lakeside luxury.",
+            "elevator": null,
+            "exteriorConstruction1": "Frame",
+            "exteriorConstruction2": null,
+            "extras": "Water Heater, Range, Dishwasher, Microwave, Refrigerator",
+            "furnished": null,
+            "garage": null,
+            "heating": "Baseboard, Radiant, Natural Gas, Other",
+            "numBathrooms": 4,
+            "numBathroomsPlus": null,
+            "numBedrooms": 4,
+            "numBedroomsPlus": null,
+            "numFireplaces": null,
+            "numGarageSpaces": 2,
+            "numParkingSpaces": 4,
+            "numRooms": 8,
+            "numRoomsPlus": null,
+            "patio": "Deck - Composite, Patio",
+            "propertyType": "Residential",
+            "sqft": "2940",
+            "style": "Single Family Residence",
+            "swimmingPool": null,
+            "virtualTourUrl": null,
+            "yearBuilt": "2017",
+            "landAccessType": null,
+            "landSewer": null,
+            "viewType": null,
+            "zoningDescription": null,
+            "analyticsClick": null,
+            "moreInformationLink": null,
+            "alternateURLVideoLink": null,
+            "flooringType": "Tile, Vinyl, Hardwood, Flooring - Vinyl",
+            "foundationType": "Concrete Perimeter",
+            "landscapeFeatures": null,
+            "fireProtection": null,
+            "roofMaterial": "Shingle",
+            "farmType": null,
+            "zoningType": null,
+            "businessType": null,
+            "businessSubType": null,
+            "landDisposition": null,
+            "storageType": null,
+            "constructionStyleSplitLevel": null,
+            "constructionStatus": null,
+            "loadingType": null,
+            "ceilingType": null,
+            "liveStreamEventURL": null,
+            "energuideRating": "Thermostat",
+            "amperage": null,
+            "sewer": "Public Sewer",
+            "familyRoom": null,
+            "zoning": "RS-7",
+            "driveway": null,
+            "leaseTerms": null,
+            "centralAirConditioning": null,
+            "certificationLevel": null,
+            "energyCertification": null,
+            "parkCostMonthly": null,
+            "commonElementsIncluded": null,
+            "greenPropertyInformationStatement": null,
+            "handicappedEquipped": null,
+            "laundryLevel": null,
+            "numKitchens": null,
+            "numKitchensPlus": null,
+            "sqftRange": null,
+            "numDrivewaySpaces": null,
+            "HOAFee": null,
+            "HOAFee2": null,
+            "HOAFee3": null,
+            "waterSource": "Public",
+            "livingAreaMeasurement": null,
+            "waterfront": "Y",
+            "bathrooms": [
+              {
+                "level": "Second",
+                "count": null,
+                "pieces": null
+              },
+              {
+                "level": "First",
+                "count": null,
+                "pieces": null
+              }
+            ],
+            "numBathroomsHalf": 1
+          },
+          "daysOnMarket": 46,
+          "occupancy": null,
+          "updatedOn": "2025-09-05T07:05:00.000-00:00",
+          "coopCompensation": null,
+          "lot": {
+            "acres": 0.2,
+            "depth": null,
+            "irregular": null,
+            "legalDescription": null,
+            "measurement": "Acres",
+            "width": null,
+            "size": 0.2,
+            "source": null,
+            "dimensionsSource": null,
+            "dimensions": null,
+            "squareFeet": 8720,
+            "features": "Cleared, Level",
+            "taxLot": "00007"
+          },
+          "nearby": {
+            "amenities": [
+              "Public Transportation",
+              "Shopping",
+              "Tennis Court(s)",
+              "Park",
+              "Walk/Jog Trails"
+            ]
+          },
+          "office": {
+            "brokerageName": null
+          },
+          "openHouse": [
+            {
+              "date": "2025-07-26",
+              "startTime": "2025-07-26T15:00:00.000-00:00",
+              "endTime": "2025-07-26T18:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            },
+            {
+              "date": "2025-07-27",
+              "startTime": "2025-07-27T15:00:00.000-00:00",
+              "endTime": "2025-07-27T18:00:00.000-00:00",
+              "type": "In Person",
+              "status": null
+            }
+          ],
+          "rooms": [
+            {
+              "description": "Living Room",
+              "features": "Ceiling Fan(s), Flooring - Stone/Ceramic Tile, Cable Hookup, Recessed Lighting",
+              "features2": null,
+              "features3": null,
+              "length": "16",
+              "width": "16",
+              "level": "First"
+            },
+            {
+              "description": "Kitchen",
+              "features": "Flooring - Stone/Ceramic Tile, Pantry, Countertops - Stone/Granite/Solid, Kitchen Island, Breakfast Bar / Nook, Deck - Exterior, Exterior Access, Recessed Lighting, Slider, Stainless Steel Appliances, Gas Stove",
+              "features2": null,
+              "features3": null,
+              "length": "21",
+              "width": "15",
+              "level": "First"
+            },
+            {
+              "description": "Master Bedroom",
+              "features": "Bathroom - Full, Ceiling Fan(s), Walk-In Closet(s), Flooring - Hardwood, Cable Hookup",
+              "features2": null,
+              "features3": null,
+              "length": "18",
+              "width": "21",
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 2",
+              "features": null,
+              "features2": null,
+              "features3": null,
+              "length": "20",
+              "width": "15",
+              "level": "Second"
+            },
+            {
+              "description": "Bedroom 3",
+              "features": "Closet, Flooring - Hardwood, Recessed Lighting",
+              "features2": null,
+              "features3": null,
+              "length": "13",
+              "width": "15",
+              "level": "First"
+            },
+            {
+              "description": "Bedroom 4",
+              "features": "Closet, Flooring - Vinyl",
+              "features2": null,
+              "features3": null,
+              "length": "10",
+              "width": "13",
+              "level": "Basement"
+            },
+            {
+              "description": "Bathroom 1",
+              "features": "Bathroom - Full, Bathroom - Double Vanity/Sink, Bathroom - Tiled  With Shower Stall, Bathroom - With Tub, Flooring - Stone/Ceramic Tile, Countertops - Stone/Granite/Solid, Recessed Lighting",
+              "features2": null,
+              "features3": null,
+              "length": "12",
+              "width": "21",
+              "level": "Second"
+            },
+            {
+              "description": "Bathroom 2",
+              "features": "Bathroom - Full, Bathroom - With Shower Stall, Closet - Linen, Flooring - Stone/Ceramic Tile, Countertops - Stone/Granite/Solid",
+              "features2": null,
+              "features3": null,
+              "length": "8",
+              "width": "10",
+              "level": "Second"
+            },
+            {
+              "description": "Bathroom 3",
+              "features": "Bathroom - Half, Closet - Linen, Flooring - Stone/Ceramic Tile, Countertops - Stone/Granite/Solid",
+              "features2": null,
+              "features3": null,
+              "length": "8",
+              "width": "6",
+              "level": "First"
+            }
+          ],
+          "taxes": {
+            "annualAmount": 13283,
+            "assessmentYear": "2025"
+          },
+          "timestamps": {
+            "idxUpdated": "2025-09-05T07:05:00.000-00:00",
+            "listingUpdated": "2025-09-05T07:05:00.000-00:00",
+            "photosUpdated": "2025-08-11T14:47:04.000-00:00",
+            "conditionalExpiryDate": null,
+            "terminatedDate": null,
+            "suspendedDate": null,
+            "listingEntryDate": "2025-07-21T14:37:00.000-00:00",
+            "closedDate": null,
+            "unavailableDate": null,
+            "expiryDate": null,
+            "extensionEntryDate": null,
+            "possessionDate": null,
+            "repliersUpdatedOn": "2025-09-05T07:44:09.032Z",
+            "lastPriceChanged": "2025-08-11T14:57:14.898-00:00",
+            "imageInsightsUpdatedOn": "2025-08-11T14:47:04.000-00:00"
+          },
+          "agents": [
+            {
+              "agentId": 250122,
+              "boardAgentId": "CN250122",
+              "officeId": 22314,
+              "updatedOn": "2024-03-03 05:00:00",
+              "name": "Jon Sakhat",
+              "board": null,
+              "boardOfficeId": "AN2314",
+              "position": null,
+              "phones": [
+                "508-635-7099",
+                "781-786-8080"
+              ],
+              "social": [],
+              "website": null,
+              "photo": {
+                "small": null,
+                "large": null,
+                "updatedOn": null
+              },
+              "brokerage": {
+                "name": "Lamacchia Realty, Inc.",
+                "address": {
+                  "address1": "Suite 216",
+                  "address2": null,
+                  "city": "Waltham",
+                  "state": "MA",
+                  "postal": "02452",
+                  "country": null
+                }
+              }
+            }
+          ],
+          "virtualTours": [
+            {
+              "url": "https://www.tourvista.com/virtual-tour.php?id=37449&nocontact&notours&noshare&nolinks",
+              "description": "Virtual Tour"
+            }
+          ],
+          "listPriceLog": [
+            {
+              "updatedOn": "2025-08-11T14:57:14.898Z",
+              "type": "decrease",
+              "currentListPrice": "1390000.00",
+              "previousListPrice": "1499999.00"
+            }
+          ],
+          "lastPriceChangeType": "decrease",
+          "boardId": 68,
+          "simpleDaysOnMarket": 55,
+          "standardStatus": "Active",
+          "search_metadata": {
+            "above_median_pct": 220,
+            "page": 2
+          }
+        },
+        "strategy": "Single-Family Appreciation Strategy",
+        "strategyDetails": {
+          "name": "Single-Family Appreciation Strategy",
+          "objective": "Invest in single-family homes in emerging neighborhoods",
+          "buy_box": {
+            "property_types": [
+              "Single Family"
+            ],
+            "submarkets": [
+              "Shrewsbury Street",
+              "North Worcester"
+            ],
+            "zoning_required": [
+              "R1"
+            ],
+            "lot_constraints": {
+              "min_lot_sqft": null,
+              "setbacks_notes": "Standard residential"
+            },
+            "building_constraints": {
+              "min_ceiling_ft": null,
+              "egress_req": "One exit per floor",
+              "parking": "Garage preferred"
+            },
+            "proximity": [
+              {
+                "to": "Schools",
+                "within_miles": 3
+              }
+            ],
+            "price_band_usd": {
+              "min": 1061224,
+              "max": 2653061,
+              "provenance": {
+                "source": "affordability",
+                "afford_range": "1061224-2653061",
+                "market_statistical_range": "382415-517385",
+                "note": "Using full affordability - evaluation gates will filter"
+              }
+            },
+            "beds_baths_min": {
+              "beds": 3,
+              "baths": 2
+            },
+            "exclude_flags": [
+              "flood zone",
+              "major structural issues"
+            ]
+          },
+          "evaluation_rules": {
+            "min_cap_rate_pct": "N/A",
+            "min_monthly_cashflow_usd": "N/A",
+            "min_dscr_base": "N/A",
+            "stress_dscr_floor": "N/A",
+            "dom_max_days": 90,
+            "ppsf_ceiling_vs_median_pct": 0.1,
+            "negative_carry_tolerance_usd": 500,
+            "renovation_budget_pct_max": 0.15,
+            "allowed_property_types": [
+              "SingleFamily"
+            ],
+            "fha_self_sufficiency_required": false,
+            "strategy_specific_metrics": [
+              "dom_gate",
+              "ppsf_ceiling",
+              "negative_carry"
+            ],
+            "provenance": {
+              "source": "server_defaults",
+              "research_id": null
+            }
+          },
+          "financing": {
+            "primary": {
+              "type": "Conventional",
+              "notes": "30-year fixed 6.25% (source: research_6, research_7)"
+            },
+            "alternatives": [
+              "FHA",
+              "VA Loan"
+            ]
+          },
+          "comps_bands": {
+            "rent": [],
+            "sale_psf": {
+              "range": [
+                null,
+                null
+              ],
+              "sources": []
+            },
+            "dom_band": {
+              "range_days": [
+                null,
+                null
+              ],
+              "notes": "",
+              "sources": []
+            }
+          },
+          "execution": {
+            "typical_stabilization_months": 6,
+            "top_risks": [
+              "market downturn",
+              "high HOA fees"
+            ],
+            "mitigation_playbook": [
+              "diversified investment",
+              "neighborhood research"
+            ]
+          },
+          "handoff_checklist": [
+            "HOA review",
+            "appreciation trend analysis"
+          ],
+          "scorecard": {
+            "liquidity_0_20": 15,
+            "cashflow_quality_0_25": 20,
+            "execution_risk_0_25": 15,
+            "location_durability_0_15": 10,
+            "strategic_fit_0_15": 10,
+            "rationale": "Based on market metrics"
+          },
+          "status": "NEEDS_RESEARCH",
+          "rent_table": {
+            "STUDIO": {
+              "A": 2440,
+              "B": 1601,
+              "C": 1270
+            },
+            "1BR": {
+              "A": 4300,
+              "B": 1900,
+              "C": 1000
+            },
+            "2BR": {
+              "A": 4300,
+              "B": 2100,
+              "C": 1432
+            },
+            "3BR": {
+              "A": 4015,
+              "B": 2495,
+              "C": 1594
+            }
+          },
+          "data_asks": [
+            "2-bedroom rental rates for Worcester MA",
+            "Sale price per square foot (10th-90th percentile) for Worcester MA",
+            "Days on market (10th-90th percentile) for Worcester MA",
+            "dom_percentiles_10_90",
+            "sfh_ppsf_median"
+          ],
+          "search_space": {
+            "absolute_range": {
+              "min": 1061224,
+              "max": 2653061
+            },
+            "sweet_spot": {
+              "min": 325052,
+              "max": 646732,
+              "note": "Statistical center - reference only"
+            },
+            "dynamic_gates": {
+              "base_cap_rate": 0.065,
+              "base_coc": 0.08,
+              "base_dscr": 1.25,
+              "cap_rate_slope": 0.1,
+              "coc_slope": 0.2,
+              "dscr_floor": 1.2
+            },
+            "evaluation_directive": "COMPREHENSIVE",
+            "market_context": {
+              "median_price": 449900
+            }
+          },
+          "evaluation_directive": "COMPREHENSIVE",
+          "market_context": {
+            "median_price": 449900,
+            "statistical_market_band": {
+              "min": 382415,
+              "max": 517385,
+              "source": "multiFamily",
+              "note": "Reference only - not a constraint"
+            },
+            "search_range": {
+              "min": 1061224,
+              "max": 2653061,
+              "notes": [
+                "20% down, closing≈3.5%"
+              ]
+            },
+            "median_ppsf": null
+          }
+        }
+      },
+      "uw": null,
+      "pass": false,
+      "score": 0,
+      "scores": {},
+      "reasons": [
+        "Property type Single Family Residence not allowed for Multi-Family Cashflow Strategy"
+      ],
+      "blocked_by": "type_mismatch"
+    }
+  ],
+  "phase2Results": [],
+  "metrics": {
+    "phase1_duration_ms": 6,
+    "phase2_duration_ms": 0,
+    "total_duration_ms": 8,
+    "timeouts": 0,
+    "retries": 0,
+    "failures": 0
+  }
+}

@@ -1,0 +1,52 @@
+================================================================================
+PROPERTY EVALUATION SUMMARY REPORT
+================================================================================
+Generated: 2025-09-13T18:42:56.529Z
+Strategy: Multi-Family Cashflow Strategy
+
+EVALUATION METRICS
+----------------------------------------
+Total Properties Evaluated: 113
+Phase 1 Passed: 41
+Phase 2 Completed: 41
+Total Duration: 3186.1s
+  - Phase 1: 3140.1s
+  - Phase 2: 45.9s
+Timeouts: 0
+Retries: 0
+Failures: 0
+
+TOP 10 PROPERTIES
+----------------------------------------
+1. 3 Vernon Ter
+   Score: 78.0/100 | Cash Needed: $160975
+
+2. 1 N Woodford St
+   Score: 78.0/100 | Cash Needed: $187977
+
+3. 87 W Boylston St
+   Score: 76.0/100 | Cash Needed: $163325
+
+4. 15 Forestdale Rd
+   Score: 76.0/100 | Cash Needed: $231475
+
+5. 10 Imperial Rd
+   Score: 76.0/100 | Cash Needed: $258500
+
+6. 7 W Hampton St
+   Score: 75.9/100 | Cash Needed: $140977
+
+7. 4 Crown St
+   Score: 75.5/100 | Cash Needed: $155099
+
+8. 19 Brantwood Road
+   Score: 75.4/100 | Cash Needed: $159692
+
+9. 11 Chadwick Street
+   Score: 74.0/100 | Cash Needed: $123375
+
+10. 3 Mildred Ave
+   Score: 74.0/100 | Cash Needed: $123375
+
+================================================================================
+Full results saved to: /Users/piyushtiwari/residenthive/evaluation-logs/evaluation-2025-09-13T17-49-50-414Z.json
