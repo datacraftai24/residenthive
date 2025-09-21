@@ -10,7 +10,11 @@ import { PropertyHunterAgent, PropertySearchCriteria, EnrichedProperty } from '.
 import { FinancialCalculatorAgent, PropertyFinancials } from './financial-calculator.js';
 import { RealEstateAdvisorAgent, PropertyEnhancementAnalysis } from './real-estate-advisor.js';
 import { DealPackagerAgent, InvestmentReport } from './deal-packager.js';
+<<<<<<< HEAD
 import { withSpan } from '../observability/withSpan.js';
+=======
+import { agentLogger, type AgentExecutionContext } from '../services/agent-logger.js';
+>>>>>>> main
 
 export interface ComprehensiveAnalysisRequest {
   userInput: string;
@@ -53,20 +57,48 @@ export class AgentOrchestrator {
     const strategyId = this.generateStrategyId();
     console.log(`🎯 [Orchestrator] Starting comprehensive analysis: ${strategyId}`);
 
+    // Start logging session
+    const sessionId = await agentLogger.startSession({
+      strategyId,
+      searchCriteria: request,
+      investmentProfile: {}, // Will be updated after Phase 1
+      sessionType: 'multi_agent'
+    });
+
     try {
       // Phase 1: Strategy Building with Agent Insights
       console.log(`📋 [Orchestrator] Phase 1: Investment Strategy Development`);
+      const strategyContext = agentLogger.createExecutionContext(
+        sessionId, 'strategy_builder', 'Investment Strategy Analyst', 1
+      );
+      
       const investmentProfile = await this.strategyBuilder.analyzeInvestorRequirements(
         request.userInput, 
         request.agentInsights
       );
 
+      await agentLogger.logAgentExecution(strategyContext, {
+        inputData: { userInput: request.userInput, agentInsights: request.agentInsights },
+        outputData: investmentProfile,
+        success: true
+      });
+
       // Phase 2: Market Research (Parallel)
       console.log(`📊 [Orchestrator] Phase 2: Market Intelligence Gathering`);
+      const marketContext = agentLogger.createExecutionContext(
+        sessionId, 'market_researcher', 'Market Intelligence Analyst', 2
+      );
+      
       const marketAnalyses = await this.marketResearcher.conductMarketResearch(
         investmentProfile.locations,
         investmentProfile.strategicFactors
       );
+
+      await agentLogger.logAgentExecution(marketContext, {
+        inputData: { locations: investmentProfile.locations, strategicFactors: investmentProfile.strategicFactors },
+        outputData: marketAnalyses,
+        success: true
+      });
 
       // Phase 3: Property Discovery with Strategic Factors
       console.log(`🏠 [Orchestrator] Phase 3: Property Discovery & Enrichment`);
@@ -90,8 +122,18 @@ export class AgentOrchestrator {
         strategicFactors: investmentProfile.strategicFactors
       };
 
+      const propertyContext = agentLogger.createExecutionContext(
+        sessionId, 'property_hunter', 'Property Discovery Agent', 3
+      );
+      
       const rawProperties = await this.propertyHunter.searchProperties(searchCriteria);
       console.log(`📊 [Orchestrator] Discovery complete: ${rawProperties.length} properties found`);
+
+      await agentLogger.logAgentExecution(propertyContext, {
+        inputData: searchCriteria,
+        outputData: { propertiesFound: rawProperties.length, properties: rawProperties.slice(0, 5) }, // Log first 5 for reference
+        success: true
+      });
 
       // Phase 4: Comprehensive Analysis (Financial + Enhancement)
       console.log(`💰 [Orchestrator] Phase 4: Comprehensive Financial & Enhancement Analysis`);
@@ -120,7 +162,8 @@ export class AgentOrchestrator {
       const enhancedProperties = await this.performComprehensiveAnalysis(
         rawProperties.slice(0, 20), // Top 20 properties for detailed analysis
         investmentProfile,
-        request.priorityLevel
+        request.priorityLevel,
+        sessionId
       );
 
       console.log(`✅ [Orchestrator] Analysis complete: ${enhancedProperties.length} properties analyzed`);
@@ -134,7 +177,25 @@ export class AgentOrchestrator {
       );
 
       // Phase 6: Save and Finalize
+      const dealContext = agentLogger.createExecutionContext(
+        sessionId, 'deal_packager', 'Investment Report Compiler', 5
+      );
+      
       const reportFilePath = await this.dealPackager.saveReportToMarkdown(investmentReport, strategyId);
+
+      await agentLogger.logAgentExecution(dealContext, {
+        inputData: { investmentProfile, marketAnalyses, propertiesAnalyzed: enhancedProperties.length },
+        outputData: { reportFilePath, reportGenerated: true },
+        success: true
+      });
+
+      // Complete logging session
+      await agentLogger.completeSession(sessionId, {
+        totalAgentsUsed: 5,
+        totalPropertiesAnalyzed: enhancedProperties.length,
+        finalReportPath: reportFilePath,
+        sessionStatus: 'completed'
+      });
 
       console.log(`✅ [Orchestrator] Analysis complete: ${strategyId}`);
 
@@ -149,6 +210,19 @@ export class AgentOrchestrator {
 
     } catch (error) {
       console.error(`❌ [Orchestrator] Analysis failed for ${strategyId}:`, error);
+      
+      // Log failed session
+      try {
+        await agentLogger.completeSession(sessionId, {
+          totalAgentsUsed: 0,
+          totalPropertiesAnalyzed: 0,
+          sessionStatus: 'failed',
+          errorLogs: { error: error.message, stack: error.stack }
+        });
+      } catch (logError) {
+        console.error('❌ Failed to log error session:', logError);
+      }
+      
       throw error;
     }
   }
@@ -157,20 +231,51 @@ export class AgentOrchestrator {
   private async performComprehensiveAnalysis(
     properties: EnrichedProperty[],
     profile: InvestmentProfile,
-    priorityLevel: string
+    priorityLevel: string,
+    sessionId?: string
   ): Promise<(EnrichedProperty & { 
     financialAnalysis: PropertyFinancials;
     enhancementAnalysis: PropertyEnhancementAnalysis;
   })[]> {
     
     const results = [];
+    let agentCount = 4; // Starting from agent 4
 
     for (const property of properties) {
       console.log(`🔍 [Orchestrator] Analyzing ${property.address}...`);
 
       try {
-        // Financial Analysis
+        // Log property data before Financial Calculator
+        const originalPropertyData = JSON.parse(JSON.stringify(property));
+        
+        // Financial analysis with comprehensive scenarios
+        const financialContext = sessionId ? agentLogger.createExecutionContext(
+          sessionId, 'financial_calculator', 'Financial Analysis Expert', agentCount++
+        ) : null;
+        
         const financialAnalysis = await this.financialCalculator.analyzeProperty(property, profile);
+
+        if (financialContext) {
+          await agentLogger.logAgentExecution(financialContext, {
+            inputData: { property: originalPropertyData, investmentProfile: profile },
+            outputData: financialAnalysis,
+            success: true
+          });
+
+          // Log property data transformation for address debugging
+          await agentLogger.logPropertyTransformation(sessionId!, financialContext.sessionId, {
+            propertyId: property.mlsNumber || property.address || 'unknown',
+            agentName: 'financial_calculator',
+            inputPropertyData: originalPropertyData,
+            outputPropertyData: property,
+            addressFields: agentLogger.extractAddressFields(property),
+            dataQuality: {
+              addressCompleteness: agentLogger.extractAddressFields(property).completeness,
+              hasPrice: !!property.price,
+              hasBedrooms: !!property.bedrooms
+            }
+          });
+        }
 
         // Enhancement Analysis (ADU potential, value-add opportunities)
         let enhancementAnalysis: PropertyEnhancementAnalysis;

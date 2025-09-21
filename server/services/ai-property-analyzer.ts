@@ -118,14 +118,59 @@ IMPORTANT RULES:
         ],
         response_format: { type: 'json_object' },
         temperature: 0.7,
-        max_tokens: 4000
+        max_tokens: 8000
       });
 
       // Log for debugging
       console.log(`📝 [AI Analysis] Prompt length: ${prompt.length} chars`);
       console.log(`📊 [AI Analysis] Token usage:`, response.usage);
       
-      const result = JSON.parse(response.choices[0].message.content || '{}');
+      // Safely parse JSON with better error handling
+      const content = response.choices[0].message.content || '{}';
+      let result;
+      
+      try {
+        result = JSON.parse(content);
+      } catch (parseError) {
+        console.error('JSON parsing failed, attempting to fix truncated response...');
+        console.error('Response content length:', content.length);
+        console.error('Response preview:', content.substring(0, 500));
+        
+        // Try to fix common JSON truncation issues
+        let fixedContent = content;
+        
+        // If the JSON is truncated mid-string, try to close it
+        if (!content.trim().endsWith('}') && !content.trim().endsWith(']}')) {
+          // Count open braces and brackets to try to close them
+          const openBraces = (content.match(/\{/g) || []).length;
+          const closeBraces = (content.match(/\}/g) || []).length;
+          const openBrackets = (content.match(/\[/g) || []).length;
+          const closeBrackets = (content.match(/\]/g) || []).length;
+          
+          // Add missing closing characters
+          let closingChars = '';
+          if (openBrackets > closeBrackets) {
+            closingChars += ']'.repeat(openBrackets - closeBrackets);
+          }
+          if (openBraces > closeBraces) {
+            closingChars += '}'.repeat(openBraces - closeBraces);
+          }
+          
+          fixedContent = content + closingChars;
+          console.log('Attempting to fix with:', closingChars);
+          
+          try {
+            result = JSON.parse(fixedContent);
+            console.log('✅ Successfully fixed truncated JSON');
+          } catch (fixError) {
+            console.error('Failed to fix JSON, using fallback empty result');
+            result = { properties: [] };
+          }
+        } else {
+          console.error('JSON parsing failed for unknown reason, using fallback');
+          result = { properties: [] };
+        }
+      }
       const analysisMap = new Map<string, PropertyAnalysis>();
       
       // Convert response to map

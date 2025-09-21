@@ -1,0 +1,65 @@
+[
+  {
+    "metric": "rent_rpsf",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": "all",
+    "value": 1.40,
+    "sigma": 0.20,
+    "n_samples": 10,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "avg_rent_bed",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": 1,
+    "value": 1650,
+    "sigma": 150,
+    "n_samples": 10,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "avg_rent_bed",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": 2,
+    "value": 2100,
+    "sigma": 200,
+    "n_samples": 15,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "avg_rent_bed",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": 3,
+    "value": 2500,
+    "sigma": 250,
+    "n_samples": 8,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "unit_sqft",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": 1,
+    "value": 750,
+    "sigma": 100,
+    "n_samples": 10,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "unit_sqft",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": 2,
+    "value": 950,
+    "sigma": 120,
+    "n_samples": 15,
+    "updated_at": "2025-09-01T00:00:00Z"
+  },
+  {
+    "metric": "grm",
+    "geo": {"level": "city", "id": "worcester"},
+    "bed": "all",
+    "value": 13.5,
+    "sigma": 1.5,
+    "n_samples": 8,
+    "updated_at": "2025-09-01T00:00:00Z"
+  }
+]

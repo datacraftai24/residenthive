@@ -1,0 +1,22 @@
+{
+  "id": "FACT_1755098190417_zpmzumdrq",
+  "topic": "demographics",
+  "scopeLevel": "city",
+  "scopeValue": "Worcester, MA",
+  "key": "median_income",
+  "value": 67544,
+  "effectiveDate": "2025-08-13T15:16:30.417Z",
+  "sourceUrl": "https://www.census.gov/quickfacts/geo/chart/worcestercitymassachusetts/AGE135223",
+  "extractedAt": "2025-08-13T15:16:30.417Z",
+  "lastVerifiedAt": "2025-08-13T15:16:30.417Z",
+  "expiresAt": "2025-08-13T15:16:30.417Z",
+  "confidence": 0.8,
+  "status": "current",
+  "version": 1,
+  "metadata": {
+    "extractionMethod": "tavily_gpt4",
+    "validatorVersion": "1.0"
+  },
+  "createdAt": "2025-08-13T15:16:30.417Z",
+  "updatedAt": "2025-08-13T15:16:30.417Z"
+}

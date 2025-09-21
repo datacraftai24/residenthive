@@ -164,15 +164,29 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Save buyer profile
   app.post("/api/buyer-profiles", async (req, res) => {
     try {
+      console.log("Received profile data:", req.body);
+      
+      // Parse and validate the incoming data
       const profileData = insertBuyerProfileSchema.parse(req.body);
       
-      console.log(`Attempting to save profile for agent ID: ${profileData.agentId}`);
+      // Ensure required server-side fields are set
+      const profileToSave = {
+        ...profileData,
+        // Set agentId to default if not provided (for testing)
+        agentId: profileData.agentId || 28,
+        // Set createdAt server-side (will be overridden in storage.createBuyerProfile)
+        createdAt: new Date().toISOString()
+      };
       
-      const savedProfile = await storage.createBuyerProfile(profileData);
+      console.log(`Attempting to save profile for agent ID: ${profileToSave.agentId}`);
       
+      const savedProfile = await storage.createBuyerProfile(profileToSave);
+      
+      console.log("Profile saved successfully with ID:", savedProfile.id);
       res.json(savedProfile);
     } catch (error) {
       console.error("Error in /api/buyer-profiles POST:", error);
+      console.error("Error details:", error);
       res.status(400).json({ 
         error: "Failed to save profile",
         message: (error as Error).message 
@@ -185,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       // In development, use default agent for testing
       // In production, this should be extracted from session/JWT
-      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 29; // Default to Ranjan for testing
+      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 28; // Default to same agent as save endpoint
       
       console.log(`Fetching profiles for agent ID: ${agentId}`);
       
