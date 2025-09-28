@@ -6,7 +6,7 @@ import { registerRoutes } from "./routes";
 // Removed: ai-investment-advisor route (replaced with investment-chat enhanced)
 import enhancedInvestmentRoutes from "./routes/investment-routes-enhanced.js";
 import { log } from "./vite";
-import { marketStatsStore } from "./services/market-stats-store.js";
+import { databaseMarketStatsStore } from './services/database-market-stats-store.js';
 
 // ESM-safe __dirname for all path handling
 import path from "path";
@@ -97,7 +97,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 (async () => {
   // Initialize MarketStatsStore
   try {
-    await marketStatsStore.initialize();
+    await databaseMarketStatsStore.initialize();
     console.log('✅ MarketStatsStore initialized');
   } catch (error) {
     console.error('❌ Failed to initialize MarketStatsStore:', error);

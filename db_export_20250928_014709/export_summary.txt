@@ -1,0 +1,38 @@
+ResidentHive Database Export Summary
+==================================================
+Export Date: 2025-09-28T01:47:52.201046
+Total Tables: 30
+Total Rows Exported: 1,078
+
+Table Details:
+--------------------------------------------------
+agent_action_feedback          16 kB             0 rows
+agent_analysis_sessions        32 kB             1 rows
+agent_execution_logs           32 kB             1 rows
+agent_insight_feedback         16 kB             0 rows
+agent_interactions             16 kB             0 rows
+agent_notes                    16 kB             0 rows
+agent_performance_metrics      16 kB             0 rows
+agents                         64 kB             2 rows
+buyer_profiles                 64 kB            30 rows
+cached_search_results          408 kB            3 rows
+chat_agent_insights            16 kB             0 rows
+chat_messages                  16 kB             0 rows
+chat_search_context            16 kB             0 rows
+chat_sessions                  32 kB             0 rows
+investment_strategies          184 kB           26 rows
+listing_shareable_links        48 kB             0 rows
+listing_visual_analysis        272 kB          743 rows
+nlp_search_logs                3128 kB          83 rows
+profile_insights_lock          32 kB             1 rows
+profile_persona                16 kB             0 rows
+profile_shareable_links        48 kB             1 rows
+profile_tags                   16 kB             0 rows
+prompt_performance_tracking    16 kB             0 rows
+property_data_flow             16 kB             0 rows
+property_interactions          16 kB             0 rows
+property_notes                 16 kB             0 rows
+repliers_listings              192 kB           50 rows
+search_outcomes                48 kB            31 rows
+search_transaction_results     456 kB           40 rows
+search_transactions            168 kB           66 rows

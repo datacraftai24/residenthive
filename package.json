@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development tsx server/index.ts",
+    "dev": "NODE_ENV=development tsx -r dotenv/config server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "npx vite build",
     "build:server": "npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
@@ -23,6 +23,7 @@
     "@anthropic-ai/sdk": "^0.37.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
+    "@neondatabase/serverless": "^1.0.1",
     "@openai/agents": "^0.0.15",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.62.0",

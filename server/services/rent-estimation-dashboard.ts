@@ -1,4 +1,4 @@
-import { marketStatsStore } from './market-stats-store.js';
+import { databaseMarketStatsStore as marketStatsStore } from './database-market-stats-store.js';
 
 interface RentEstimate {
   point: number;

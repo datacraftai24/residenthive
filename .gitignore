@@ -22,6 +22,13 @@ database_backup.sql
 DATABASE_SCHEMA_EXPORT_COMPLETE.sql
 
 # Logs
+market-discovery-log.txt
+market-test-output.txt
+logs/
+evaluation-logs/
+execution-traces/
+strategy-logs/
+extraction-logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -59,6 +66,7 @@ vite.config.ts.*
 attached_assets/
 
 # Data profiling and test files
+research-flow-results.json
 quincy-ma-data-profile.md
 data-profiling-script.js
 test-nlp.js
@@ -93,3 +101,4 @@ CLAUDE.md
 REQUIRED_CHANGES.md
 SYSTEM_FLOW_ANALYSIS.md
 FIX_PLAN.md
+/refs/

@@ -6,9 +6,9 @@
 
 import { tracedLLMCall } from '../observability/llm-tracer';
 import type { ResearchResult } from '../ai-agents/smart-research-agent';
-import { marketStatsStore } from '../services/market-stats-store.js';
+import { databaseMarketStatsStore } from '../services/database-market-stats-store.js';
 import { rentDashboard } from '../services/rent-estimation-dashboard.js';
-import type { MarketStatsStore } from '../services/market-stats-store.js';
+import type { MarketStatsStore } from '../services/database-market-stats-store.js';
 
 interface UWInput {
   price: number;

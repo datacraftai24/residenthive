@@ -193,4 +193,4 @@ export class MarketStatsStore {
   }
 }
 
-export const marketStatsStore = new MarketStatsStore();
+export const databaseMarketStatsStore = new MarketStatsStore();

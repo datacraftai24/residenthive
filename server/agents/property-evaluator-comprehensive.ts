@@ -6,11 +6,11 @@
 
 import { tracedLLMCall } from '../observability/llm-tracer';
 import type { ResearchResult } from '../ai-agents/smart-research-agent';
-import { marketStatsStore } from '../services/market-stats-store.js';
+import { databaseMarketStatsStore } from '../services/database-market-stats-store.js';
 import { rentDashboard } from '../services/rent-estimation-dashboard.js';
 import { researchLogger } from '../utils/research-logger.js';
 import { UnitConfidence } from '../utils/property-types.js';
-import type { MarketStatsStore } from '../services/market-stats-store.js';
+import type { MarketStatsStore } from '../services/database-market-stats-store.js';
 import { strictExtraction } from '../services/strict-extraction.js';
 import { enhancedExtraction } from '../services/extraction-adapter.js';
 import { cityRentTables } from '../services/city-rent-tables.js';

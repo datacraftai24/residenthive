@@ -1,5 +1,0 @@
-
-ERROR: Cannot assign to read only property 'tracedLLMCall' of object '[object Module]'
-STACK: TypeError: Cannot assign to read only property 'tracedLLMCall' of object '[object Module]'
-    at testMarketDiscovery (/Users/piyushtiwari/residenthive/server/test-market-discovery.ts:205:24)
-TIMESTAMP: 2025-08-28T02:40:43.900Z
