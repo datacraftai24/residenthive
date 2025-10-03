@@ -5,13 +5,11 @@ import { z } from "zod";
 // Agent schema for agent management
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
+  clerkUserId: text("clerk_user_id").unique(), // NEW
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash"),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   brokerageName: text("brokerage_name").notNull(),
-  inviteToken: text("invite_token").unique(),
-  isActivated: boolean("is_activated").notNull().default(false),
   createdAt: text("created_at").notNull(),
 });
 

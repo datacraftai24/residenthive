@@ -18,7 +18,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "./db.js";
 import { eq } from "drizzle-orm";
-import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
+import { requireAuth, getAgentFromClerk } from "./middleware/clerk-auth";
 import configRoutes from "./routes/config.js";
 
 // Helper function to create NLP prompt from buyer profile
@@ -161,32 +161,27 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Save buyer profile
-  app.post("/api/buyer-profiles", async (req, res) => {
+
+  // Save buyer profile (protected)
+  app.post("/api/buyer-profiles", requireAuth, async (req, res) => {
     try {
+      console.log('hello');
+      const agent = await getAgentFromClerk(req);
+      if (!agent) return res.status(403).json({ error: "Agent not found" });
+
       console.log("Received profile data:", req.body);
-      
-      // Parse and validate the incoming data
       const profileData = insertBuyerProfileSchema.parse(req.body);
-      
-      // Ensure required server-side fields are set
       const profileToSave = {
         ...profileData,
-        // Set agentId to default if not provided (for testing)
-        agentId: profileData.agentId || 28,
-        // Set createdAt server-side (will be overridden in storage.createBuyerProfile)
+        agentId: agent.id,
         createdAt: new Date().toISOString()
       };
-      
       console.log(`Attempting to save profile for agent ID: ${profileToSave.agentId}`);
-      
       const savedProfile = await storage.createBuyerProfile(profileToSave);
-      
       console.log("Profile saved successfully with ID:", savedProfile.id);
       res.json(savedProfile);
     } catch (error) {
       console.error("Error in /api/buyer-profiles POST:", error);
-      console.error("Error details:", error);
       res.status(400).json({ 
         error: "Failed to save profile",
         message: (error as Error).message 
@@ -194,19 +189,22 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Get all buyer profiles (agent-specific)
-  app.get("/api/buyer-profiles", async (req, res) => {
+
+  // Get all buyer profiles (protected, agent-specific)
+  app.get("/api/buyer-profiles", requireAuth, async (req, res) => {
     try {
-      // In development, use default agent for testing
-      // In production, this should be extracted from session/JWT
-      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 28; // Default to same agent as save endpoint
-      
-      console.log(`Fetching profiles for agent ID: ${agentId}`);
-      
-      const profiles = await storage.getBuyerProfilesByAgent(agentId);
+      console.log('[API] /api/buyer-profiles handler called');
+      const agent = await getAgentFromClerk(req);
+      if (!agent) {
+        console.warn('[API] Agent not found for Clerk user:', req.auth?.userId);
+        return res.status(403).json({ error: "Agent not found" });
+      }
+      console.log(`[API] Fetching profiles for agent ID: ${agent.id}`);
+      const profiles = await storage.getBuyerProfilesByAgent(agent.id);
+      console.log(`[API] Returning ${profiles.length} profiles`);
       res.json(profiles);
     } catch (error) {
-      console.error("Error in /api/buyer-profiles GET:", error);
+      console.error("[API] Error in /api/buyer-profiles GET:", error);
       res.status(500).json({ 
         error: "Failed to fetch profiles",
         message: (error as Error).message 
@@ -2407,139 +2405,6 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Agent setup password (token validation)
-  app.post("/api/agents/setup-password", async (req, res) => {
-    try {
-      const { token, password } = agentSetupSchema.parse(req.body);
-      
-      // Find agent by invite token
-      const agent = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.inviteToken, token))
-        .limit(1);
-
-      if (agent.length === 0) {
-        return res.status(400).json({
-          error: "Invalid or expired setup token"
-        });
-      }
-
-      if (agent[0].isActivated) {
-        return res.status(400).json({
-          error: "Agent account is already activated"
-        });
-      }
-
-      // Hash password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-
-      // Update agent with password and activate
-      await db
-        .update(agents)
-        .set({
-          passwordHash,
-          isActivated: true,
-          inviteToken: null // Clear the token after use
-        })
-        .where(eq(agents.inviteToken, token));
-
-      // Send welcome email after successful activation
-      try {
-        const { emailService } = await import('./email-service.js');
-        await emailService.sendWelcomeEmail({
-          email: agent[0].email,
-          firstName: agent[0].firstName,
-          lastName: agent[0].lastName,
-          brokerageName: agent[0].brokerageName
-        });
-      } catch (emailError) {
-        console.error('Failed to send welcome email:', emailError);
-        // Don't fail the request if email fails
-      }
-
-      res.json({
-        success: true,
-        message: "Password set successfully. You can now log in."
-      });
-    } catch (error) {
-      console.error("Error setting up agent password:", error);
-      res.status(400).json({
-        error: "Failed to set up password",
-        message: (error as Error).message
-      });
-    }
-  });
-
-  // Agent login (activated agents only)
-  app.post("/api/agents/login", async (req, res) => {
-    console.log("=== AGENT LOGIN REQUEST START ===");
-    console.log("Request body:", req.body);
-    try {
-      const { email, password } = agentLoginSchema.parse(req.body);
-      
-      console.log(`Login attempt for email: ${email}`);
-      
-      // Find agent by email
-      const agent = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.email, email))
-        .limit(1);
-
-      if (agent.length === 0) {
-        console.log(`No agent found for email: ${email}`);
-        return res.status(401).json({
-          error: "Invalid email or password"
-        });
-      }
-
-      const agentRecord = agent[0];
-      console.log(`Found agent ID: ${agentRecord.id}, activated: ${agentRecord.isActivated}, hasPassword: ${!!agentRecord.passwordHash}`);
-
-      if (!agentRecord.isActivated) {
-        console.log(`Agent ${agentRecord.id} not activated`);
-        return res.status(401).json({
-          error: "Account not activated. Please use your setup link first."
-        });
-      }
-
-      if (!agentRecord.passwordHash) {
-        console.log(`Agent ${agentRecord.id} has no password hash`);
-        return res.status(401).json({
-          error: "Password not set. Please use your setup link."
-        });
-      }
-
-      // Verify password
-      console.log(`Comparing password for agent ${agentRecord.id}`);
-      const isValidPassword = await bcrypt.compare(password, agentRecord.passwordHash);
-      console.log(`Password valid: ${isValidPassword}`);
-      
-      if (!isValidPassword) {
-        console.log(`Invalid password for agent ${agentRecord.id}`);
-        return res.status(401).json({
-          error: "Invalid email or password"
-        });
-      }
-
-      // Return agent info (without password hash)
-      const { passwordHash, inviteToken, ...agentInfo } = agentRecord;
-      
-      res.json({
-        success: true,
-        message: "Login successful",
-        agent: agentInfo
-      });
-    } catch (error) {
-      console.error("Error during agent login:", error);
-      res.status(400).json({
-        error: "Login failed",
-        message: (error as Error).message
-      });
-    }
-  });
 
   // Get agent by token (for setup form)
   app.get("/api/agents/setup/:token", async (req, res) => {

@@ -1,134 +1,158 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
-import BuyerForm from "@/components/buyer-form";
-import ProfileForm from "@/components/profile-form";
-import ProfileDisplay from "@/components/profile-display";
-import ProfileViewer from "@/components/profile-viewer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
+import BuyerForm from "../components/buyer-form";
+import ProfileForm from "../components/profile-form";
+import ProfileDisplay from "../components/profile-display";
+import ProfileViewer from "../components/profile-viewer";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
+import { useUser, useAuth, SignOutButton } from "@clerk/clerk-react";
 import { Link, useLocation } from "wouter";
 
-type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
-
-interface Agent {
-  id: number;
-  email: string;
-  firstName: string;
-  lastName: string;
-  brokerageName: string;
-  isActivated: boolean;
-}
+type ViewMode = "home" | "view-profile" | "extracted-profile";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const [viewMode, setViewMode] = useState<ViewMode>('home');
+  const [viewMode, setViewMode] = useState<ViewMode>("home");
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [extractedProfile, setExtractedProfile] = useState<ExtractedProfile | null>(null);
-  const [agent, setAgent] = useState<Agent | null>(null);
+  const [agent, setAgent] = useState<any>(null);
 
-  const { data: profiles = [], isLoading } = useQuery<BuyerProfile[]>({
-    queryKey: ["/api/buyer-profiles"],
+  // Clerk user
+  const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
+
+  // Helper to get agent initials
+  function getAgentInitials(agent: any) {
+    if (!agent) return "";
+    const first = agent.firstName ? agent.firstName[0] : "";
+    const last = agent.lastName ? agent.lastName[0] : "";
+    return (first + last).toUpperCase() || "A";
+  }
+
+  // Logout handler
+  function handleLogout() {
+    window.location.href = "/sign-out";
+  }
+
+  // Redirect to sign-in if not authenticated
+  useEffect(() => {
+    if (isLoaded && !user) {
+      setLocation("/sign-in");
+    }
+  }, [isLoaded, user, setLocation]);
+  if (isLoaded && !user) return null;
+  console.log("Signed-in user:", user);
+  // Fetch buyer profiles for the signed-in agent (by email) only after Clerk login is loaded and user is present
+  const { data: profiles = [], isLoading, error } = useQuery<BuyerProfile[]>({
+    queryKey: ["/api/buyer-profiles", user?.primaryEmailAddress?.emailAddress],
     queryFn: async () => {
-      const response = await fetch("/api/buyer-profiles", {
-        headers: {
-          'x-agent-id': agent?.id?.toString() || '29' // Send agent ID for isolation
+      if (!user?.primaryEmailAddress?.emailAddress) {
+        throw new Error("User email not available");
+      }
+      const token = await getToken();
+      console.log("Clerk token (frontend):", token);
+      if (!token) {
+        throw new Error("Clerk session token not available");
+      }
+      const controller = new AbortController();
+      try {
+        const response = await fetch("/api/buyer-profiles", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "x-agent-email": user.primaryEmailAddress.emailAddress,
+          },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Failed to fetch profiles");
+        const data = await response.json();
+        console.log("Fetched profiles:", data);
+        return data;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          throw new Error("Request timed out");
         }
-      });
-      if (!response.ok) throw new Error('Failed to fetch profiles');
-      return response.json();
+        throw err;
+      }
     },
-    enabled: !!agent // Only fetch when agent is loaded
+    enabled: isLoaded && !!user && !!user.primaryEmailAddress?.emailAddress,
+    retry: 1,
   });
 
-  // Load agent data from localStorage on component mount
+  // Fetch agent info from Clerk and set to state
   useEffect(() => {
-    const savedAgent = localStorage.getItem("agent");
-    if (savedAgent) {
-      try {
-        const parsedAgent = JSON.parse(savedAgent);
-        console.log("Loaded agent from localStorage:", parsedAgent);
-        
-        // Validate agent has required fields
-        if (!parsedAgent.id || !parsedAgent.email) {
-          console.error(`Invalid agent data. Clearing localStorage and forcing re-login.`);
-          localStorage.removeItem("agent");
-          setLocation("/agent-login");
-          return;
-        }
-        
-        setAgent(parsedAgent);
-      } catch (error) {
-        console.error("Error parsing agent data:", error);
-        localStorage.removeItem("agent");
-        setLocation("/agent-login");
-      }
-    } else {
-      // This shouldn't happen due to ProtectedRoute, but safety fallback
-      setLocation("/agent-login");
+    if (isLoaded && user) {
+      // You can customize this mapping as needed
+      setAgent({
+        firstName: user.firstName || user.username || "Agent",
+        lastName: user.lastName || "",
+        email: user.primaryEmailAddress?.emailAddress || "",
+        brokerageName: user.publicMetadata?.brokerageName || "",
+        id: user.id,
+      });
     }
-  }, [setLocation]);
+  }, [isLoaded, user]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("agent");
-    setAgent(null);
-    setLocation("/agent-login");
-  };
-
-  const getAgentInitials = (agent: Agent) => {
-    return `${agent.firstName[0]}${agent.lastName[0]}`.toUpperCase();
-  };
+  if (error) {
+    return <div className="text-red-500 p-4">Error: {error.message}</div>;
+  }
 
   const handleProfileExtracted = (profile: ExtractedProfile) => {
     setExtractedProfile(profile);
-    setViewMode('extracted-profile');
+    setViewMode("extracted-profile");
     setSelectedProfileId(null);
   };
 
   const handleProfileSaved = () => {
     setExtractedProfile(null);
-    setViewMode('home');
+    setViewMode("home");
   };
 
   const handleProfileSelected = (profile: BuyerProfile) => {
     setSelectedProfileId(profile.id);
-    setViewMode('view-profile');
+    setViewMode("view-profile");
     setExtractedProfile(null);
   };
 
   const handleBackToHome = () => {
-    setViewMode('home');
+    setViewMode("home");
     setSelectedProfileId(null);
     setExtractedProfile(null);
   };
 
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-slate-50">
-      <div className="lg:hidden">
-        <Sidebar 
+      {/* Sidebar for large screens */}
+      <div className="hidden lg:block lg:w-64 h-full border-r bg-white">
+        <Sidebar
           profiles={profiles}
           isLoading={isLoading}
-          selectedProfile={profiles.find(p => p.id === selectedProfileId) || null}
+          selectedProfile={profiles.find((p) => p.id === selectedProfileId) || null}
+          onSelectProfile={handleProfileSelected}
+          isMobile={false}
+        />
+      </div>
+      {/* Sidebar for mobile screens */}
+      <div className="lg:hidden">
+        <Sidebar
+          profiles={profiles}
+          isLoading={isLoading}
+          selectedProfile={profiles.find((p) => p.id === selectedProfileId) || null}
           onSelectProfile={handleProfileSelected}
           isMobile={true}
         />
       </div>
       
-      <div className="hidden lg:block">
-        <Sidebar 
-          profiles={profiles}
-          isLoading={isLoading}
-          selectedProfile={profiles.find(p => p.id === selectedProfileId) || null}
-          onSelectProfile={handleProfileSelected}
-          isMobile={false}
-        />
-      </div>
-      
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
+        <header className="bg-white border-b border-slate-200 py-2 sm:py-2 mr-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg sm:text-xl font-semibold text-slate-900">Buyer Profile Management</h1>
@@ -142,32 +166,8 @@ export default function Dashboard() {
                 </button>
               </Link>
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 mr-8" />
               </button>
-              
-              {/* Agent Info & Logout - Always present for authenticated users */}
-              {agent ? (
-                <div className="flex items-center space-x-2">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-xs font-medium text-slate-700">{agent.firstName} {agent.lastName}</span>
-                    <span className="text-xs text-slate-500">{agent.brokerageName}</span>
-                  </div>
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs sm:text-sm font-medium">{getAgentInitials(agent)}</span>
-                  </div>
-                  <button 
-                    onClick={handleLogout}
-                    className="text-slate-400 hover:text-slate-600 transition-colors p-1"
-                    title="Logout"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <div className="text-xs text-slate-500">Loading...</div>
-                </div>
-              )}
             </div>
           </div>
         </header>
