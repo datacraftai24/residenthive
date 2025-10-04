@@ -1,9 +1,0 @@
-agents:
-  - firstName: "Admin"
-    lastName: "User"
-    email: "info@datacraftai.com"
-    brokerageName: "DataCraft AI"
-  - firstName: "Ranjan"
-    lastName: "Dahal"
-    email: "ranjan.dahal89@gmail.com"
-    brokerageName: "Honest Realty"

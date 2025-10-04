@@ -102,3 +102,4 @@ REQUIRED_CHANGES.md
 SYSTEM_FLOW_ANALYSIS.md
 FIX_PLAN.md
 /refs/
+/db_export_*/

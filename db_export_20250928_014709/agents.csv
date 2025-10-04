@@ -1,3 +1,0 @@
-id,email,password_hash,first_name,last_name,brokerage_name,invite_token,is_activated,created_at
-29,ranjan.dahal89@gmail.com,$2b$12$HcBsBJq.xwlDOOJfxYmJZeh2YoNhAzc1L3Gt5BJVfirOCPQhw7b1K,Ranjan,Dahal,Honest Realty,,True,2025-07-21T10:48:55.294Z
-28,info@datacraftai.com,$2b$12$03uI5wW4AsxbVrAd5yS1UeZAYA5.CaTsq6HTDwi0hi.YE8hScfnPO,Admin,User,DataCraft AI,4117263c6465f33e32ac7a8b2ecc86e7cef5f0e1afb6b5f999dc4307560e3761,True,2025-07-21T10:35:34.091Z
