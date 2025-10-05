@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useUser, useClerk, useAuth } from "@clerk/clerk-react";
+import { useUser as useAgent, useClerk, useAuth } from "@clerk/clerk-react";
 import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
 import BuyerForm from "@/components/buyer-form";
@@ -14,8 +14,8 @@ import { Link } from "wouter";
 
 type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
 
-export default function Dashboard() {
-  const { user } = useUser();
+const Dashboard = () => {
+  const { user: agent } = useAgent();
   const { signOut } = useClerk();
   const { getToken } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('home');
@@ -29,13 +29,14 @@ export default function Dashboard() {
       const response = await fetch("/api/buyer-profiles", {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Clerk-User-Id': agent?.id as unknown as string
         }
       });
       if (!response.ok) throw new Error('Failed to fetch profiles');
       return response.json();
     },
-    enabled: !!user // Only fetch when user is loaded
+    enabled: !!agent // Only fetch when agent is loaded
   });
 
   const handleLogout = () => {
@@ -43,8 +44,8 @@ export default function Dashboard() {
   };
 
   const getAgentInitials = () => {
-    if (!user?.firstName || !user?.lastName) return 'U';
-    return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    if (!agent?.firstName || !agent?.lastName) return 'U';
+    return `${agent.firstName[0]}${agent.lastName[0]}`.toUpperCase();
   };
 
   const handleProfileExtracted = (profile: ExtractedProfile) => {
@@ -112,11 +113,11 @@ export default function Dashboard() {
               </button>
               
               {/* User Info & Logout - Always present for authenticated users */}
-              {user ? (
+              {agent ? (
                 <div className="flex items-center space-x-2">
                   <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-xs font-medium text-slate-700">{user.firstName} {user.lastName}</span>
-                    <span className="text-xs text-slate-500">{user.publicMetadata?.brokerageName || 'Agent'}</span>
+                    <span className="text-xs font-medium text-slate-700">{agent.firstName} {agent.lastName}</span>
+                    <span className="text-xs text-slate-500">{agent.publicMetadata?.brokerageName || 'Agent'}</span>
                   </div>
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
                     <span className="text-white text-xs sm:text-sm font-medium">{getAgentInitials()}</span>
@@ -215,4 +216,6 @@ export default function Dashboard() {
       </main>
     </div>
   );
-}
+};
+
+export default Dashboard;

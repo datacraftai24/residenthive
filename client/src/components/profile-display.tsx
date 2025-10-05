@@ -40,7 +40,11 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
 
   const saveMutation = useMutation({
     mutationFn: async (profile: InsertBuyerProfile) => {
-      const response = await apiRequest("POST", "/api/buyer-profiles", profile);
+      const extraHeaders: Record<string, string> = {};
+      if (agent?.id) extraHeaders['X-Agent-Id'] = String(agent.id);
+      if (agent?.email) extraHeaders['X-Clerk-User-Id'] = agent.email; // best-effort fallback
+
+      const response = await apiRequest("POST", "/api/buyer-profiles", profile, extraHeaders);
       return response.json();
     },
     onSuccess: () => {
