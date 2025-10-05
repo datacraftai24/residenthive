@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import type { Request, Response } from "express";
 import { storage } from "./storage";
 import { extractBuyerProfile, enhanceFormProfile, extractBuyerProfileWithTags } from "./openai";
 import { tagEngine } from "./tag-engine";
@@ -20,6 +21,7 @@ import { db } from "./db.js";
 import { eq } from "drizzle-orm";
 import { processAgentInvites, inviteAgent } from "./agent-invite-service.js";
 import configRoutes from "./routes/config.js";
+import { withAgent } from "./middleware/clerk-auth.js";
 
 // Helper function to create NLP prompt from buyer profile
 function createNLPPromptFromProfile(profile: any): string {
@@ -142,7 +144,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         message: (error as Error).message 
       });
     }
-  });
+  }); // End last route handler
 
   // Enhance form profile with AI insights
   app.post("/api/enhance-profile", async (req, res) => {
@@ -162,26 +164,24 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Save buyer profile
-  app.post("/api/buyer-profiles", async (req, res) => {
+  app.post("/api/buyer-profiles", withAgent, async (req, res) => {
     try {
       console.log("Received profile data:", req.body);
-      
       // Parse and validate the incoming data
       const profileData = insertBuyerProfileSchema.parse(req.body);
-      
+      // Get agentId from Clerk middleware
+      const agentId = req.agent?.id;
+      if (!agentId) {
+        return res.status(403).json({ error: "Agent not authenticated" });
+      }
       // Ensure required server-side fields are set
       const profileToSave = {
         ...profileData,
-        // Set agentId to default if not provided (for testing)
-        agentId: profileData.agentId || 28,
-        // Set createdAt server-side (will be overridden in storage.createBuyerProfile)
+        agentId,
         createdAt: new Date().toISOString()
       };
-      
       console.log(`Attempting to save profile for agent ID: ${profileToSave.agentId}`);
-      
       const savedProfile = await storage.createBuyerProfile(profileToSave);
-      
       console.log("Profile saved successfully with ID:", savedProfile.id);
       res.json(savedProfile);
     } catch (error) {
@@ -195,21 +195,24 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Get all buyer profiles (agent-specific)
-  app.get("/api/buyer-profiles", async (req, res) => {
+  app.get("/api/buyer-profiles", withAgent, async (req, res) => {
     try {
-      // In development, use default agent for testing
-      // In production, this should be extracted from session/JWT
-      const agentId = req.headers['x-agent-id'] ? parseInt(req.headers['x-agent-id'] as string) : 28; // Default to same agent as save endpoint
-      
+      // Get agent ID from Clerk auth
+      const agentId = req.agent?.id;
+
+      if (!agentId) {
+        return res.status(403).json({ error: "Agent not found" });
+      }
+
       console.log(`Fetching profiles for agent ID: ${agentId}`);
-      
+
       const profiles = await storage.getBuyerProfilesByAgent(agentId);
       res.json(profiles);
     } catch (error) {
       console.error("Error in /api/buyer-profiles GET:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to fetch profiles",
-        message: (error as Error).message 
+        message: (error as Error).message
       });
     }
   });
@@ -238,38 +241,22 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // Delete buyer profile
-  app.delete("/api/buyer-profiles/:id", async (req, res) => {
+  app.patch("/api/buyer-profiles/:id", withAgent, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid profile ID" });
       }
-
-      await storage.deleteBuyerProfile(id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error in /api/buyer-profiles/:id DELETE:", error);
-      res.status(500).json({ 
-        error: "Failed to delete profile",
-        message: (error as Error).message 
-      });
-    }
-  });
-
-  // Update buyer profile
-  app.patch("/api/buyer-profiles/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid profile ID" });
+      const agentId = req.agent?.id;
+      if (!agentId) {
+        return res.status(403).json({ error: "Agent not authenticated" });
       }
-
       const result = insertBuyerProfileSchema.partial().safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: result.error.errors });
       }
-
-      const profile = await storage.updateBuyerProfile(id, result.data);
+      // Optionally, ensure agent can only update their own profiles (add check if needed)
+      const profile = await storage.updateBuyerProfile(id, { ...result.data, agentId });
       res.json(profile);
     } catch (error) {
       console.error("Error updating buyer profile:", error);
@@ -3052,4 +3039,5 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Routes registered successfully - no need to return custom server
   return;
-}
+// End of registerRoutes
+} // End of registerRoutes

@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useUser as useAgent, useClerk, useAuth } from "@clerk/clerk-react";
 import type { BuyerProfile, ExtractedProfile } from "@shared/schema";
 import Sidebar from "@/components/sidebar";
 import BuyerForm from "@/components/buyer-form";
@@ -9,32 +10,27 @@ import ProfileViewer from "@/components/profile-viewer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 
 type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
 
-interface Agent {
-  id: number;
-  email: string;
-  firstName: string;
-  lastName: string;
-  brokerageName: string;
-  isActivated: boolean;
-}
-
-export default function Dashboard() {
-  const [, setLocation] = useLocation();
+const Dashboard = () => {
+  const { user: agent } = useAgent();
+  const { signOut } = useClerk();
+  const { getToken } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [extractedProfile, setExtractedProfile] = useState<ExtractedProfile | null>(null);
-  const [agent, setAgent] = useState<Agent | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<BuyerProfile[]>({
     queryKey: ["/api/buyer-profiles"],
     queryFn: async () => {
+      const token = await getToken();
       const response = await fetch("/api/buyer-profiles", {
         headers: {
-          'x-agent-id': agent?.id?.toString() || '29' // Send agent ID for isolation
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Clerk-User-Id': agent?.id as unknown as string
         }
       });
       if (!response.ok) throw new Error('Failed to fetch profiles');
@@ -43,41 +39,12 @@ export default function Dashboard() {
     enabled: !!agent // Only fetch when agent is loaded
   });
 
-  // Load agent data from localStorage on component mount
-  useEffect(() => {
-    const savedAgent = localStorage.getItem("agent");
-    if (savedAgent) {
-      try {
-        const parsedAgent = JSON.parse(savedAgent);
-        console.log("Loaded agent from localStorage:", parsedAgent);
-        
-        // Validate agent has required fields
-        if (!parsedAgent.id || !parsedAgent.email) {
-          console.error(`Invalid agent data. Clearing localStorage and forcing re-login.`);
-          localStorage.removeItem("agent");
-          setLocation("/agent-login");
-          return;
-        }
-        
-        setAgent(parsedAgent);
-      } catch (error) {
-        console.error("Error parsing agent data:", error);
-        localStorage.removeItem("agent");
-        setLocation("/agent-login");
-      }
-    } else {
-      // This shouldn't happen due to ProtectedRoute, but safety fallback
-      setLocation("/agent-login");
-    }
-  }, [setLocation]);
-
   const handleLogout = () => {
-    localStorage.removeItem("agent");
-    setAgent(null);
-    setLocation("/agent-login");
+    signOut({ redirectUrl: '/' });
   };
 
-  const getAgentInitials = (agent: Agent) => {
+  const getAgentInitials = () => {
+    if (!agent?.firstName || !agent?.lastName) return 'U';
     return `${agent.firstName[0]}${agent.lastName[0]}`.toUpperCase();
   };
 
@@ -145,15 +112,15 @@ export default function Dashboard() {
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
               
-              {/* Agent Info & Logout - Always present for authenticated users */}
+              {/* User Info & Logout - Always present for authenticated users */}
               {agent ? (
                 <div className="flex items-center space-x-2">
                   <div className="hidden sm:flex flex-col items-end">
                     <span className="text-xs font-medium text-slate-700">{agent.firstName} {agent.lastName}</span>
-                    <span className="text-xs text-slate-500">{agent.brokerageName}</span>
+                    <span className="text-xs text-slate-500">{agent.publicMetadata?.brokerageName || 'Agent'}</span>
                   </div>
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs sm:text-sm font-medium">{getAgentInitials(agent)}</span>
+                    <span className="text-white text-xs sm:text-sm font-medium">{getAgentInitials()}</span>
                   </div>
                   <button 
                     onClick={handleLogout}
@@ -249,4 +216,6 @@ export default function Dashboard() {
       </main>
     </div>
   );
-}
+};
+
+export default Dashboard;
