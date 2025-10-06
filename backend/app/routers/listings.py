@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Query, HTTPException
 from typing import List, Dict, Any
 from uuid import uuid4
 from datetime import datetime
 from fastapi.responses import Response
+from ..services.repliers import RepliersClient, RepliersError
+from ..db import get_conn, fetchone_dict
 
 
 router = APIRouter(prefix="/api")
@@ -26,75 +27,183 @@ def _score_breakdown(base=75):
     }
 
 
-def _basic_listings(city: str) -> List[Dict[str, Any]]:
-    return [
-        {
-            "id": "mls-101",
-            "price": 425000,
-            "bedrooms": 3,
-            "bathrooms": 2,
-            "property_type": "single-family",
-            "address": "12 Oak St",
-            "city": city,
-            "state": "MA",
-            "square_feet": 1550,
-            "description": "Charming home with updated kitchen and fenced yard.",
-        },
-        {
-            "id": "mls-102",
-            "price": 505000,
-            "bedrooms": 4,
-            "bathrooms": 3,
-            "property_type": "single-family",
-            "address": "98 Pine Ave",
-            "city": city,
-            "state": "MA",
-            "square_feet": 1900,
-            "description": "Spacious home close to downtown.",
-        },
-    ]
-
 
 @router.post("/listings/search")
 def listings_search(payload: Dict[str, Any]):
-    city = "Worcester"
-    basic = _basic_listings(city)
-    top = {
-        "listing": basic[0],
-        "match_score": 0.82,
-        "label": "Strong match",
-        "matched_features": ["budget fit", "3 beds"],
-        "dealbreaker_flags": [],
-        "reason": "Great value in desired city with right bedrooms.",
-        "score_breakdown": _score_breakdown(82),
-    }
-    other = {
-        "listing": basic[1],
-        "match_score": 0.74,
-        "label": "Good match",
-        "matched_features": ["near amenities"],
-        "dealbreaker_flags": [],
-        "reason": "Slightly above budget but strong fit otherwise.",
-        "score_breakdown": _score_breakdown(74),
-    }
-    return {
-        "top_picks": [top],
-        "other_matches": [other],
-        "chat_blocks": [
-            "Top pick: 12 Oak St — budget fit, 3BR, great value.",
-            "Consider 98 Pine Ave — slightly above budget but compelling."
-        ],
-        "search_summary": {
-            "total_found": 2,
-            "top_picks_count": 1,
-            "other_matches_count": 1,
-            "search_criteria": {
-                "budget": "$400K - $550K",
-                "bedrooms": 3,
-                "property_type": "single-family",
-                "location": city,
+    profile_id = payload.get("profileId")
+    if not profile_id:
+        raise HTTPException(status_code=400, detail="profileId is required")
+    # Load profile from DB to build filters; allow override via payload.profile for testing
+    profile = payload.get("profile") or {}
+    if not profile:
+        profile = _load_profile(profile_id)
+    
+    client = RepliersClient()
+    try:
+        listings = client.search(profile)
+    except RepliersError as e:
+        print(f"[LISTINGS SEARCH ERROR] RepliersError for profile {profile_id}: {e}")
+        return {
+            "top_picks": [],
+            "other_matches": [],
+            "chat_blocks": [],
+            "search_summary": {
+                "total_found": 0,
+                "top_picks_count": 0,
+                "other_matches_count": 0,
+                "search_criteria": profile,
+                "error": str(e),
             },
+        }
+    except Exception as e:
+        print(f"[LISTINGS SEARCH ERROR] Unexpected error for profile {profile_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "top_picks": [],
+            "other_matches": [],
+            "chat_blocks": [],
+            "search_summary": {
+                "total_found": 0,
+                "top_picks_count": 0,
+                "other_matches_count": 0,
+                "search_criteria": profile,
+                "error": str(e),
+            },
+        }
+    # Simple scoring based on budget and bedrooms match
+    def score(l: Dict[str, Any]) -> float:
+        s = 50.0
+        try:
+            price = l.get("price") or 0
+            bmin = profile.get("budgetMin") or 0
+            bmax = profile.get("budgetMax") or 0
+            if bmin and bmax and bmin <= price <= bmax:
+                s += 25
+            elif bmin and price >= bmin:
+                s += 10
+            elif bmax and price <= bmax:
+                s += 10
+            beds_req = profile.get("bedrooms")
+            if beds_req is not None and l.get("bedrooms") is not None:
+                s += 15 if int(l["bedrooms"]) >= int(beds_req) else 5
+        except Exception:
+            pass
+        return min(100.0, s)
+    scored = [
+        {
+            "listing": l,
+            "match_score": score(l) / 100.0,
+            "label": "Match",
+            "matched_features": [],
+            "dealbreaker_flags": [],
+            "reason": "",
+            "score_breakdown": _score_breakdown(int(score(l))),
+        }
+        for l in listings
+    ]
+    top = [x for x in scored if x["match_score"] >= 0.8]
+    others = [x for x in scored if x["match_score"] < 0.8]
+    
+    # Check if we got results from the requested location
+    requested_location = profile.get("location", "")
+    location_match = False
+    if listings and requested_location:
+        # Extract requested city/state
+        requested_parts = requested_location.split(",")
+        if len(requested_parts) >= 2:
+            req_city = requested_parts[0].strip().lower()
+            req_state = requested_parts[1].strip().lower()
+            # Check if any listing matches the requested location
+            location_match = any(
+                l.get("city", "").lower() == req_city or 
+                l.get("state", "").lower() == req_state
+                for l in listings
+            )
+    
+    return {
+        "top_picks": top,
+        "other_matches": others,
+        "chat_blocks": [],
+        "search_summary": {
+            "total_found": len(listings),
+            "top_picks_count": len(top),
+            "other_matches_count": len(others),
+            "search_criteria": profile,
+            "location_mismatch": not location_match if requested_location else False,
+            "warning": f"No properties found in {requested_location}. Showing properties from available regions." if not location_match and requested_location and listings else None,
         },
+    }
+
+
+def _load_profile(profile_id: int) -> Dict[str, Any]:
+    """Fetch and normalize minimal profile fields used to build a Repliers query."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT name, email, phone, location, agent_id,
+                       buyer_type, budget, budget_min, budget_max, home_type,
+                       bedrooms, bathrooms, must_have_features, dealbreakers, preferred_areas,
+                       lifestyle_drivers, special_needs, budget_flexibility, location_flexibility,
+                       timing_flexibility, emotional_context, voice_transcript, inferred_tags,
+                       emotional_tone, priority_score, raw_input, input_method, nlp_confidence,
+                       version, parent_profile_id
+                FROM buyer_profiles WHERE id = %s
+                """,
+                (profile_id,),
+            )
+            row = fetchone_dict(cur)
+    if not row:
+        return {}
+    def cj(v):
+        if isinstance(v, str):
+            try:
+                import json
+                return json.loads(v)
+            except Exception:
+                return []
+        return v or []
+    
+    # Parse budget - handle both budget string and budgetMin/budgetMax fields
+    budget_min = row.get("budget_min")
+    budget_max = row.get("budget_max")
+    budget_str = row.get("budget")
+    
+    # If budgetMin/Max not set but budget string exists, parse it
+    if not budget_min and not budget_max and budget_str:
+        try:
+            # Try to parse budget string as a number
+            budget_val = int(str(budget_str).replace(",", "").replace("$", "").strip())
+            # Set a reasonable range (e.g., ±10% or use the exact value)
+            budget_min = int(budget_val * 0.8)  # 80% of budget as min
+            budget_max = int(budget_val * 1.2)  # 120% of budget as max
+        except (ValueError, AttributeError):
+            pass
+    
+    return {
+        "name": row.get("name"),
+        "email": row.get("email"),
+        "phone": row.get("phone"),
+        "location": row.get("location"),
+        "agentId": row.get("agent_id"),
+        "buyerType": row.get("buyer_type"),
+        "budget": row.get("budget"),
+        "budgetMin": budget_min,
+        "budgetMax": budget_max,
+        "homeType": row.get("home_type"),
+        "bedrooms": row.get("bedrooms"),
+        "bathrooms": row.get("bathrooms"),
+        "mustHaveFeatures": cj(row.get("must_have_features")),
+        "dealbreakers": cj(row.get("dealbreakers")),
+        "preferredAreas": cj(row.get("preferred_areas")),
+        "lifestyleDrivers": cj(row.get("lifestyle_drivers")),
+        "specialNeeds": cj(row.get("special_needs")),
+        "budgetFlexibility": row.get("budget_flexibility"),
+        "locationFlexibility": row.get("location_flexibility"),
+        "timingFlexibility": row.get("timing_flexibility"),
+        "priorityScore": row.get("priority_score"),
+        "inputMethod": row.get("input_method"),
     }
 
 
@@ -111,92 +220,23 @@ def cache_status(profile_id: int, searchMethod: str = Query("enhanced")):
 
 @router.post("/listings/search-enhanced")
 def listings_search_enhanced(payload: Dict[str, Any]):
-    city = "Worcester"
-    basic = _basic_listings(city)
-    def to_enh(l, score, label, reason):
-        return {
-            "listing": {
-                **l,
-                "images": [
-                    f"/api/placeholder/400/300",
-                    f"/api/placeholder/400/300",
-                ],
-                "features": ["modern_kitchen", "fenced_yard"],
-            },
-            "match_score": score / 100.0,
-            "label": label,
-            "matched_features": ["budget fit", "location fit"],
-            "visualTagMatches": ["bright_kitchen"],
-            "visualFlags": [],
-            "enhancedReason": reason,
-            "score_breakdown": _score_breakdown(score),
-            "visualAnalysis": {
-                "analyses": [
-                    {
-                        "imageUrl": f"/api/placeholder/400/300",
-                        "imageType": "kitchen",
-                        "visualTags": ["modern", "bright"],
-                        "summary": "Bright modern kitchen with good finishes.",
-                        "flags": [],
-                        "confidence": 90,
-                    }
-                ],
-                "overallTags": ["move_in_ready"],
-                "overallFlags": [],
-            },
-        }
-    top = to_enh(basic[0], 84, "Top match", "Great kitchen and budget fit, strong rental comps.")
-    other = to_enh(basic[1], 72, "Good match", "Slightly above budget but compelling neighborhood.")
-    return {
-        "top_picks": [top],
-        "other_matches": [other],
-        "properties_without_images": [],
-        "chat_blocks": [
-            "Top pick with visual confirmation: 12 Oak St.",
-            "Also consider 98 Pine Ave."
-        ],
-        "search_summary": {
-            "total_found": 2,
-            "top_picks_count": 1,
-            "other_matches_count": 1,
-            "visual_analysis_count": 1,
-            "search_criteria": {"city": city},
-        },
-        "cache_status": {"from_cache": False},
-    }
+    # Same as basic search but returns the enhanced envelope without faked visual data
+    res = listings_search(payload)
+    # Ensure enhanced fields exist
+    res["properties_without_images"] = []
+    res.setdefault("search_summary", {})
+    res.setdefault("cache_status", {"from_cache": False})
+    return res
 
 
 @router.post("/listings/search-hybrid")
 def listings_search_hybrid(payload: Dict[str, Any]):
-    city = "Worcester"
-    basic = _basic_listings(city)
-    def to_h(l, score, label, reason):
-        return {
-            "listing": l,
-            "match_score": score / 100.0,
-            "label": label,
-            "matched_features": ["budget fit"],
-            "reason": reason,
-            "score_breakdown": _score_breakdown(score),
-        }
-    top = to_h(basic[0], 80, "Top match", "Great balance of price and features.")
-    other = to_h(basic[1], 69, "Decent match", "Slight stretch but worth a look.")
-    return {
-        "top_picks": [top],
-        "other_matches": [other],
-        "chat_blocks": ["Hybrid search found strong options."]
-        ,
-        "search_summary": {
-            "total_found": 2,
-            "top_picks_count": 1,
-            "other_matches_count": 1,
-            "search_criteria": {"city": city},
-        },
-        "search_type": "hybrid",
-        "analysis_in_progress": False,
-        "analysis_progress": {"total": 2, "completed": 2, "currentProperty": None},
-        "cache_status": {"from_cache": False},
-    }
+    res = listings_search(payload)
+    res["search_type"] = "hybrid"
+    res["analysis_in_progress"] = False
+    res["analysis_progress"] = {"total": res["search_summary"]["total_found"], "completed": res["search_summary"]["total_found"], "currentProperty": None}
+    res["cache_status"] = {"from_cache": False}
+    return res
 
 
 @router.post("/listings/share")
@@ -236,4 +276,3 @@ def placeholder(w: int, h: int):
     </svg>
     """.strip()
     return Response(content=svg, media_type="image/svg+xml")
-
