@@ -1,0 +1,63 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore
+
+# Git
+.git
+.gitignore
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info
+
+# Environment files (never upload secrets!)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build artifacts (local only)
+dist/
+build/
+
+# Testing and logs
+*.log
+*.test.js
+*.test.ts
+test/
+coverage/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Archives
+archive/
+reports/
+evaluation-logs/
+execution-traces/
+extraction-logs/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Scripts (deploy scripts not needed in cloud)
+scripts/
+
+# Misc
+.DS_Store
+Thumbs.db

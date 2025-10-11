@@ -23,15 +23,40 @@ def create_app() -> FastAPI:
     load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
     app = FastAPI(title="ResidentHive Backend", version="1.0.0")
 
-    # CORS for local dev
+    # CORS configuration for local dev and production
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[frontend_url, "*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+
+    # Allow multiple origins including local, Docker, and Cloud Run
+    allowed_origins = [
+        frontend_url,
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:8080",  # Docker frontend
+        "http://localhost:3000",  # Alternative dev port
+    ]
+
+    # Add Cloud Run frontend URL if specified
+    cloud_run_frontend = os.getenv("CLOUD_RUN_FRONTEND_URL")
+    if cloud_run_frontend:
+        allowed_origins.append(cloud_run_frontend)
+
+    # In development, allow all origins. In production, use specific origins
+    if os.getenv("NODE_ENV") == "production":
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        # Development: allow all origins for easier testing
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # Routers
     app.include_router(health_router.router)
