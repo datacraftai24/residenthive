@@ -103,3 +103,38 @@ Notes
 - Listing/search endpoints currently return realistic demo payloads to keep UI fully functional. Replace with live integrations as needed.
 - To deploy, host the static frontend and the backend service separately, and set `VITE_BACKEND_URL` accordingly.
 
+Clerk Authentication (Frontend)
+- This project includes optional Clerk-based auth for the React app.
+- Setup
+  1) Create a Clerk application at clerk.com and get your Publishable Key and Secret Key.
+  2) In the repo root `.env`, add:
+     - `VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx` (used by the Vite frontend)
+  3) Install deps and run the frontend:
+     - `cd frontend && npm install && npm run dev`
+  4) Visit `/sign-in` or `/sign-up` to authenticate.
+
+- Integration details
+  - App wraps React with `ClerkProvider` using `VITE_CLERK_PUBLISHABLE_KEY`.
+  - `ProtectedRoute` uses Clerk to ensure the user is signed in.
+  - Legacy route `/agent-login` now renders Clerk's SignIn for backward compatibility.
+  - The backend currently does not verify Clerk JWTs; add server-side verification later if needed.
+
+Server Auth (Backend) with Clerk
+- JWT verification: FastAPI now verifies Clerk session tokens via JWKS.
+- Mapping to agentId: Requests map the signed-in Clerk user to an `agents.id` by email to isolate data.
+- Endpoints covered: `GET /api/buyer-profiles`, `POST /api/buyer-profiles`.
+
+Backend env variables
+- Recommended
+  - `CLERK_ALLOWED_ISSUER=https://<your-subdomain>.clerk.accounts.dev` (or your Prod issuer)
+- Optional
+  - `CLERK_AUDIENCE=<expected-audience>` (set if you enforce JWT audience)
+  - `CLERK_SECRET_KEY=sk_test_xxx` (used to fetch user email when it’s not in the JWT)
+  - `CLERK_API_URL=https://api.clerk.com` (override only if needed)
+  - `CLERK_JWKS_CACHE_TTL=300` (seconds)
+  - `AUTO_PROVISION_AGENTS=true` (create agent row on first login if not found)
+  - `DEFAULT_BROKERAGE_NAME=Unknown` (used when auto-provisioning)
+
+Frontend API calls
+- The frontend attaches `Authorization: Bearer <session token>` to API calls using Clerk’s `window.Clerk.session.getToken()`.
+- If you use custom fetch code, import `apiRequest` from `src/lib/queryClient` or call `window.Clerk.session.getToken()` and set the header yourself.

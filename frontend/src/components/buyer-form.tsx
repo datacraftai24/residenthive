@@ -95,8 +95,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
         rawInput: originalFormData.voiceTranscript || JSON.stringify(originalFormData),
         inputMethod: originalFormData.voiceTranscript ? "voice" : "form",
         nlpConfidence: 100, // Form input has high confidence
-        version: 1,
-        agentId: 28 // Default agent for testing - TODO: get from context
+        version: 1
       };
       
       const response = await apiRequest("POST", "/api/buyer-profiles", savePayload);

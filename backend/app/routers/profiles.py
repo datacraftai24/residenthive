@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Depends
 from typing import List, Optional
 from ..models import BuyerProfile, BuyerProfileCreate, BuyerProfileUpdate
 from ..db import get_conn, fetchall_dicts, fetchone_dict
 from datetime import datetime
 import json
+from ..auth import get_current_agent_id
 
 
 router = APIRouter(prefix="/api")
@@ -75,8 +76,7 @@ def _transform_for_db(data: dict) -> dict:
 
 
 @router.get("/buyer-profiles", response_model=List[BuyerProfile])
-def list_profiles(x_agent_id: Optional[int] = Header(default=None, convert_underscores=False)):
-    agent_id = x_agent_id if x_agent_id is not None else 28
+def list_profiles(agent_id: int = Depends(get_current_agent_id)):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -111,10 +111,13 @@ def list_profiles(x_agent_id: Optional[int] = Header(default=None, convert_under
 
 
 @router.get("/buyer-profiles/{profile_id}", response_model=BuyerProfile)
-def get_profile(profile_id: int):
+def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM buyer_profiles WHERE id = %s", (profile_id,))
+            cur.execute(
+                "SELECT * FROM buyer_profiles WHERE id = %s AND agent_id = %s",
+                (profile_id, agent_id)
+            )
             row = fetchone_dict(cur)
             if not row:
                 raise HTTPException(status_code=404, detail="Profile not found")
@@ -137,10 +140,10 @@ def get_profile(profile_id: int):
 
 
 @router.post("/buyer-profiles", response_model=BuyerProfile)
-def create_profile(profile: BuyerProfileCreate):
+def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_current_agent_id)):
     data = profile.model_dump()
-    if not data.get("agentId"):
-        data["agentId"] = 28
+    # Always associate to current agent
+    data["agentId"] = agent_id
     data["createdAt"] = datetime.utcnow().isoformat()
     db_map = _transform_for_db(data)
     columns = []
@@ -208,13 +211,25 @@ def create_profile(profile: BuyerProfileCreate):
         "createdAt": row.get("created_at"),
     })
 
-
 @router.patch("/buyer-profiles/{profile_id}", response_model=BuyerProfile)
-def update_profile(profile_id: int, updates: BuyerProfileUpdate):
+def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int = Depends(get_current_agent_id)):
+    # Verify the profile belongs to this agent
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT agent_id FROM buyer_profiles WHERE id = %s",
+                (profile_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if row[0] != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to update this profile")
+    
     data = {k: v for k, v in updates.model_dump(exclude_unset=True).items() if v is not None}
     if not data:
         # Return current
-        return get_profile(profile_id)
+        return get_profile(profile_id, agent_id)
     db_map = _transform_for_db(data)
     sets = []
     params = []
@@ -278,11 +293,21 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate):
         "createdAt": row.get("created_at"),
     })
 
-
 @router.delete("/buyer-profiles/{profile_id}")
-def delete_profile(profile_id: int):
+def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # First verify the profile belongs to this agent
+            cur.execute(
+                "SELECT agent_id FROM buyer_profiles WHERE id = %s",
+                (profile_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if row[0] != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to delete this profile")
+            
             # Delete dependent rows to satisfy FK constraints
             # Search transactions and results
             cur.execute("SELECT transaction_id FROM search_transactions WHERE profile_id = %s", (profile_id,))

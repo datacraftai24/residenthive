@@ -1,7 +1,49 @@
 Agents Router (Auth/Setup)
 
 Overview
-Handles simple agent login and initial password setup using bcrypt hashes stored in the `agents` table.
+Handles agent authentication and initial setup. The system uses a multi-tenant architecture where:
+- **Agents** are the primary tenants (real estate agents/brokers)
+- **Buyer Profiles** belong to agents (one-to-many relationship)
+- Clerk JWT authentication enforces agent isolation across all endpoints
+
+## Multi-Tenant Architecture
+
+### Authentication Flow
+1. **Agent Login via Clerk**: Frontend uses Clerk for authentication
+2. **JWT Token**: Clerk issues JWT with agent_id in publicMetadata
+3. **Backend Verification**: FastAPI dependency `get_current_agent_id()` validates JWT and extracts agent_id
+4. **Authorization**: All endpoints filter/verify data belongs to authenticated agent
+
+### Data Isolation Model
+```
+Agent (agent_id=1)
+  └── Buyer Profile (id=101, agent_id=1)
+       ├── Search Transactions (profile_id=101)
+       ├── Cached Results (profile_id=101)
+       └── Feedback (profile_id=101)
+
+Agent (agent_id=2)
+  └── Buyer Profile (id=102, agent_id=2)
+       └── ...
+```
+
+**Key Security Rules**:
+- Agents can only access their own buyer profiles
+- Database queries include `WHERE agent_id = %s` filter
+- Profile creation automatically sets agent_id from JWT
+- Update/delete operations verify ownership before execution
+
+### Clerk Integration
+- **publicMetadata.agentId**: Stores agent database ID
+- **JWT Claims**: Verified on every API request
+- **Dependency Injection**: `get_current_agent_id()` used across all protected routes
+
+### Future: Buyer Portal
+Two architectural options for buyer access:
+1. **Magic Links**: Email-based temporary access (no auth system)
+2. **Dual Auth**: Add Clerk user accounts for buyers with role-based access
+
+Current implementation: Agent-only authentication
 
 Endpoints
 1) GET /api/agents/setup/{token}
