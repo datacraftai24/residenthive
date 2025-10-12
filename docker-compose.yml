@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: residenthive
       POSTGRES_PASSWORD: localdev123
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Use 5433 on host to avoid conflict with local PostgreSQL
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -38,13 +38,13 @@ services:
       USE_ENHANCED_STRATEGY: ${USE_ENHANCED_STRATEGY:-true}
       USE_ENHANCED_EXTRACTION: ${USE_ENHANCED_EXTRACTION:-true}
     ports:
-      - "8000:8000"
+      - "8001:8000"  # Use 8001 on host to avoid conflicts
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend (React + Vite)
   frontend:
@@ -56,7 +56,7 @@ services:
       VITE_BACKEND_URL: http://backend:8000
       PORT: 8080
     ports:
-      - "8080:8080"
+      - "3001:8080"  # Use 3001 on host for frontend
     depends_on:
       - backend
 
