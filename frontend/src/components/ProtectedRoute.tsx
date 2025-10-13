@@ -1,61 +1,25 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Loader2, Building2 } from "lucide-react";
-
-interface Agent {
-  id: number;
-  email: string;
-  firstName: string;
-  lastName: string;
-  brokerageName: string;
-  isActivated: boolean;
-}
+import { useAuth } from "@clerk/clerk-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [, setLocation] = useLocation();
+  const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
-    const checkAuth = () => {
-      const savedAgent = localStorage.getItem("agent");
-      
-      if (!savedAgent) {
-        setLocation("/agent-login");
-        return;
-      }
-
-      try {
-        const parsedAgent = JSON.parse(savedAgent);
-        
-        // Validate agent data structure
-        if (!parsedAgent.id || !parsedAgent.email || !parsedAgent.isActivated) {
-          console.warn("Invalid agent data found, redirecting to login");
-          localStorage.removeItem("agent");
-          setLocation("/agent-login");
-          return;
-        }
-
-        setAgent(parsedAgent);
-      } catch (error) {
-        console.error("Error parsing agent data:", error);
-        localStorage.removeItem("agent");
-        setLocation("/agent-login");
-        return;
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [setLocation]);
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      setLocation("/sign-in");
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
 
   // Loading state while checking authentication
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
@@ -71,8 +35,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // If no agent found, redirect happens in useEffect
-  if (!agent) {
+  // If not signed in, redirect happens in useEffect
+  if (!isSignedIn) {
     return null;
   }
 

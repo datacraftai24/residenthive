@@ -9,6 +9,8 @@ import ClientDashboard from "@/pages/client-dashboard";
 import Analytics from "@/pages/analytics";
 import AgentLogin from "@/pages/agent-login";
 import AgentSetup from "@/pages/agent-setup";
+import SignInPage from "@/pages/sign-in";
+import SignUpPage from "@/pages/sign-up";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 
@@ -16,6 +18,10 @@ function Router() {
   return (
     <Switch>
       {/* Public routes - no authentication required */}
+      {/* Clerk Auth routes */}
+      <Route path="/sign-in" component={SignInPage} />
+      <Route path="/sign-up" component={SignUpPage} />
+      {/* Legacy login route points to Clerk sign-in for compatibility */}
       <Route path="/agent-login" component={AgentLogin} />
       <Route path="/agent-setup" component={AgentSetup} />
       <Route path="/client/:shareId" component={ClientDashboard} />

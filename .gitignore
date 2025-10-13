@@ -103,3 +103,7 @@ SYSTEM_FLOW_ANALYSIS.md
 FIX_PLAN.md
 /refs/
 /db_export_*/
+/scripts/
+/__pycache__/
+.venv/
+*.pyc

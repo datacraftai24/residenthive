@@ -13,14 +13,28 @@ from .routers import feedback as feedback_router
 from .routers import analytics as analytics_router
 from .routers import search as search_router
 from .routers import listings as listings_router
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
 import os
 
 
 def create_app() -> FastAPI:
-    # Load backend .env
-    load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
+    # Load environment variables for the backend.
+    # Prefer a repo-root .env, but also load backend/.env if present to allow overrides.
+    try:
+        repo_root_env = Path(__file__).resolve().parents[2] / ".env"
+        backend_env = Path(__file__).resolve().parents[1] / ".env"
+        # Load root .env first (if it exists), then backend/.env (to allow overrides)
+        if repo_root_env.exists():
+            load_dotenv(dotenv_path=repo_root_env, override=False)
+        if backend_env.exists():
+            load_dotenv(dotenv_path=backend_env, override=False)
+        # As a fallback, try auto-discovery upward from backend/app
+        if not repo_root_env.exists() and not backend_env.exists():
+            load_dotenv(find_dotenv(usecwd=False), override=False)
+    except Exception:
+        # Don't fail app startup if .env loading encounters an issue
+        pass
     app = FastAPI(title="ResidentHive Backend", version="1.0.0")
 
     # CORS configuration for local dev and production

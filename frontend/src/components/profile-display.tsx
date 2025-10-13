@@ -61,21 +61,14 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
   });
 
   const handleSave = () => {
-    if (!agent) {
-      toast({
-        title: "Save Failed",
-        description: "Agent session not found. Please log in again.",
-        variant: "destructive",
-      });
-      return;
+    if (agent) {
+      console.log("Saving profile for agent:", agent);
     }
-
-    console.log("Saving profile for agent:", agent);
 
     const profileToSave: InsertBuyerProfile = {
       name: extractedProfile.name,
       email: extractedProfile.email || "noemail@provided.com",
-      agentId: agent.id, // Associate with current agent
+      agentId: agent?.id, // Associate with current agent if available
       location: extractedProfile.location || extractedProfile.preferredAreas?.[0] || "Location not specified", // Required field
       budget: extractedProfile.budget,
       budgetMin: extractedProfile.budgetMin,

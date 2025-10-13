@@ -18,6 +18,7 @@ if (process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined) 
 }
 
 export default defineConfig({
+  envDir: path.resolve(__dirname, ".."),
   plugins: [react(), runtimeErrorOverlay(), ...cartographerPlugin],
   resolve: {
     alias: {
@@ -52,4 +53,3 @@ export default defineConfig({
     fs: { strict: true, deny: ["**/.*"] },
   },
 });
-
