@@ -1,6 +1,8 @@
 import os
-from fastapi import FastAPI
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from .routers import health as health_router
 from .routers import profiles as profiles_router
 from .routers import investment as investment_router
@@ -15,7 +17,6 @@ from .routers import search as search_router
 from .routers import listings as listings_router
 from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
-import os
 
 
 def create_app() -> FastAPI:
@@ -44,8 +45,9 @@ def create_app() -> FastAPI:
     allowed_origins = [
         frontend_url,
         "http://localhost:5173",  # Vite dev server
-        "http://localhost:8080",  # Docker frontend
+        "http://localhost:8080",  # Docker frontend internal
         "http://localhost:3000",  # Alternative dev port
+        "http://localhost:3001",  # Docker frontend host
     ]
 
     # Add Cloud Run frontend URL if specified
@@ -85,6 +87,25 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router.router)
     app.include_router(search_router.router)
     app.include_router(listings_router.router)
+
+    # Global exception handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        # Always log for debugging
+        print(f"ERROR: {exc}")
+        print(f"Traceback: {traceback.format_exc()}")
+
+        # Only return detailed errors in development
+        if os.getenv("NODE_ENV") == "production":
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"}
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": str(exc), "type": type(exc).__name__}
+            )
 
     return app
 

@@ -18,11 +18,14 @@ function Router() {
   return (
     <Switch>
       {/* Public routes - no authentication required */}
-      {/* Clerk Auth routes */}
+      {/* Clerk Auth routes - handle both exact path and multi-step flows */}
       <Route path="/sign-in" component={SignInPage} />
+      <Route path="/sign-in/:rest*" component={SignInPage} />
       <Route path="/sign-up" component={SignUpPage} />
+      <Route path="/sign-up/:rest*" component={SignUpPage} />
       {/* Legacy login route points to Clerk sign-in for compatibility */}
       <Route path="/agent-login" component={AgentLogin} />
+      <Route path="/agent-login/:rest*" component={AgentLogin} />
       <Route path="/agent-setup" component={AgentSetup} />
       <Route path="/client/:shareId" component={ClientDashboard} />
       

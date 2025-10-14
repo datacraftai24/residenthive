@@ -1,12 +1,12 @@
 import { SignIn } from "@clerk/clerk-react";
 import AuthLayout from "@/components/AuthLayout";
 
-export default function AgentLogin() {
+export default function SignInPage() {
   return (
-    <AuthLayout title="Agent Portal" subtitle="Sign in to your ResidentHive account">
+    <AuthLayout title="Welcome Back" subtitle="Sign in to your ResidentHive account">
       <SignIn
         routing="path"
-        path="/agent-login"
+        path="/sign-in"
         signUpUrl="/sign-up"
         afterSignInUrl="/"
         redirectUrl="/"
