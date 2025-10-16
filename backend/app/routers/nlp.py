@@ -39,6 +39,32 @@ def _infer_location(text: str):
     return "Massachusetts"
 
 
+def _infer_bedrooms(text: str):
+    """
+    Extract bedroom range from text.
+    Handles:
+    - "3 bed" -> (3, None)
+    - "3-4 bed" -> (3, 4)
+    - "3 to 5 bedrooms" -> (3, 5)
+    - "3 or 4 bed" -> (3, 4)
+    """
+    # Try range patterns first: "3-4 bed", "3 to 5 bed", "3 or 4 bed"
+    range_match = re.search(r"(\d+)\s*(?:-|to|or)\s*(\d+)\s*bed", text.lower())
+    if range_match:
+        min_bed = int(range_match.group(1))
+        max_bed = int(range_match.group(2))
+        return min_bed, max_bed
+
+    # Try single number: "3 bed"
+    single_match = re.search(r"(\d+)\s*-?\s*bed", text.lower())
+    if single_match:
+        bedrooms = int(single_match.group(1))
+        return bedrooms, None
+
+    # Default
+    return 2, None
+
+
 @router.post("/extract-profile")
 def extract_profile(req: ExtractRequest):
     text = req.input.strip()
@@ -46,12 +72,14 @@ def extract_profile(req: ExtractRequest):
         raise HTTPException(status_code=400, detail="Input text is required")
     budget, bmin, bmax = _infer_budget(text)
     location = _infer_location(text)
-    # naive bedrooms extraction
-    beds_match = re.search(r"(\d+)\s*-?\s*bed", text.lower())
-    bedrooms = int(beds_match.group(1)) if beds_match else 2
+
+    # Extract bedroom range
+    bedrooms, max_bedrooms = _infer_bedrooms(text)
+
+    # Extract bathrooms
     baths_match = re.search(r"(\d+(?:\.\d+)?)\s*-?\s*bath", text.lower())
     bathrooms = baths_match.group(1) if baths_match else "2"
-    
+
     return {
         "name": "Buyer",
         "email": None,
@@ -61,6 +89,7 @@ def extract_profile(req: ExtractRequest):
         "budgetMax": bmax,
         "homeType": "single-family",
         "bedrooms": bedrooms,
+        "maxBedrooms": max_bedrooms,
         "bathrooms": bathrooms,
         "mustHaveFeatures": [],
         "dealbreakers": [],
@@ -99,6 +128,7 @@ def enhance_profile(req: EnhanceRequest):
         "budgetMax": bmax,
         "homeType": data.get("homeType", "single-family"),
         "bedrooms": data.get("bedrooms", 2),
+        "maxBedrooms": data.get("maxBedrooms"),
         "bathrooms": data.get("bathrooms", "2"),
         "mustHaveFeatures": data.get("mustHaveFeatures", []),
         "dealbreakers": data.get("dealbreakers", []),

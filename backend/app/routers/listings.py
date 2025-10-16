@@ -144,7 +144,7 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
                 """
                 SELECT name, email, phone, location, agent_id,
                        buyer_type, budget, budget_min, budget_max, home_type,
-                       bedrooms, bathrooms, must_have_features, dealbreakers, preferred_areas,
+                       bedrooms, max_bedrooms, bathrooms, must_have_features, dealbreakers, preferred_areas,
                        lifestyle_drivers, special_needs, budget_flexibility, location_flexibility,
                        timing_flexibility, emotional_context, voice_transcript, inferred_tags,
                        emotional_tone, priority_score, raw_input, input_method, nlp_confidence,
@@ -193,6 +193,7 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
         "budgetMax": budget_max,
         "homeType": row.get("home_type"),
         "bedrooms": row.get("bedrooms"),
+        "maxBedrooms": row.get("max_bedrooms"),
         "bathrooms": row.get("bathrooms"),
         "mustHaveFeatures": cj(row.get("must_have_features")),
         "dealbreakers": cj(row.get("dealbreakers")),

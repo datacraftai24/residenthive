@@ -19,20 +19,38 @@ Provides three search variants plus supporting endpoints used by the UI (cache s
 - This is a data access limitation, not a technical issue
 - Contact Repliers to upgrade API key for national coverage
 
-### Query Parameters Fixed (2024)
+### Query Parameters Fixed (2025-10-15 - Phase 1A)
 The following parameters were corrected based on actual API behavior:
 
-| Parameter | Correct Value | Previous (Wrong) |
-|-----------|--------------|------------------|
-| Method | GET | POST |
-| class | "residential" | "ResidentialProperty" |
-| status | "A" | ["Active"] |
-| minPrice | budgetMin | minListPrice |
-| maxPrice | budgetMax | maxListPrice |
-| areaOrCity | city name only | city + stateOrProvince |
-| propertyType | (disabled) | homeType mapping |
+| Parameter | Correct Value | Previous (Wrong) | Status |
+|-----------|--------------|------------------|---------|
+| Method | GET | POST | ✅ Fixed |
+| class | "residential" | "residential" | ✅ Already correct |
+| type | "Sale" | (missing) | ✅ Added 2025-10-15 |
+| status | "A" | ["Active"] | ✅ Fixed |
+| minPrice | budgetMin | minListPrice | ✅ Fixed |
+| maxPrice | budgetMax | maxListPrice | ✅ Fixed |
+| minBedrooms | bedrooms | - | ✅ Fixed |
+| maxBedrooms | maxBedrooms | (missing) | ✅ Added 2025-10-15 |
+| areaOrCity | city name only | city + state | ✅ Uses city extraction |
+| style | mapped values | propertyType (wrong field) | ✅ Fixed 2025-10-15 |
 
-**propertyType Filter**: Currently disabled because Repliers API rejects common values like "single-family". Enabling this filter causes 0 results even with valid data.
+**Property Type Filtering (Fixed 2025-10-15)**:
+- Now uses `style` parameter (correct field for specific property types)
+- Maps user-friendly values to Repliers API `style` values:
+  - "single-family" → "Single Family Residence"
+  - "condo" → "Condominium"
+  - "townhouse" → "Attached (Townhouse/Rowhouse/Duplex)"
+  - "multi-family" → "Multi Family"
+  - "apartment" → "Apartment"
+- Previous issue: Used `propertyType` (high-level classification) instead of `style` (specific types)
+- Reference: Aggregates API shows `details.style` has specific types, not `details.propertyType`
+
+**Bedroom Range Filtering (Added 2025-10-15)**:
+- Now supports min/max bedroom ranges for flexible searches
+- Database: Added `max_bedrooms` column to `buyer_profiles`
+- NLP: Extracts ranges from text like "3-4 bedrooms" or "3 to 5 bed"
+- API: Sends both `minBedrooms` and `maxBedrooms` to Repliers
 
 ### Budget Parsing
 Buyer profiles store budget as string field (e.g., "400000"). The search endpoint:
@@ -46,14 +64,18 @@ Buyer profiles store budget as string field (e.g., "400000"). The search endpoin
 Built from buyer profile, sent as GET query parameters:
 - `limit`: 50
 - `offset`: 0 (for pagination)
-- `class`: `"residential"`
+- `class`: `"residential"` (lowercase required by API)
+- `type`: `"Sale"` (added 2025-10-15 - filters out rentals)
 - `status`: `"A"` (Active listings)
 - `minPrice` ← `budgetMin` (from budget ±20%)
 - `maxPrice` ← `budgetMax` (from budget ±20%)
 - `minBedrooms` ← `bedrooms`
+- `maxBedrooms` ← `maxBedrooms` (added 2025-10-15 - optional, for range filtering)
 - `minBathrooms` ← `bathrooms` (converted to float)
-- `areaOrCity` ← city extracted from `location` field
-- ~~`propertyType`~~ ← disabled (causes 0 results)
+- `areaOrCity` ← city extracted from `location` field (before comma)
+- `style` ← `homeType` mapped to Repliers style values (added 2025-10-15)
+
+**Note**: Location uses `areaOrCity` parameter with city name only (extracted from "City, State" format).
 
 ### Field Mapping
 From Repliers response to normalized listing format:
