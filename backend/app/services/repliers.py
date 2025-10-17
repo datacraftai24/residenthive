@@ -50,8 +50,9 @@ class RepliersClient:
         q: Dict[str, Any] = {
             "limit": limit,
             "offset": offset,
-            "class": "residential",  # Must be lowercase: 'commercial', 'condo', or 'residential'
-            "status": "A"  # Must be simple string 'A' (Active) or 'U', not an array
+            "class": "residential",  # API accepts lowercase: 'residential', 'commercial', 'condo'
+            "status": "A",  # Must be simple string 'A' (Active) or 'U', not an array
+            "type": "Sale"  # Filter out rentals - only show properties for sale
         }
         # Budget - Repliers uses minPrice/maxPrice (not minListPrice/maxListPrice)
         if profile.get("budgetMin"):
@@ -61,6 +62,8 @@ class RepliersClient:
         # Bedrooms
         if profile.get("bedrooms") is not None:
             q["minBedrooms"] = int(profile["bedrooms"])
+        if profile.get("maxBedrooms") is not None:
+            q["maxBedrooms"] = int(profile["maxBedrooms"])
         # Bathrooms
         baths = profile.get("bathrooms")
         if baths is not None:
@@ -73,11 +76,23 @@ class RepliersClient:
                     pass
             else:
                 q["minBathrooms"] = float(baths)
-        # Property type
-        # NOTE: propertyType filter seems to cause 0 results with "single-family"
-        # Commenting out for now until we determine valid values
-        # if profile.get("homeType"):
-        #     q["propertyType"] = profile["homeType"]
+        # Property type - map user-friendly values to Repliers API style field
+        # Note: Use 'style' parameter (not 'propertyType') for specific property types
+        # propertyType is high-level (Residential, Commercial), style is specific (Single Family Residence, Condominium)
+        if profile.get("homeType"):
+            home_type = profile["homeType"]
+            # Map common values to Repliers API style values (from aggregates data)
+            style_map = {
+                "single-family": "Single Family Residence",
+                "condo": "Condominium",
+                "condominium": "Condominium",
+                "townhouse": "Attached (Townhouse/Rowhouse/Duplex)",
+                "multi-family": "Multi Family",
+                "apartment": "Apartment"
+            }
+            # Use mapped value, or pass through as-is if not in map
+            api_value = style_map.get(home_type.lower(), home_type)
+            q["style"] = api_value
         # Location - Repliers API only supports: city, area, areaOrCity, neighborhood
         # NOTE: The API doesn't support state/stateOrProvince parameters
         # If location contains both city and state (e.g., "Austin, TX"), extract just the city

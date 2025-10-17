@@ -27,6 +27,7 @@ ALLOWED_COLUMNS = {
     "budgetMax",
     "homeType",
     "bedrooms",
+    "maxBedrooms",
     "bathrooms",
     "investorType",
     "investmentCapital",
@@ -96,6 +97,7 @@ def list_profiles(agent_id: int = Depends(get_current_agent_id)):
             "budgetMin": row.get("budget_min"),
             "budgetMax": row.get("budget_max"),
             "homeType": row.get("home_type"),
+            "maxBedrooms": row.get("max_bedrooms"),
             "targetMonthlyReturn": row.get("target_monthly_return"),
             "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
             "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
@@ -127,6 +129,7 @@ def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
         "budgetMin": row.get("budget_min"),
         "budgetMax": row.get("budget_max"),
         "homeType": row.get("home_type"),
+        "maxBedrooms": row.get("max_bedrooms"),
         "targetMonthlyReturn": row.get("target_monthly_return"),
         "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
         "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
@@ -157,6 +160,7 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "budget_min" if k == "budgetMin" else
             "budget_max" if k == "budgetMax" else
             "home_type" if k == "homeType" else
+            "max_bedrooms" if k == "maxBedrooms" else
             "investor_type" if k == "investorType" else
             "investment_capital" if k == "investmentCapital" else
             "target_monthly_return" if k == "targetMonthlyReturn" else
@@ -200,6 +204,7 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
         "budgetMin": row.get("budget_min"),
         "budgetMax": row.get("budget_max"),
         "homeType": row.get("home_type"),
+        "maxBedrooms": row.get("max_bedrooms"),
         "targetMonthlyReturn": row.get("target_monthly_return"),
         "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
         "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
@@ -240,6 +245,7 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "budget_min" if k == "budgetMin" else
             "budget_max" if k == "budgetMax" else
             "home_type" if k == "homeType" else
+            "max_bedrooms" if k == "maxBedrooms" else
             "investor_type" if k == "investorType" else
             "investment_capital" if k == "investmentCapital" else
             "target_monthly_return" if k == "targetMonthlyReturn" else
@@ -282,6 +288,7 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
         "budgetMin": row.get("budget_min"),
         "budgetMax": row.get("budget_max"),
         "homeType": row.get("home_type"),
+        "maxBedrooms": row.get("max_bedrooms"),
         "targetMonthlyReturn": row.get("target_monthly_return"),
         "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
         "mustHaveFeatures": row.get("must_have_features") or [],
