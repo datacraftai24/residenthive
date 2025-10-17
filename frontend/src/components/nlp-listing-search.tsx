@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, History, Clock, Home, MapPin, DollarSign, Bed, Bath } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { SavePropertyButton } from './save-property-button';
 import type { BuyerProfile } from '@shared/schema';
 
 interface NLPSearchResult {
@@ -287,13 +288,17 @@ export function NLPListingSearch({ profile, onListingSelect }: NLPListingSearchP
                 {searchResult.listings.map((listing: any, index: number) => (
                   <Card 
                     key={index} 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => onListingSelect?.(listing)}
+                    className="hover:shadow-md transition-shadow"
                   >
                     <CardContent className="p-4">
                       <div className="space-y-2">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-medium truncate">{listing.address || 'Property Address'}</h4>
+                          <h4 
+                            className="font-medium truncate cursor-pointer hover:text-blue-600" 
+                            onClick={() => onListingSelect?.(listing)}
+                          >
+                            {listing.address || 'Property Address'}
+                          </h4>
                           <Badge variant="outline">${listing.price?.toLocaleString() || 'N/A'}</Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -306,6 +311,12 @@ export function NLPListingSearch({ profile, onListingSelect }: NLPListingSearchP
                             {listing.description}
                           </p>
                         )}
+                        <div className="pt-2 flex justify-end">
+                          <SavePropertyButton
+                            profileId={profile.id}
+                            listingId={listing.id}
+                          />
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

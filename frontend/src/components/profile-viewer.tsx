@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -20,7 +19,8 @@ import {
   BarChart3,
   Clock,
   Search,
-  User
+  User,
+  MessageSquare
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -33,6 +33,28 @@ import { NLPListingSearch } from "./nlp-listing-search";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
 import ProfileShareButton from "./profile-share-button";
 import InvestmentStrategy from "./investment-strategy";
+import ChatLinkGenerator from "./chat-link-generator";
+import { SavedPropertiesList } from "./saved-properties-list";
+import { useUser } from "@clerk/clerk-react";
+
+type EnhancedProfileResponse = {
+  profileId: number;
+  tags?: Array<{
+    tag: string;
+    category: string;
+    confidence: number;
+    source: string;
+  }>;
+  persona?: {
+    emotionalTone?: string;
+    communicationStyle?: string;
+    decisionMakingStyle?: string;
+    urgencyLevel: number;
+    priceOrientation?: string;
+    personalityTraits: string[];
+    confidenceScore: number;
+  };
+};
 
 interface ProfileViewerProps {
   profileId: number;
@@ -51,13 +73,21 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   });
 
   // Fetch enhanced profile with tags and persona
-  const { data: enhancedProfile, isLoading: enhancedLoading } = useQuery({
+  const { data: enhancedProfile, isLoading: enhancedLoading } = useQuery<EnhancedProfileResponse>({
     queryKey: ['/api/buyer-profiles', profileId, 'enhanced'],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!profileId
   });
 
+  const { user } = useUser();
+  const agentId = user?.publicMetadata?.agentId as number | undefined;
+  const agentName = user?.fullName || user?.username || undefined;
+  const agentEmail = user?.primaryEmailAddress?.emailAddress || undefined;
+  const agentPhone = user?.primaryPhoneNumber?.phoneNumber || undefined;
+
   const isLoading = profileLoading || enhancedLoading;
+  const enhancedTags = enhancedProfile?.tags ?? [];
+  const enhancedPersona = enhancedProfile?.persona;
 
   // Allow external trigger to open edit mode from sidebar menu
   // Listen for a CustomEvent('open-profile-edit', { detail: profileId })
@@ -165,7 +195,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
@@ -185,6 +215,16 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <Search className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Smart Search</span>
             <span className="sm:hidden">Search</span>
+          </TabsTrigger>
+          <TabsTrigger value="saved" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <Home className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Saved Properties</span>
+            <span className="sm:hidden">Saved</span>
+          </TabsTrigger>
+          <TabsTrigger value="chat-link" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Chat Link</span>
+            <span className="sm:hidden">Chat</span>
           </TabsTrigger>
         </TabsList>
 
@@ -354,20 +394,20 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       {/* Agent Actions */}
       <AgentActions 
         profile={profile}
-        persona={enhancedProfile?.persona}
+        persona={enhancedPersona}
       />
 
       {/* Agent Feedback */}
       {enhancedProfile && (
         <AgentFeedback 
           profile={profile}
-          tags={enhancedProfile.tags || []}
-          persona={enhancedProfile.persona}
+          tags={enhancedTags}
+          persona={enhancedPersona}
         />
       )}
 
       {/* AI Analysis */}
-      {enhancedProfile && (enhancedProfile.tags?.length > 0 || enhancedProfile.persona) && (
+      {enhancedProfile && (enhancedTags.length > 0 || enhancedPersona) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -377,8 +417,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </CardHeader>
           <CardContent>
             <TagPersonaDisplay 
-              tags={enhancedProfile.tags || []} 
-              persona={enhancedProfile.persona || {
+              tags={enhancedTags} 
+              persona={enhancedPersona || {
                 urgencyLevel: 50,
                 personalityTraits: [],
                 confidenceScore: 0
@@ -414,6 +454,22 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         <TabsContent value="listings" className="mt-6">
           {/* New NLP-Powered Search */}
           {profile && <NLPListingSearch profile={profile} />}
+        </TabsContent>
+
+        <TabsContent value="saved" className="mt-6">
+          {profile && <SavedPropertiesList profile={profile} />}
+        </TabsContent>
+
+        <TabsContent value="chat-link" className="mt-6">
+          <ChatLinkGenerator
+            profileId={profile.id}
+            profileName={profile.name}
+            agentId={agentId}
+            agentName={agentName}
+            agentEmail={agentEmail}
+            agentPhone={agentPhone}
+            buyerEmail={profile.email}
+          />
         </TabsContent>
       </Tabs>
     </div>

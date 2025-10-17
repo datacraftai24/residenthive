@@ -476,6 +476,8 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
           <ChatLinkGenerator 
             profileId={profileId}
             profileName={buyerProfile?.name || "Client"}
+            agentId={buyerProfile?.agentId}
+            buyerEmail={buyerProfile?.email}
             propertyCount={(hybridResults.top_picks?.length || 0) + (hybridResults.other_matches?.length || 0)}
           />
 

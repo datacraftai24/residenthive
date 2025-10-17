@@ -696,6 +696,8 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
           <ChatLinkGenerator 
             profileId={profileId}
             profileName={buyerProfile?.name || "Client"}
+            agentId={buyerProfile?.agentId}
+            buyerEmail={buyerProfile?.email}
             propertyCount={(enhancedResults.top_picks?.length || 0) + (enhancedResults.other_matches?.length || 0)}
           />
 

@@ -318,6 +318,8 @@ export default function ListingSearch({ profileId, profileName }: ListingSearchP
           <ChatLinkGenerator 
             profileId={profileId}
             profileName={buyerProfile?.name || profileName}
+            agentId={buyerProfile?.agentId}
+            buyerEmail={buyerProfile?.email}
             propertyCount={searchResults.search_summary.total_found}
           />
 

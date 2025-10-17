@@ -12,64 +12,79 @@ interface ChatLinkGeneratorProps {
   profileId: number;
   profileName: string;
   agentId?: number;
+  agentName?: string;
+  agentEmail?: string;
+  agentPhone?: string;
+  buyerEmail?: string;
   propertyCount?: number;
   className?: string;
 }
 
-interface ChatValidationResponse {
-  success: boolean;
-  preview: string;
-  chat_url?: string;
-  error?: string;
-  ready: boolean;
+interface ChatShareResponse {
+  shareId: string;
+  profileId: number;
+  agentId: number;
+  shareUrl: string;
+  clientIdentifier?: string;
+  agentName?: string;
+  agentEmail?: string;
+  agentPhone?: string;
+  buyerName?: string;
+  buyerEmail?: string;
+  createdAt?: string | null;
+  expiresAt?: string | null;
+  lastViewed?: string | null;
+  viewCount?: number;
+  isActive: boolean;
+  wasCreated: boolean;
 }
 
 export default function ChatLinkGenerator({ 
   profileId, 
   profileName, 
-  agentId = 28, // Default to first agent for demo
+  agentId,
+  agentName,
+  agentEmail,
+  agentPhone,
+  buyerEmail,
   propertyCount = 0,
   className = ""
 }: ChatLinkGeneratorProps) {
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [shareInfo, setShareInfo] = useState<ChatShareResponse | null>(null);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
   const { toast } = useToast();
+  const generatedUrl = shareInfo?.shareUrl ?? null;
+  const canGenerate = typeof agentId === 'number' && !Number.isNaN(agentId);
 
   const generateLinkMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/validate-context', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer rh_integration_2025_secure_key_847392'
-        },
-        body: JSON.stringify({
-          buyer_id: profileId,
-          agent_id: agentId
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.preview || 'Failed to generate chat link');
+    mutationFn: async (): Promise<ChatShareResponse> => {
+      if (!canGenerate) {
+        throw new Error('Missing agent context to generate chat link');
       }
-      
-      return response.json() as Promise<ChatValidationResponse>;
+
+      const clientIdentifier = buyerEmail?.trim() || profileName?.trim() || String(profileId);
+
+      const response = await apiRequest('POST', '/api/profiles/chat-share', {
+        profileId,
+        agentName,
+        agentEmail,
+        agentPhone,
+        buyerName: profileName,
+        buyerEmail,
+        clientIdentifier,
+      });
+
+      const data: ChatShareResponse = await response.json();
+      return data;
     },
     onSuccess: (data) => {
-      if (data.success && data.chat_url) {
-        setGeneratedUrl(data.chat_url);
-        toast({
-          title: "Chat Link Generated",
-          description: data.preview,
-        });
-      } else {
-        toast({
-          title: "Generation Failed",
-          description: data.preview,
-          variant: "destructive",
-        });
-      }
+      setShareInfo(data);
+      toast({
+        title: data.wasCreated ? 'Chat link generated' : 'Chat link ready',
+        description: data.wasCreated
+          ? 'A fresh chatbot link was created for this buyer.'
+          : 'Using the existing active chatbot link for this buyer.',
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -103,7 +118,7 @@ export default function ChatLinkGenerator({
   const handleWhatsAppShare = () => {
     if (generatedUrl) {
       const message = encodeURIComponent(
-        `Hi ${profileName}! I found some great properties for you. Check them out here: ${generatedUrl}`
+        `Hi ${profileName}! I found some great properties for you. Let’s chat about them here: ${generatedUrl}`
       );
       const whatsappUrl = `https://wa.me/?text=${message}`;
       window.open(whatsappUrl, '_blank');
@@ -133,7 +148,7 @@ export default function ChatLinkGenerator({
             
             <Button 
               onClick={() => generateLinkMutation.mutate()}
-              disabled={generateLinkMutation.isPending}
+              disabled={generateLinkMutation.isPending || !canGenerate}
               className="w-full"
             >
               {generateLinkMutation.isPending ? (
@@ -148,6 +163,11 @@ export default function ChatLinkGenerator({
                 </>
               )}
             </Button>
+            {!canGenerate && (
+              <p className="text-xs text-orange-600 text-center">
+                Agent context is required before generating a chat link.
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -162,6 +182,25 @@ export default function ChatLinkGenerator({
               <p className="text-sm font-mono text-gray-800 break-all">
                 {generatedUrl}
               </p>
+            </div>
+
+            <div className="grid gap-2 text-xs text-gray-600">
+              <div><span className="font-semibold">Share ID:</span> {shareInfo?.shareId}</div>
+              {shareInfo?.clientIdentifier && (
+                <div><span className="font-semibold">Client Identifier:</span> {shareInfo.clientIdentifier}</div>
+              )}
+              {shareInfo?.createdAt && (
+                <div>
+                  <span className="font-semibold">Created:</span> {" "}
+                  {new Date(shareInfo.createdAt).toLocaleString()}
+                </div>
+              )}
+              {shareInfo?.expiresAt && (
+                <div>
+                  <span className="font-semibold">Expires:</span> {" "}
+                  {new Date(shareInfo.expiresAt).toLocaleString()}
+                </div>
+              )}
             </div>
             
             <div className="flex space-x-2">
@@ -209,7 +248,7 @@ export default function ChatLinkGenerator({
               variant="ghost" 
               size="sm" 
               onClick={() => {
-                setGeneratedUrl(null);
+                setShareInfo(null);
                 setIsLinkCopied(false);
               }}
               className="w-full text-gray-600"

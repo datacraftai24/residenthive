@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { SavePropertyButton } from './save-property-button';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Search, 
   Grid, 
@@ -154,6 +158,37 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [activeView, setActiveView] = useState<'view1' | 'view2'>('view1');
   const [forceEnhanced, setForceEnhanced] = useState(false);
+  const [selectedProperties, setSelectedProperties] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Mutation to save multiple properties
+  const savePropertiesMutation = useMutation({
+    mutationFn: async (propertyIds: string[]) => {
+      const savePromises = propertyIds.map(listingId =>
+        apiRequest('POST', `/api/buyer-profiles/${profile.id}/properties`, {
+          listing_id: listingId,
+          interaction_type: 'saved'
+        })
+      );
+      return Promise.all(savePromises);
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Properties saved',
+        description: `Successfully saved ${selectedProperties.size} properties to this buyer profile`
+      });
+      setSelectedProperties(new Set());
+      queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile.id}/properties`] });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to save properties. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  });
 
   // Search query with reactive search enabled
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
@@ -373,6 +408,10 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                     : (searchResults.initialSearch?.view1 || searchResults.view1!)
                 }
                 formatPrice={formatPrice}
+                profile={profile}
+                selectedProperties={selectedProperties}
+                setSelectedProperties={setSelectedProperties}
+                onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
               />
 
               {/* Manual Enhanced Search Button */}
@@ -402,6 +441,10 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
               results={searchResults.initialSearch?.view2 || searchResults.view2!}
               formatPrice={formatPrice}
               getScoreColor={getScoreColor}
+              profile={profile}
+              selectedProperties={selectedProperties}
+              setSelectedProperties={setSelectedProperties}
+              onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
             />
           )}
         </div>
@@ -413,20 +456,41 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 // Market Overview Component
 function MarketOverviewView({ 
   results, 
-  formatPrice 
+  formatPrice,
+  profile,
+  selectedProperties,
+  setSelectedProperties,
+  onSaveProperties
 }: { 
   results: SearchView1Results; 
   formatPrice: (price: number) => string;
+  profile: BuyerProfile;
+  selectedProperties: Set<string>;
+  setSelectedProperties: (selected: Set<string>) => void;
+  onSaveProperties: (propertyIds: string[]) => void;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <List className="h-5 w-5" />
-          Market Overview ({results.totalFound} properties)
-        </CardTitle>
-        <div className="text-sm text-gray-600">
-          Search criteria: {results.searchCriteria.budgetRange}, {results.searchCriteria.bedrooms} beds, {results.searchCriteria.location}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <List className="h-5 w-5" />
+              Market Overview ({results.totalFound} properties)
+            </CardTitle>
+            <div className="text-sm text-gray-600 mt-1">
+              Search criteria: {results.searchCriteria.budgetRange}, {results.searchCriteria.bedrooms} beds, {results.searchCriteria.location}
+            </div>
+          </div>
+          {selectedProperties.size > 0 && (
+            <Button
+              onClick={() => {
+                onSaveProperties(Array.from(selectedProperties));
+              }}
+            >
+              Save {selectedProperties.size} Properties
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -434,18 +498,45 @@ function MarketOverviewView({
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="text-left p-4 font-medium">
+                  <Checkbox
+                    checked={selectedProperties.size === results.listings.slice(0, 20).length && results.listings.length > 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        const allIds = new Set(results.listings.slice(0, 20).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
+                        setSelectedProperties(allIds);
+                      } else {
+                        setSelectedProperties(new Set());
+                      }
+                    }}
+                  />
+                </th>
                 <th className="text-left p-4 font-medium">Property</th>
                 <th className="text-left p-4 font-medium">Price</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
                 <th className="text-left p-4 font-medium">Sq Ft</th>
                 <th className="text-left p-4 font-medium">Type</th>
                 <th className="text-left p-4 font-medium">Days on Market</th>
-                <th className="text-left p-4 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {results.listings.slice(0, 20).map((property, index) => (
                 <tr key={property.mlsNumber || `property-${index}`} className="border-b hover:bg-gray-50">
+                  <td className="p-4">
+                    <Checkbox
+                      checked={selectedProperties.has(property.mlsNumber || `${property.address}-${property.listPrice}`)}
+                      onCheckedChange={(checked) => {
+                        const id = property.mlsNumber || `${property.address}-${property.listPrice}`;
+                        const newSelected = new Set(selectedProperties);
+                        if (checked) {
+                          newSelected.add(id);
+                        } else {
+                          newSelected.delete(id);
+                        }
+                        setSelectedProperties(newSelected);
+                      }}
+                    />
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
@@ -484,16 +575,6 @@ function MarketOverviewView({
                   <td className="p-4">
                     {property.daysOnMarket ? `${property.daysOnMarket} days` : 'New'}
                   </td>
-                  <td className="p-4">
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -508,11 +589,19 @@ function MarketOverviewView({
 function AIRecommendationsView({ 
   results, 
   formatPrice, 
-  getScoreColor 
+  getScoreColor,
+  profile,
+  selectedProperties,
+  setSelectedProperties,
+  onSaveProperties
 }: { 
   results: SearchView2Results; 
   formatPrice: (price: number) => string;
   getScoreColor: (score: number) => string;
+  profile: BuyerProfile;
+  selectedProperties: Set<string>;
+  setSelectedProperties: (selected: Set<string>) => void;
+  onSaveProperties: (propertyIds: string[]) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -620,6 +709,39 @@ function AIRecommendationsView({
         </CardContent>
       </Card>
 
+      {/* Select All Header */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={selectedProperties.size === results.listings.slice(0, 10).length && results.listings.length > 0}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    const allIds = new Set(results.listings.slice(0, 10).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
+                    setSelectedProperties(allIds);
+                  } else {
+                    setSelectedProperties(new Set());
+                  }
+                }}
+              />
+              <span className="font-medium">
+                Select All ({selectedProperties.size} selected)
+              </span>
+            </div>
+            {selectedProperties.size > 0 && (
+              <Button
+                onClick={() => {
+                  onSaveProperties(Array.from(selectedProperties));
+                }}
+              >
+                Save {selectedProperties.size} Properties
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Property Recommendations */}
       <div className="grid grid-cols-1 gap-6">
         {results.listings.slice(0, 10).map((property, index) => (
@@ -662,8 +784,25 @@ function AIRecommendationsView({
                 )}
               </div>
               
+              {/* Selection Checkbox */}
+              <div className="absolute top-4 left-4 bg-white rounded-md p-2 shadow-md">
+                <Checkbox
+                  checked={selectedProperties.has(property.mlsNumber || `${property.address}-${property.listPrice}`)}
+                  onCheckedChange={(checked) => {
+                    const id = property.mlsNumber || `${property.address}-${property.listPrice}`;
+                    const newSelected = new Set(selectedProperties);
+                    if (checked) {
+                      newSelected.add(id);
+                    } else {
+                      newSelected.delete(id);
+                    }
+                    setSelectedProperties(newSelected);
+                  }}
+                />
+              </div>
+
               {/* Match Score Badge */}
-              <div className="absolute top-4 left-4">
+              <div className="absolute top-4 left-14">
                 <Badge className={`${getScoreColor(property.matchScore)} border font-semibold text-sm px-3 py-1`}>
                   {property.matchScore}% Match
                 </Badge>
