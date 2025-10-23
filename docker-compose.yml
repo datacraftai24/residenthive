@@ -1,24 +1,23 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database - DISABLED (Using Neon Cloud Database)
-  # Uncomment this section if you want to use local PostgreSQL instead
-  # postgres:
-  #   image: postgres:15-alpine
-  #   container_name: residenthive-postgres
-  #   environment:
-  #     POSTGRES_DB: residenthive_dev
-  #     POSTGRES_USER: residenthive
-  #     POSTGRES_PASSWORD: localdev123
-  #   ports:
-  #     - "5433:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U residenthive"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  # PostgreSQL Database - Local Docker setup
+  postgres:
+    image: postgres:15-alpine
+    container_name: residenthive-postgres
+    environment:
+      POSTGRES_DB: residenthive_dev
+      POSTGRES_USER: residenthive
+      POSTGRES_PASSWORD: localdev123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U residenthive"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Backend (FastAPI)
   backend:
@@ -29,8 +28,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # Use Neon database from .env file (DATABASE_URL)
-      # Override specific settings if needed
+      # Use local PostgreSQL database
       CHATBOT_FRONTEND_URL: http://localhost:3010
       FRONTEND_URL: http://localhost:8080
       PORT: 8000
@@ -38,6 +36,9 @@ services:
       - "8001:8000"  # Use 8001 on host to avoid conflicts
     volumes:
       - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend (React + Vite)

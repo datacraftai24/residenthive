@@ -37,11 +37,16 @@ async def save_property_to_profile(
             # Ensure chat session exists for this profile
             cur.execute(
                 """
-                INSERT INTO chat_sessions (id, user_email, created_at)
-                VALUES (%s, %s, NOW()::text)
+                INSERT INTO chat_sessions (
+                    id, profile_id, agent_id, session_start,
+                    last_activity, created_at
+                )
+                VALUES (
+                    %s, %s, %s, NOW()::text, NOW()::text, NOW()::text
+                )
                 ON CONFLICT (id) DO NOTHING
                 """,
-                (session_id, f"profile_{profile_id}@placeholder.local")
+                (session_id, profile_id, agent_id)
             )
             
             # Check if already saved

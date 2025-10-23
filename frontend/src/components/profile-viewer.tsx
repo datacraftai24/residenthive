@@ -80,7 +80,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   });
 
   const { user } = useUser();
-  const agentId = user?.publicMetadata?.agentId as number | undefined;
+  // Get agentId from the profile, not from Clerk metadata
+  const agentId = profile?.agentId;
   const agentName = user?.fullName || user?.username || undefined;
   const agentEmail = user?.primaryEmailAddress?.emailAddress || undefined;
   const agentPhone = user?.primaryPhoneNumber?.phoneNumber || undefined;

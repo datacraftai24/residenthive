@@ -124,9 +124,8 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
   const { data: buyerProfile } = useQuery({
     queryKey: ["/api/buyer-profiles", profileId],
     queryFn: async () => {
-      const response = await fetch(`/api/buyer-profiles/${profileId}`);
-      if (!response.ok) throw new Error("Failed to fetch profile");
-      return response.json();
+      const response = await apiRequest('GET', `/api/buyer-profiles/${profileId}`);
+      return await response.json();
     },
     enabled: !!profileId
   });

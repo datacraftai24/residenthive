@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -13,13 +13,9 @@ class AgentSearchRequest(BaseModel):
     forceEnhanced: Optional[bool] = False
 
 
-@router.post("/agent-search")
-def agent_search(req: AgentSearchRequest):
-    # Reuse /api/listings/search to obtain normalized and scored listings
-    from .listings import listings_search
-    base = listings_search({"profileId": req.profileId, "profile": {}})
-    # Map to AgentDualViewSearch shape
-    listings = [
+def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert listing search results to agent dashboard format"""
+    return [
         {
             "mlsNumber": x["listing"].get("mls_number") or x["listing"].get("id"),
             "address": x["listing"].get("address"),
@@ -39,17 +35,32 @@ def agent_search(req: AgentSearchRequest):
             "matchLabel": x.get("label", "Match"),
             "matchReasons": x.get("matched_features", []),
             "dealbreakers": x.get("dealbreaker_flags", []),
-            "aiInsights": {"agentSummary": x.get("reason", "")},
+            "aiInsights": {
+                "agentSummary": x.get("agent_insight", ""),
+                "headline": x.get("headline", ""),
+                "whyItWorks": x.get("why_it_works", {}),
+                "considerations": x.get("considerations", []),
+                "matchReasoning": x.get("match_reasoning", {})
+            },
             "scoreBreakdown": {
-                "featureMatch": x.get("score_breakdown", {}).get("feature_match", 0),
-                "budgetMatch": x.get("score_breakdown", {}).get("budget_match", 0),
-                "bedroomMatch": x.get("score_breakdown", {}).get("bedroom_match", 0),
-                "locationMatch": x.get("score_breakdown", {}).get("location_match", 0),
-                "overallScore": x.get("score_breakdown", {}).get("final_score", 0),
+                "featureMatch": x.get("score_breakdown", {}).get("must_have_features", {}).get("score", 0),
+                "budgetMatch": x.get("score_breakdown", {}).get("budget_match", {}).get("score", 0),
+                "bedroomMatch": x.get("score_breakdown", {}).get("bedroom_match", {}).get("score", 0),
+                "bathroomMatch": x.get("score_breakdown", {}).get("bathroom_match", {}).get("score", 0),
+                "locationMatch": x.get("score_breakdown", {}).get("location_match", {}).get("score", 0),
+                "overallScore": x.get("score", 0),
             },
         }
-        for x in (base.get("top_picks", []) + base.get("other_matches", []))
+        for x in (search_results.get("top_picks", []) + search_results.get("other_matches", []))
     ]
+
+
+@router.post("/agent-search")
+def agent_search(req: AgentSearchRequest):
+    # Reuse /api/listings/search to obtain normalized and scored listings
+    from .listings import listings_search
+    base = listings_search({"profileId": req.profileId, "profile": {}})
+    listings = _map_to_agent_listing(base)
     view1 = {
         "viewType": "broad",
         "searchCriteria": {"budgetRange": "", "bedrooms": "", "location": "", "propertyType": ""},
@@ -81,29 +92,7 @@ def agent_search(req: AgentSearchRequest):
 def agent_search_enhanced_only(req: AgentSearchRequest):
     from .listings import listings_search
     base = listings_search({"profileId": req.profileId, "profile": {}})
-    listings = [
-        {
-            "mlsNumber": x["listing"].get("mls_number") or x["listing"].get("id"),
-            "address": x["listing"].get("address"),
-            "city": x["listing"].get("city"),
-            "state": x["listing"].get("state"),
-            "zip": x["listing"].get("zip_code"),
-            "listPrice": x["listing"].get("price"),
-            "bedrooms": x["listing"].get("bedrooms"),
-            "bathrooms": x["listing"].get("bathrooms"),
-            "sqft": x["listing"].get("square_feet"),
-            "propertyType": x["listing"].get("property_type"),
-            "status": x["listing"].get("status"),
-            "images": x["listing"].get("images", []),
-            "photoCount": len(x["listing"].get("images", [])),
-            "description": x["listing"].get("description"),
-            "matchScore": int((x.get("match_score", 0) or 0) * 100),
-            "matchLabel": x.get("label", "Match"),
-            "matchReasons": x.get("matched_features", []),
-            "dealbreakers": x.get("dealbreaker_flags", []),
-        }
-        for x in (base.get("top_picks", []) + base.get("other_matches", []))
-    ]
+    listings = _map_to_agent_listing(base)
     view2 = {
         "viewType": "ai_recommendations",
         "searchCriteria": {"budgetRange": "", "bedrooms": "", "location": "", "propertyType": ""},
