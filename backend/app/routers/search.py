@@ -60,26 +60,32 @@ def agent_search(req: AgentSearchRequest):
     # Reuse /api/listings/search to obtain normalized and scored listings
     from .listings import listings_search
     base = listings_search({"profileId": req.profileId, "profile": {}})
-    listings = _map_to_agent_listing(base)
+
+    # Market Overview: Show ALL scored properties (not just top 20)
+    all_listings = _map_to_agent_listing({"top_picks": base.get("all_scored_matches", []), "other_matches": []})
+
+    # AI Recommendations: Show only top 20 with AI analysis
+    ai_listings = _map_to_agent_listing(base)
+
     view1 = {
         "viewType": "broad",
         "searchCriteria": {"budgetRange": "", "bedrooms": "", "location": "", "propertyType": ""},
-        "totalFound": len(listings),
-        "listings": listings,
+        "totalFound": len(all_listings),  # Total ALL scored properties
+        "listings": all_listings,  # ALL properties for Market Overview
         "executionTime": 0,
     }
     view2 = {
         "viewType": "ai_recommendations",
         "searchCriteria": view1["searchCriteria"],
-        "totalFound": len(listings),
-        "listings": listings,
+        "totalFound": len(ai_listings),  # Only analyzed properties
+        "listings": ai_listings,  # Top 20 with AI for Recommendations
         "executionTime": 0,
-        "aiAnalysis": {"topMatches": len([x for x in listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
+        "aiAnalysis": {"topMatches": len([x for x in ai_listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
     }
     response = {
         "searchType": "agent_dual_view" if not req.useReactive else "agent_dual_view_reactive",
         "profileData": {"id": req.profileId, "name": "Client", "location": ""},
-        "initialSearch": {"view1": view1, "view2": view2, "totalFound": len(listings), "sufficientResults": True},
+        "initialSearch": {"view1": view1, "view2": view2, "totalFound": len(all_listings), "sufficientResults": True},
         "totalExecutionTime": 0,
         "timestamp": datetime.utcnow().isoformat(),
     }
@@ -92,13 +98,16 @@ def agent_search(req: AgentSearchRequest):
 def agent_search_enhanced_only(req: AgentSearchRequest):
     from .listings import listings_search
     base = listings_search({"profileId": req.profileId, "profile": {}})
-    listings = _map_to_agent_listing(base)
+
+    # AI Recommendations: Show only top 20 with AI analysis
+    ai_listings = _map_to_agent_listing(base)
+
     view2 = {
         "viewType": "ai_recommendations",
         "searchCriteria": {"budgetRange": "", "bedrooms": "", "location": "", "propertyType": ""},
-        "totalFound": len(listings),
-        "listings": listings,
+        "totalFound": len(ai_listings),
+        "listings": ai_listings,
         "executionTime": 0,
-        "aiAnalysis": {"topMatches": len([x for x in listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
+        "aiAnalysis": {"topMatches": len([x for x in ai_listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
     }
     return {"searchType": "agent_dual_view", "view2": view2, "totalExecutionTime": 0, "timestamp": datetime.utcnow().isoformat()}

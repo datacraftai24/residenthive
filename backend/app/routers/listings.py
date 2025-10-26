@@ -143,7 +143,28 @@ def listings_search(payload: Dict[str, Any]):
     top_picks = [x for x in analyzed_listings if x["score"] >= 80]
     other_matches = [x for x in analyzed_listings if x["score"] < 80]
 
-    print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches")
+    # Create lightweight listings for Market Overview (ALL scored properties, not just top 20)
+    all_scored_for_overview = []
+    for item in scored_listings:
+        listing = item["listing"]
+        score_data = item["score_data"]
+
+        all_scored_for_overview.append({
+            "listing": listing,
+            "match_score": item["score"] / 100.0,
+            "score": item["score"],
+            "headline": "",  # No AI analysis for properties outside top 20
+            "agent_insight": "",
+            "matched_features": score_data.get("matched_features", []),
+            "dealbreaker_flags": [],
+            "why_it_works": {},
+            "considerations": [],
+            "match_reasoning": {},
+            "score_breakdown": score_data.get("breakdown", {}),
+            "label": "Top Pick" if item["score"] >= 80 else "Match",
+        })
+
+    print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
 
     # PERSIST: Save raw Repliers listings + AI analysis to database for chatbot access
     try:
@@ -177,6 +198,7 @@ def listings_search(payload: Dict[str, Any]):
     return {
         "top_picks": top_picks,
         "other_matches": other_matches,
+        "all_scored_matches": all_scored_for_overview,  # NEW: All scored properties for Market Overview
         "chat_blocks": [],
         "search_summary": {
             "total_found": len(listings),
@@ -185,6 +207,7 @@ def listings_search(payload: Dict[str, Any]):
             "analyzed_count": len(analyzed_listings),
             "top_picks_count": len(top_picks),
             "other_matches_count": len(other_matches),
+            "all_scored_count": len(all_scored_for_overview),  # Track total for Market Overview
             "search_criteria": profile,
             "location_mismatch": not location_match if requested_location else False,
             "warning": f"No properties found in {requested_location}. Showing properties from available regions." if not location_match and requested_location and listings else None,

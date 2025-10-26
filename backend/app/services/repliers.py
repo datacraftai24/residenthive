@@ -46,12 +46,12 @@ class RepliersClient:
             "Accept": "application/json",
         }
 
-    def _build_search_query(self, profile: Dict[str, Any], limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+    def _build_search_query(self, profile: Dict[str, Any], results_per_page: int = 100, page_num: int = 1) -> Dict[str, Any]:
         q: Dict[str, Any] = {
-            "limit": limit,
-            "offset": offset,
+            "resultsPerPage": results_per_page,
+            "pageNum": page_num,
             "class": "residential",  # API accepts lowercase: 'residential', 'commercial', 'condo'
-            "status": "A",  # Must be simple string 'A' (Active) or 'U', not an array
+            "standardStatus": "Active",  # RESO-compliant status filter (replaces deprecated status="A")
             "type": "Sale"  # Filter out rentals - only show properties for sale
         }
         # Budget - Repliers uses minPrice/maxPrice (not minListPrice/maxListPrice)
@@ -64,18 +64,22 @@ class RepliersClient:
             q["minBedrooms"] = int(profile["bedrooms"])
         if profile.get("maxBedrooms") is not None:
             q["maxBedrooms"] = int(profile["maxBedrooms"])
-        # Bathrooms
+        # Bathrooms - Repliers uses minBaths/maxBaths (not minBathrooms/maxBathrooms)
         baths = profile.get("bathrooms")
         if baths is not None:
             if isinstance(baths, str):
                 try:
                     val = re.sub(r"[^0-9\.]", "", baths)
                     if val:
-                        q["minBathrooms"] = float(val)
+                        q["minBaths"] = float(val)
                 except Exception:
                     pass
             else:
-                q["minBathrooms"] = float(baths)
+                q["minBaths"] = float(baths)
+        # Support max bathrooms filter
+        max_baths = profile.get("maxBathrooms")
+        if max_baths is not None:
+            q["maxBaths"] = float(max_baths)
         # Property type - map user-friendly values to Repliers API style field
         # Note: Use 'style' parameter (not 'propertyType') for specific property types
         # propertyType is high-level (Residential, Commercial), style is specific (Single Family Residence, Condominium)
@@ -93,33 +97,34 @@ class RepliersClient:
             # Use mapped value, or pass through as-is if not in map
             api_value = style_map.get(home_type.lower(), home_type)
             q["style"] = api_value
-        # Location - Repliers API only supports: city, area, areaOrCity, neighborhood
+        # Location - Repliers API uses 'city' parameter for city filtering
         # NOTE: The API doesn't support state/stateOrProvince parameters
-        # If location contains both city and state (e.g., "Austin, TX"), extract just the city
+        # If location contains both city and state (e.g., "Worcester, MA"), extract just the city
         if profile.get("location"):
             loc = str(profile["location"]).strip()
             # If comma-separated, extract just the city part (before the comma)
             if "," in loc:
-                city = loc.split(",")[0].strip()
-                q["areaOrCity"] = city
+                city_name = loc.split(",")[0].strip()
+                q["city"] = city_name
             else:
-                q["areaOrCity"] = loc
+                q["city"] = loc
         if profile.get("preferredAreas"):
             # Join areas as comma-separated string if Repliers expects it that way
             areas = profile["preferredAreas"]
             if isinstance(areas, list):
-                q["areaOrCity"] = ", ".join(areas) if len(areas) > 1 else areas[0]
+                q["city"] = ", ".join(areas) if len(areas) > 1 else areas[0]
             else:
-                q["areaOrCity"] = areas
+                q["city"] = areas
         return q
 
-    def search(self, profile: Dict[str, Any], limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    def search(self, profile: Dict[str, Any], results_per_page: int = 100, page_num: int = 1) -> List[Dict[str, Any]]:
         """Search listings using GET request with query parameters.
-        
+
         Note: Repliers API uses GET with query params, not POST with JSON body.
-        Location filtering only works with city names (not "City, State" format).
+        Uses RESO-compliant parameters: city, standardStatus, resultsPerPage, pageNum.
+        Location filtering works with city names (extracts city from "City, State" format).
         """
-        params = self._build_search_query(profile, limit, offset)
+        params = self._build_search_query(profile, results_per_page, page_num)
         url = f"{self.base_url}{self.search_path}"
         
         with httpx.Client(timeout=self.timeout) as client:
