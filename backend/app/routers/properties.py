@@ -234,14 +234,102 @@ async def remove_property_from_profile(
                 """,
                 (f"profile_{profile_id}", listing_id)
             )
-            
+
             result = cur.fetchone()
             if not result:
                 raise HTTPException(status_code=404, detail="Property not found in saved list")
-            
+
             conn.commit()
-            
+
             return {
                 "success": True,
                 "message": "Property removed from profile"
+            }
+
+
+@router.get("/properties/{listing_id}")
+async def get_property_details(
+    listing_id: str,
+    profile_id: Optional[int] = None,
+    agent_id: int = Depends(get_current_agent_id)
+):
+    """Get detailed property information including images, insights, and AI analysis"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Get main property details
+            cur.execute(
+                """
+                SELECT
+                    rl.*
+                FROM repliers_listings rl
+                WHERE rl.id = %s
+                """,
+                (listing_id,)
+            )
+
+            property_data = fetchone_dict(cur)
+            if not property_data:
+                raise HTTPException(status_code=404, detail="Property not found")
+
+            # Get all property images
+            cur.execute(
+                """
+                SELECT
+                    id, image_url, image_order, ai_description, visual_tags, created_at
+                FROM property_images
+                WHERE property_id = %s
+                ORDER BY image_order ASC
+                """,
+                (listing_id,)
+            )
+            images = fetchall_dicts(cur)
+
+            # Get investment insights
+            cur.execute(
+                """
+                SELECT
+                    estimated_rental, price_per_sqft, investment_summary,
+                    risk_factors, market_trends, cap_rate, roi_estimate,
+                    created_at, updated_at
+                FROM property_insights
+                WHERE property_id = %s
+                """,
+                (listing_id,)
+            )
+            insights = fetchone_dict(cur)
+
+            # Get AI analysis if profile_id is provided
+            ai_analysis = None
+            if profile_id:
+                cur.execute(
+                    """
+                    SELECT
+                        analysis_json, score, created_at
+                    FROM property_analysis_cache
+                    WHERE listing_id = %s AND profile_id = %s
+                    """,
+                    (listing_id, profile_id)
+                )
+                ai_analysis = fetchone_dict(cur)
+
+            # Get interaction status if profile_id is provided
+            interaction_status = None
+            if profile_id:
+                cur.execute(
+                    """
+                    SELECT
+                        interaction_type, rating, reason, created_at
+                    FROM property_interactions
+                    WHERE listing_id = %s AND session_id = %s
+                    """,
+                    (listing_id, f"profile_{profile_id}")
+                )
+                interaction_status = fetchone_dict(cur)
+
+            return {
+                "property": property_data,
+                "images": images,
+                "insights": insights,
+                "ai_analysis": ai_analysis,
+                "interaction_status": interaction_status
             }

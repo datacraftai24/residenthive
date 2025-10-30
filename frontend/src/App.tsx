@@ -11,6 +11,7 @@ import AgentLogin from "@/pages/agent-login";
 import AgentSetup from "@/pages/agent-setup";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
+import PropertyDetail from "@/pages/property-detail";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 
@@ -35,15 +36,19 @@ function Router() {
           <Analytics />
         </ProtectedRoute>
       </Route>
-      
 
-      
+      <Route path="/property/:id">
+        <ProtectedRoute>
+          <PropertyDetail />
+        </ProtectedRoute>
+      </Route>
+
       <Route path="/">
         <ProtectedRoute>
           <Dashboard />
         </ProtectedRoute>
       </Route>
-      
+
       <Route component={NotFound} />
     </Switch>
   );

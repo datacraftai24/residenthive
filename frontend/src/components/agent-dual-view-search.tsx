@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,14 +10,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SavePropertyButton } from './save-property-button';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Search, 
-  Grid, 
-  List, 
-  MapPin, 
-  Bed, 
-  Bath, 
-  Square, 
+import {
+  Search,
+  Grid,
+  List,
+  MapPin,
+  Bed,
+  Bath,
+  Square,
   DollarSign,
   Eye,
   Share2,
@@ -454,21 +455,27 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 }
 
 // Market Overview Component
-function MarketOverviewView({ 
-  results, 
+function MarketOverviewView({
+  results,
   formatPrice,
   profile,
   selectedProperties,
   setSelectedProperties,
   onSaveProperties
-}: { 
-  results: SearchView1Results; 
+}: {
+  results: SearchView1Results;
   formatPrice: (price: number) => string;
   profile: BuyerProfile;
   selectedProperties: Set<string>;
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
 }) {
+  const [, setLocation] = useLocation();
+
+  const handlePropertyClick = (propertyId: string) => {
+    setLocation(`/property/${propertyId}?profile_id=${profile.id}`);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -521,8 +528,16 @@ function MarketOverviewView({
             </thead>
             <tbody>
               {results.listings.slice(0, 20).map((property, index) => (
-                <tr key={property.mlsNumber || `property-${index}`} className="border-b hover:bg-gray-50">
-                  <td className="p-4">
+                <tr
+                  key={property.mlsNumber || `property-${index}`}
+                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  onClick={(e) => {
+                    // Don't navigate if clicking checkbox
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    handlePropertyClick(property.mlsNumber || `${property.address}-${property.listPrice}`);
+                  }}
+                >
+                  <td className="p-4" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedProperties.has(property.mlsNumber || `${property.address}-${property.listPrice}`)}
                       onCheckedChange={(checked) => {
@@ -586,16 +601,16 @@ function MarketOverviewView({
 }
 
 // AI Recommendations Component
-function AIRecommendationsView({ 
-  results, 
-  formatPrice, 
+function AIRecommendationsView({
+  results,
+  formatPrice,
   getScoreColor,
   profile,
   selectedProperties,
   setSelectedProperties,
   onSaveProperties
-}: { 
-  results: SearchView2Results; 
+}: {
+  results: SearchView2Results;
   formatPrice: (price: number) => string;
   getScoreColor: (score: number) => string;
   profile: BuyerProfile;
@@ -603,6 +618,12 @@ function AIRecommendationsView({
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
 }) {
+  const [, setLocation] = useLocation();
+
+  const handlePropertyClick = (propertyId: string) => {
+    setLocation(`/property/${propertyId}?profile_id=${profile.id}`);
+  };
+
   return (
     <div className="space-y-6">
       {/* 10-Second Overview for Agent */}
@@ -1119,7 +1140,17 @@ function AIRecommendationsView({
                   <Share2 className="h-4 w-4 mr-2" />
                   Share with Client
                 </Button>
-                <Button variant="outline" className="flex-1" size="sm">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  size="sm"
+                  onClick={() =>
+                    handlePropertyClick(
+                      property.mlsNumber ||
+                        `${property.address}-${property.listPrice}`
+                    )
+                  }
+                >
                   <Eye className="h-4 w-4 mr-2" />
                   Full Details
                 </Button>
