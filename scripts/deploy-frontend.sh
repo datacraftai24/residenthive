@@ -46,7 +46,7 @@ gcloud config set project ${PROJECT_ID}
 echo "Enabling required APIs..."
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com containerregistry.googleapis.com
 
-# Build the Docker image
+# Build the Docker image (uses cloudbuild.yaml in frontend/)
 echo "Building Docker image..."
 cd frontend
 gcloud builds submit --tag ${IMAGE_NAME}
@@ -62,10 +62,10 @@ gcloud run deploy ${SERVICE_NAME} \
   --port 8080 \
   --memory 512Mi \
   --cpu 1 \
-  --min-instances 0 \
+  --min-instances 1 \
   --max-instances 10 \
   --timeout 300 \
-  --set-env-vars "PORT=8080,VITE_BACKEND_URL=${BACKEND_URL},NODE_ENV=production"
+  --set-env-vars "VITE_BACKEND_URL=${BACKEND_URL},NODE_ENV=production"
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
