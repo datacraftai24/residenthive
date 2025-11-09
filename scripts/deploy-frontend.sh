@@ -49,7 +49,7 @@ gcloud services enable cloudbuild.googleapis.com run.googleapis.com containerreg
 # Build the Docker image (uses cloudbuild.yaml in frontend/)
 echo "Building Docker image..."
 cd frontend
-gcloud builds submit --tag ${IMAGE_NAME}
+gcloud builds submit --config=cloudbuild.yaml
 cd ..
 
 # Deploy to Cloud Run
