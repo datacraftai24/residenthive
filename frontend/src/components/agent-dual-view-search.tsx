@@ -586,16 +586,16 @@ function MarketOverviewView({
 }
 
 // AI Recommendations Component
-function AIRecommendationsView({ 
-  results, 
-  formatPrice, 
+function AIRecommendationsView({
+  results,
+  formatPrice,
   getScoreColor,
   profile,
   selectedProperties,
   setSelectedProperties,
   onSaveProperties
-}: { 
-  results: SearchView2Results; 
+}: {
+  results: SearchView2Results;
   formatPrice: (price: number) => string;
   getScoreColor: (score: number) => string;
   profile: BuyerProfile;
@@ -603,6 +603,29 @@ function AIRecommendationsView({
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
 }) {
+  // State to track selected image index for each property
+  const [selectedImageIndex, setSelectedImageIndex] = useState<Record<string, number>>({});
+
+  // Handler to change the displayed image
+  const handleImageClick = (propertyId: string, imageIndex: number) => {
+    setSelectedImageIndex(prev => ({
+      ...prev,
+      [propertyId]: imageIndex
+    }));
+  };
+
+  // Handler to cycle to next image when clicking main image
+  const handleMainImageClick = (propertyId: string, totalImages: number) => {
+    setSelectedImageIndex(prev => {
+      const currentIndex = prev[propertyId] || 0;
+      const nextIndex = (currentIndex + 1) % totalImages;
+      return {
+        ...prev,
+        [propertyId]: nextIndex
+      };
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* 10-Second Overview for Agent */}
@@ -751,29 +774,52 @@ function AIRecommendationsView({
               <div className="aspect-[4/3] bg-gray-100">
                 {property.images && property.images.length > 0 ? (
                   <div className="relative h-full">
+                    {/* Main Image - Clickable to cycle through images */}
                     <img
-                      src={property.images[0]}
+                      src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
                       alt={`${property.address} - ${property.city}, ${property.state}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => handleMainImageClick(property.mlsNumber, property.images.length)}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.onerror = null;
                         target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
                       }}
                     />
-                    {/* Thumbnail strip for additional images */}
+
+                    {/* Image Counter */}
+                    <div className="absolute top-4 right-4">
+                      <Badge className="bg-black/70 text-white backdrop-blur-sm">
+                        {(selectedImageIndex[property.mlsNumber] || 0) + 1} / {property.images.length}
+                      </Badge>
+                    </div>
+
+                    {/* Thumbnail strip for additional images - Now Clickable */}
                     {property.images.length > 1 && (
-                      <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                        {property.images.slice(1, 4).map((img, idx) => (
-                          <div key={idx} className="w-16 h-12 bg-black/50 backdrop-blur-sm rounded overflow-hidden">
-                            <img src={img} alt="" className="w-full h-full object-cover opacity-80" />
-                          </div>
-                        ))}
-                        {property.images.length > 4 && (
-                          <div className="w-16 h-12 bg-black/50 backdrop-blur-sm rounded flex items-center justify-center text-white text-sm">
-                            +{property.images.length - 4}
-                          </div>
-                        )}
+                      <div className="absolute bottom-2 left-2 right-2 flex gap-1 overflow-x-auto">
+                        {property.images.map((img, idx) => {
+                          const isSelected = (selectedImageIndex[property.mlsNumber] || 0) === idx;
+                          return (
+                            <div
+                              key={idx}
+                              className={`w-16 h-12 rounded overflow-hidden cursor-pointer transition-all flex-shrink-0
+                                ${isSelected
+                                  ? 'ring-2 ring-white ring-offset-2 ring-offset-black/50'
+                                  : 'hover:opacity-100 opacity-70'
+                                }`}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent triggering main image click
+                                handleImageClick(property.mlsNumber, idx);
+                              }}
+                            >
+                              <img
+                                src={img}
+                                alt={`View ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -805,13 +851,6 @@ function AIRecommendationsView({
               <div className="absolute top-4 left-14">
                 <Badge className={`${getScoreColor(property.matchScore)} border font-semibold text-sm px-3 py-1`}>
                   {property.matchScore}% Match
-                </Badge>
-              </div>
-              
-              {/* Photo Count Badge */}
-              <div className="absolute top-4 right-4">
-                <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm">
-                  📷 {property.photoCount} photos
                 </Badge>
               </div>
             </div>
