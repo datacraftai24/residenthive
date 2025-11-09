@@ -108,13 +108,7 @@ class RepliersClient:
                 q["city"] = city_name
             else:
                 q["city"] = loc
-        if profile.get("preferredAreas"):
-            # Join areas as comma-separated string if Repliers expects it that way
-            areas = profile["preferredAreas"]
-            if isinstance(areas, list):
-                q["city"] = ", ".join(areas) if len(areas) > 1 else areas[0]
-            else:
-                q["city"] = areas
+        # Note: preferredAreas is NOT used for Repliers search - only location field matters
         return q
 
     def search(self, profile: Dict[str, Any], results_per_page: int = 100, page_num: int = 1) -> List[Dict[str, Any]]:
@@ -123,19 +117,33 @@ class RepliersClient:
         Note: Repliers API uses GET with query params, not POST with JSON body.
         Uses RESO-compliant parameters: city, standardStatus, resultsPerPage, pageNum.
         Location filtering works with city names (extracts city from "City, State" format).
+
+        Returns:
+            List of normalized listings, each containing a '_raw' key with the original API response
         """
         params = self._build_search_query(profile, results_per_page, page_num)
         url = f"{self.base_url}{self.search_path}"
-        
+
+        # Debug logging - see exactly what we're sending to Repliers
+        import json
+        print(f"[REPLIERS] Full URL: {url}")
+        print(f"[REPLIERS] Query params: {json.dumps(params, indent=2)}")
+        print(f"[REPLIERS] Profile data: {json.dumps({k: v for k, v in profile.items() if k in ['location', 'budgetMin', 'budgetMax', 'bedrooms', 'maxBedrooms', 'bathrooms', 'homeType']}, indent=2)}")
+
         with httpx.Client(timeout=self.timeout) as client:
             r = client.get(url, params=params, headers=self._headers())
+            print(f"[REPLIERS] Response status: {r.status_code}")
             if r.status_code >= 400:
                 print(f"[REPLIERS ERROR] API request failed with status {r.status_code}: {r.text}")
                 raise RepliersError(f"Repliers search failed: {r.status_code} {r.text}")
             data = r.json()
+            print(f"[REPLIERS] Response data keys: {list(data.keys())}")
+            print(f"[REPLIERS] Number of listings returned: {len(data.get('listings', data)) if isinstance(data.get('listings', data), list) else 'N/A'}")
         items = data.get("listings", data)
         if not isinstance(items, list):
             raise RepliersError("Unexpected Repliers response shape")
+
+        # Normalize listings and attach raw data for quality analysis
         return [self._normalize_listing(item) for item in items]
 
     def _normalize_listing(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -212,7 +220,7 @@ class RepliersClient:
         
         # Property type
         property_type = details.get("propertyType") or item.get("propertyType") or item.get("type")
-        
+
         return {
             "id": item.get("id") or item.get("mlsNumber") or item.get("listingId") or item.get("_id"),
             "mls_number": item.get("mlsNumber") or item.get("mls_id"),
@@ -228,4 +236,5 @@ class RepliersClient:
             "description": description,
             "images": images,
             "status": item.get("status"),
+            "_raw": item,  # Preserve raw API response for quality analysis
         }
