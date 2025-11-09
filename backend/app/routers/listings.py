@@ -7,6 +7,7 @@ from ..services.repliers import RepliersClient, RepliersError
 from ..services.scoring_config import ScoringConfig
 from ..services.property_scorer import PropertyScorer
 from ..services.property_analyzer import PropertyAnalyzer
+from ..services.listing_quality import ListingQualityAnalyzer
 from ..services.listing_persister import ListingPersister
 from ..db import get_conn, fetchone_dict
 
@@ -105,12 +106,24 @@ def listings_search(payload: Dict[str, Any]):
     scored_listings.sort(key=lambda x: x["score"], reverse=True)
     top_20 = scored_listings[:20]
 
-    print(f"[LISTINGS SEARCH] Selected top {len(top_20)} for AI analysis")
+    print(f"[LISTINGS SEARCH] Selected top {len(top_20)} for quality analysis and AI")
+
+    # Stage 2.5: Quality analysis on top 20 (fast, Python-only)
+    quality_analyzer = ListingQualityAnalyzer()
+
+    for item in top_20:
+        try:
+            quality_data = quality_analyzer.analyze_listing(item["listing"])
+            item["quality_data"] = quality_data
+        except Exception as e:
+            print(f"[LISTINGS SEARCH] Quality analysis error: {e}")
+            item["quality_data"] = None
 
     # Stage 3: AI analysis ONLY on top 20 (in parallel mini-batches of 4)
     analyzer = PropertyAnalyzer()
 
     # Run batch analysis with 4 concurrent API calls
+    # Now includes quality_data for each item
     ai_analyses = analyzer.analyze_batch(
         items=top_20,
         profile=profile,
@@ -118,11 +131,12 @@ def listings_search(payload: Dict[str, Any]):
         use_cache=True
     )
 
-    # Merge AI analysis with score data
+    # Merge AI analysis with score data and quality metrics
     analyzed_listings = []
     for item, ai_analysis in zip(top_20, ai_analyses):
         listing = item["listing"]
         score_data = item["score_data"]
+        quality_data = item.get("quality_data")
 
         analyzed_listings.append({
             "listing": listing,
@@ -130,12 +144,16 @@ def listings_search(payload: Dict[str, Any]):
             "score": item["score"],
             "headline": ai_analysis.get("headline", ""),
             "agent_insight": ai_analysis.get("agent_insight", ""),
+            "why_picked": ai_analysis.get("why_picked", ""),
+            "must_have_checklist": ai_analysis.get("must_have_checklist", []),
+            "hidden_gems": ai_analysis.get("hidden_gems", []),
+            "red_flags": ai_analysis.get("red_flags", []),
             "matched_features": score_data.get("matched_features", []),
-            "dealbreaker_flags": ai_analysis.get("dealbreaker_flags", []),
             "why_it_works": ai_analysis.get("why_it_works", {}),
             "considerations": ai_analysis.get("considerations", []),
-            "match_reasoning": ai_analysis.get("match_reasoning", {}),
             "score_breakdown": score_data.get("breakdown", {}),
+            "quality_score": quality_data.get("quality_score") if quality_data else None,
+            "quality_summary": quality_data.get("summary") if quality_data else None,
             "label": "Top Pick" if item["score"] >= 80 else "Match",
         })
 

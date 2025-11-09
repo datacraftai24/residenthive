@@ -29,6 +29,7 @@ class PropertyAnalyzer:
         listing: Dict[str, Any],
         profile: Dict[str, Any],
         score_data: Optional[Dict[str, Any]] = None,
+        quality_data: Optional[Dict[str, Any]] = None,
         use_cache: bool = True
     ) -> Dict[str, Any]:
         """
@@ -37,18 +38,19 @@ class PropertyAnalyzer:
         Args:
             listing: Property data from Repliers
             profile: Buyer profile data
-            score_data: Pre-calculated score breakdown (optional)
+            score_data: Pre-calculated score breakdown from PropertyScorer
+            quality_data: Quality metrics from ListingQualityAnalyzer
             use_cache: Whether to use cached analysis
 
         Returns:
             {
                 "headline": "Perfect Family Home on Quiet Street",
                 "agent_insight": "I love this one...",
-                "matched_features": [...],
-                "dealbreaker_flags": [...],
+                "why_picked": "...",
+                "must_have_checklist": [...],
+                "red_flags": [...],
                 "why_it_works": {...},
-                "considerations": [...],
-                "match_reasoning": {...}
+                "considerations": [...]
             }
         """
         listing_id = listing.get("id") or listing.get("mls_number")
@@ -62,7 +64,7 @@ class PropertyAnalyzer:
 
         # Generate AI analysis
         try:
-            prompt = self._build_prompt(listing, profile, score_data)
+            prompt = self._build_prompt(listing, profile, score_data, quality_data)
             analysis = self._call_openai(prompt)
 
             # Cache the result
@@ -74,7 +76,7 @@ class PropertyAnalyzer:
         except Exception as e:
             print(f"[PROPERTY ANALYZER] Error analyzing listing {listing_id}: {e}")
             # Return fallback response
-            return self._get_fallback_analysis(listing, profile, score_data)
+            return self._get_fallback_analysis(listing, profile, score_data, quality_data)
 
     def analyze_batch(
         self,
@@ -104,6 +106,7 @@ class PropertyAnalyzer:
                     listing=item["listing"],
                     profile=profile,
                     score_data=item.get("score_data"),
+                    quality_data=item.get("quality_data"),
                     use_cache=use_cache
                 )
                 return (index, analysis, None)
@@ -138,9 +141,10 @@ class PropertyAnalyzer:
         self,
         listing: Dict[str, Any],
         profile: Dict[str, Any],
-        score_data: Optional[Dict[str, Any]] = None
+        score_data: Optional[Dict[str, Any]] = None,
+        quality_data: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Build the AI prompt for property analysis"""
+        """Build the AI prompt for property analysis with quality metrics and scoring context"""
 
         # Extract profile data
         buyer_name = profile.get("name", "the buyer")
@@ -178,8 +182,65 @@ class PropertyAnalyzer:
         city = listing.get("city", "")
         state = listing.get("state", "")
 
-        prompt = f"""You are an experienced real estate agent helping a buyer find their perfect home.
-Analyze this property against the buyer's specific needs and preferences.
+        # Build scoring context if available
+        scoring_context = ""
+        if score_data:
+            total_score = score_data.get("total", 0)
+            breakdown = score_data.get("breakdown", {})
+            matched_features = score_data.get("matched_features", [])
+            missing_features = score_data.get("missing_features", [])
+
+            scoring_context = f"""
+PROPERTY SCORE ANALYSIS:
+Overall Match Score: {total_score}/100
+
+Score Breakdown:
+- Budget Match: {breakdown.get('budget_match', {}).get('score', 0)}/30 - {breakdown.get('budget_match', {}).get('details', '')}
+- Bedroom Match: {breakdown.get('bedroom_match', {}).get('score', 0)}/20 - {breakdown.get('bedroom_match', {}).get('details', '')}
+- Bathroom Match: {breakdown.get('bathroom_match', {}).get('score', 0)}/15 - {breakdown.get('bathroom_match', {}).get('details', '')}
+- Features Match: {breakdown.get('must_have_features', {}).get('score', 0)}/20 - {breakdown.get('must_have_features', {}).get('details', '')}
+- Location Match: {breakdown.get('location_match', {}).get('score', 0)}/10 - {breakdown.get('location_match', {}).get('details', '')}
+
+Matched Must-Have Features: {', '.join(matched_features) if matched_features else 'None'}
+Missing Must-Have Features: {', '.join(missing_features) if missing_features else 'None'}
+"""
+
+        # Build quality context if available
+        quality_context = ""
+        if quality_data:
+            quality_score = quality_data.get("quality_score", 0)
+            photo_quality = quality_data.get("photo_quality", {})
+            desc_quality = quality_data.get("description_quality", {})
+            freshness = quality_data.get("freshness", {})
+            price_signals = quality_data.get("price_signals", {})
+
+            quality_context = f"""
+LISTING QUALITY SIGNALS:
+Overall Quality Score: {quality_score}/10
+
+Photos: {photo_quality.get('count', 0)} photos ({photo_quality.get('quality', 'unknown')})
+Description: {desc_quality.get('length', 0)} characters ({desc_quality.get('quality', 'unknown')})
+Days on Market: {freshness.get('days_on_market', 'Unknown')} ({freshness.get('freshness', 'unknown')})
+"""
+
+            if price_signals.get('has_price_change'):
+                change_type = price_signals.get('change_type')
+                change_pct = price_signals.get('price_change_pct', 0)
+                quality_context += f"Price Change: {change_type.capitalize()} by {abs(change_pct):.1f}%\n"
+
+        # Determine tone based on score
+        tone_guidance = ""
+        if score_data:
+            score = score_data.get("total", 0)
+            if score >= 85:
+                tone_guidance = "This is a STRONG match. Be enthusiastic and confident in your recommendation."
+            elif score >= 70:
+                tone_guidance = "This is a GOOD match with some compromises. Be positive but mention tradeoffs honestly."
+            else:
+                tone_guidance = "This is an OK match with notable tradeoffs. Be balanced and help them understand the compromises."
+
+        prompt = f"""You are an experienced real estate agent helping {buyer_name} find their perfect home.
+This property scored {score_data.get('total', 0) if score_data else '?'}/100 based on their criteria. Your job is to provide professional due diligence.
 
 BUYER PROFILE:
 Name: {buyer_name}
@@ -213,51 +274,67 @@ Bathrooms: {property_bathrooms}
 Square Feet: {sqft}
 Property Type: {property_type}
 Description: {description}
+{scoring_context}{quality_context}
 
 YOUR TASK:
-As their trusted agent, analyze this property and provide:
+Provide professional due diligence analysis demonstrating you've thoroughly vetted this property for {buyer_name}.
 
-1. **headline** (5-8 words): A compelling, specific headline that captures what makes this property special for THIS buyer. Not generic - make it personal.
+{tone_guidance}
 
-2. **agent_insight** (2-3 sentences): Write as if you're texting or emailing this buyer directly. Use "I" and "you". Explain why YOU picked this property for THEM specifically. Be conversational and warm. Reference their actual needs/situation.
+1. **headline** (5-8 words): Specific headline capturing what makes this property notable for {buyer_name}. Reference their actual situation.
 
-3. **matched_features** (array): List 3-5 specific features from the property that match their must-haves, lifestyle priorities, or special needs. Format: "Feature name (why it matters to them)"
+2. **agent_insight** (2-3 sentences): You're a real estate agent presenting THIS property to {buyer_name}:
+   - Sentence 1: "I found this [SPECIFIC DETAILS: address/price/beds/key feature from description]"
+   - Sentence 2: "You were looking for [THEIR SPECIFIC REQUIREMENT], and this property [HOW IT DELIVERS]"
+   - Sentence 3: "It might also interest you because [BONUS or HIDDEN GEM from description]"
 
-4. **dealbreaker_flags** (array): Honestly note any dealbreakers or concerns. If none, return empty array. Be transparent but tactful.
+   Use conversational tone. Reference ACTUAL property data and buyer requirements.
 
-5. **why_it_works** (object with 2-4 keys): Explain the fit in specific categories:
-   - budget: How the price aligns with their budget
-   - location: Why the location works for them
-   - lifestyle_fit or family_fit or investment_fit: Based on their buyer type/priorities
+3. **why_picked** (1-2 sentences): The specific reason YOU selected this property for {buyer_name}. What made you say "I should show them this one"? Reference the match score or a standout feature.
 
-6. **considerations** (array): 1-2 honest notes about tradeoffs or things to think about. Not dealbreakers, but worth mentioning.
+4. **must_have_checklist** (array of objects): For EACH must-have feature {buyer_name} requested, return:
+   {{"feature": "feature name", "status": "present"|"missing"|"unclear", "notes": "brief context from description"}}
 
-7. **match_reasoning** (object): Calculate these scores and explain each:
-   - budget_score (0-100): How well price fits their budget
-   - feature_score (0-100): % of must-haves this property has
-   - location_score (0-100): Location alignment
-   - lifestyle_score (0-100): How well it fits their lifestyle/priorities
-   - overall_score (0-100): Weighted average
+5. **hidden_gems** (array of strings): Extract 2-4 positive details buried in the description that could resonate with {buyer_name}:
+   - Recent updates/renovations not in main features (e.g., "new roof 2023", "HVAC replaced")
+   - Lot characteristics (e.g., "corner lot", "mature trees", "private backyard")
+   - Neighborhood benefits (e.g., "walk to elementary school", "near bike path")
+   - Seller motivations (e.g., "pre-inspected", "motivated seller")
+   - Unique property features (e.g., "oversized garage", "south-facing deck")
 
-   For each score, provide: {{"score": 85, "explanation": "Brief reason"}}
+   Only include if genuinely found in description. Empty array if none.
+
+6. **red_flags** (array of strings): Analyze the description for potential concerns:
+   - Vague language suggesting hidden issues
+   - Missing information that should be disclosed
+   - Wording that raises questions
+   - Quality concerns from the listing data
+   Only include genuine concerns. Empty array if none.
+
+7. **why_it_works** (object): Explain the fit:
+   - budget: Price alignment with their budget
+   - location: Why this location works for them
+   - lifestyle_fit/family_fit/investment_fit: Based on buyer_type and priorities
+
+8. **considerations** (array): 1-3 honest tradeoffs or things to investigate. Not dealbreakers, but worth discussing.
 
 TONE GUIDELINES:
-- Sound like a real person, not a corporate brochure
-- Be enthusiastic but honest
-- Use contractions (I'm, you'll, it's)
-- Reference their specific situation
-- If it's not a good fit, be honest but constructive
-- Avoid clichés like "dream home" or "don't miss out"
+- Sound like a real agent who did their homework
+- Be honest about concerns - your credibility matters
+- Use the scoring breakdown - don't recalculate, use what's provided
+- Reference quality signals (photos, days on market, price changes) when relevant
+- Avoid generic phrases - be specific to {buyer_name}'s situation
 
-Return ONLY valid JSON with this structure:
+Return ONLY valid JSON:
 {{
   "headline": "...",
   "agent_insight": "...",
-  "matched_features": [...],
-  "dealbreaker_flags": [...],
+  "why_picked": "...",
+  "must_have_checklist": [...],
+  "hidden_gems": [...],
+  "red_flags": [...],
   "why_it_works": {{...}},
-  "considerations": [...],
-  "match_reasoning": {{...}}
+  "considerations": [...]
 }}
 """
 
@@ -271,7 +348,7 @@ Return ONLY valid JSON with this structure:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an experienced real estate agent who provides personalized, honest property recommendations."
+                        "content": "You are an experienced real estate agent who provides personalized, honest property recommendations. You read listing descriptions carefully to find hidden details that buyers might love."
                     },
                     {
                         "role": "user",
@@ -286,10 +363,16 @@ Return ONLY valid JSON with this structure:
             analysis = json.loads(content)
 
             # Validate response structure
-            required_fields = ["headline", "agent_insight", "matched_features", "why_it_works", "match_reasoning"]
+            required_fields = ["headline", "agent_insight", "why_picked", "must_have_checklist", "why_it_works"]
             for field in required_fields:
                 if field not in analysis:
                     raise ValueError(f"Missing required field: {field}")
+
+            # Ensure optional array fields exist (can be empty)
+            if "hidden_gems" not in analysis:
+                analysis["hidden_gems"] = []
+            if "red_flags" not in analysis:
+                analysis["red_flags"] = []
 
             return analysis
 
@@ -359,28 +442,31 @@ Return ONLY valid JSON with this structure:
         self,
         listing: Dict[str, Any],
         profile: Dict[str, Any],
-        score_data: Optional[Dict[str, Any]] = None
+        score_data: Optional[Dict[str, Any]] = None,
+        quality_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Return basic analysis when AI fails"""
         price = listing.get("price", 0)
         bedrooms = listing.get("bedrooms", 0)
         city = listing.get("city", "this area")
+        buyer_name = profile.get("name", "the buyer")
+        must_haves = profile.get("mustHaveFeatures", [])
+
+        # Build basic must-have checklist
+        must_have_checklist = [
+            {"feature": feature, "status": "unclear", "notes": "Analysis unavailable"}
+            for feature in must_haves
+        ]
 
         return {
             "headline": f"{bedrooms}-Bedroom Home in {city}",
-            "agent_insight": f"This property at ${price:,} has {bedrooms} bedrooms and could be a good fit for your search.",
-            "matched_features": score_data.get("matched_features", []) if score_data else [],
-            "dealbreaker_flags": [],
+            "agent_insight": f"I found this property at ${price:,} with {bedrooms} bedrooms that could be a good fit for you.",
+            "why_picked": "This property met your basic criteria.",
+            "must_have_checklist": must_have_checklist,
+            "red_flags": [],
             "why_it_works": {
                 "budget": f"Listed at ${price:,}",
                 "location": f"Located in {city}",
             },
-            "considerations": [],
-            "match_reasoning": {
-                "budget_score": {"score": 70, "explanation": "Within general market range"},
-                "feature_score": {"score": 60, "explanation": "Basic feature match"},
-                "location_score": {"score": 70, "explanation": "Location assessment"},
-                "lifestyle_score": {"score": 65, "explanation": "General lifestyle fit"},
-                "overall_score": {"score": 66, "explanation": "Average match"}
-            }
+            "considerations": ["Full analysis unavailable - please review details carefully"]
         }

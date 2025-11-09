@@ -4,11 +4,63 @@ Persists raw property listings from Repliers API to database for chatbot access
 """
 from typing import List, Dict, Any, Optional
 from ..db import get_conn
+from datetime import datetime, timezone
 import json
 
 
 class ListingPersister:
     """Persists raw listings, AI analysis, and images to database"""
+
+    @staticmethod
+    def _extract_quality_fields(item: Dict[str, Any], listing: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract quality-related fields from raw Repliers API response.
+
+        Args:
+            item: Raw item from Repliers API (before normalization)
+            listing: Normalized listing data
+
+        Returns:
+            Dict with quality fields: list_date, original_price, last_status_date, days_on_market
+        """
+        quality_fields = {
+            "list_date": None,
+            "original_price": None,
+            "last_status_date": None,
+            "days_on_market": None
+        }
+
+        # Extract listDate and parse it
+        list_date_str = item.get("listDate") or item.get("listingDate") or item.get("datePosted")
+        if list_date_str:
+            try:
+                # Parse ISO format date
+                list_dt = datetime.fromisoformat(list_date_str.replace('Z', '+00:00'))
+                quality_fields["list_date"] = list_dt
+
+                # Calculate days on market
+                now = datetime.now(timezone.utc)
+                quality_fields["days_on_market"] = (now - list_dt).days
+            except Exception as e:
+                print(f"[LISTING PERSISTER] Error parsing list_date '{list_date_str}': {e}")
+
+        # Extract original price
+        original_price = item.get("originalPrice") or item.get("originalListPrice")
+        if original_price:
+            try:
+                quality_fields["original_price"] = int(original_price)
+            except (ValueError, TypeError):
+                pass
+
+        # Extract last status date
+        last_status_date = item.get("lastStatusDate") or item.get("statusChangeTimestamp")
+        if last_status_date:
+            try:
+                quality_fields["last_status_date"] = datetime.fromisoformat(last_status_date.replace('Z', '+00:00'))
+            except Exception:
+                pass
+
+        return quality_fields
 
     @staticmethod
     def persist_search_results(
@@ -59,15 +111,23 @@ class ListingPersister:
                         if isinstance(features, list):
                             features = json.dumps(features)
 
+                        # Extract raw JSON and quality fields
+                        raw_json = listing.get("_raw")
+                        quality_fields = ListingPersister._extract_quality_fields(raw_json or {}, listing)
+
                         cur.execute("""
                             INSERT INTO repliers_listings (
                                 id, address, price, bedrooms, bathrooms, square_feet,
                                 property_type, city, state, zip_code, description,
                                 features, images, listing_date, status, mls_number,
                                 lot_size, year_built, garage_spaces,
-                                agent_id, profile_id, created_at, updated_at
+                                agent_id, profile_id,
+                                raw_json, list_date, original_price, last_status_date, days_on_market,
+                                created_at, updated_at
                             ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s,
+                                NOW(), NOW()
                             )
                             ON CONFLICT (id) DO UPDATE SET
                                 price = EXCLUDED.price,
@@ -75,6 +135,11 @@ class ListingPersister:
                                 description = EXCLUDED.description,
                                 agent_id = EXCLUDED.agent_id,
                                 profile_id = EXCLUDED.profile_id,
+                                raw_json = EXCLUDED.raw_json,
+                                list_date = EXCLUDED.list_date,
+                                original_price = EXCLUDED.original_price,
+                                last_status_date = EXCLUDED.last_status_date,
+                                days_on_market = EXCLUDED.days_on_market,
                                 updated_at = NOW()
                         """, (
                             listing_id,
@@ -97,7 +162,12 @@ class ListingPersister:
                             listing.get("year_built"),
                             listing.get("garage_spaces"),
                             agent_id,
-                            profile_id
+                            profile_id,
+                            json.dumps(raw_json) if raw_json else None,
+                            quality_fields["list_date"],
+                            quality_fields["original_price"],
+                            quality_fields["last_status_date"],
+                            quality_fields["days_on_market"]
                         ))
                         counts["listings_persisted"] += 1
 
