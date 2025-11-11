@@ -1,6 +1,7 @@
 import os
 import re
 from typing import Any, Dict, List
+from datetime import datetime, timezone
 import httpx
 from dotenv import load_dotenv
 from pathlib import Path
@@ -221,6 +222,28 @@ class RepliersClient:
         # Property type
         property_type = details.get("propertyType") or item.get("propertyType") or item.get("type")
 
+        # Year built
+        year_built = details.get("yearBuilt") or item.get("yearBuilt")
+
+        # Lot size
+        lot_size = details.get("lotSize") or item.get("lotSize") or item.get("lotSizeArea")
+
+        # Days on market - calculate from list date if available
+        days_on_market = None
+        list_date = item.get("listDate") or item.get("listingDate") or item.get("datePosted") or details.get("listDate")
+        if list_date:
+            try:
+                # Parse ISO format date
+                list_dt = datetime.fromisoformat(list_date.replace('Z', '+00:00'))
+                now = datetime.now(timezone.utc)
+                days_on_market = (now - list_dt).days
+            except Exception:
+                # If parsing fails, check if there's a days_on_market field already
+                days_on_market = item.get("daysOnMarket") or details.get("daysOnMarket")
+        else:
+            # Fallback to existing daysOnMarket field if available
+            days_on_market = item.get("daysOnMarket") or details.get("daysOnMarket")
+
         return {
             "id": item.get("id") or item.get("mlsNumber") or item.get("listingId") or item.get("_id"),
             "mls_number": item.get("mlsNumber") or item.get("mls_id"),
@@ -236,5 +259,9 @@ class RepliersClient:
             "description": description,
             "images": images,
             "status": item.get("status"),
+            "year_built": year_built,
+            "lot_size": lot_size,
+            "days_on_market": days_on_market,
+            "list_date": list_date,
             "_raw": item,  # Preserve raw API response for quality analysis
         }

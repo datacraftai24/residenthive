@@ -48,25 +48,35 @@ class PropertyScorer:
             budget_result = self._score_budget(listing, profile)
             breakdown["budget_match"] = budget_result
             total_score += budget_result["score"]
+            # Add to matched features if it's a good budget match
+            if budget_result["score"] > 0:
+                matched_features.append(budget_result["details"])
 
         # Bedroom scoring
         if self.rules.get("bedroom_match", {}).get("enabled", True):
             bedroom_result = self._score_bedrooms(listing, profile)
             breakdown["bedroom_match"] = bedroom_result
             total_score += bedroom_result["score"]
+            # Add to matched features if bedrooms match
+            if bedroom_result["score"] > 0:
+                matched_features.append(bedroom_result["details"])
 
         # Bathroom scoring
         if self.rules.get("bathroom_match", {}).get("enabled", True):
             bathroom_result = self._score_bathrooms(listing, profile)
             breakdown["bathroom_match"] = bathroom_result
             total_score += bathroom_result["score"]
+            # Add to matched features if bathrooms match
+            if bathroom_result["score"] > 0:
+                matched_features.append(bathroom_result["details"])
 
         # Must-have features scoring
         if self.rules.get("must_have_features", {}).get("enabled", True):
             features_result = self._score_must_haves(listing, profile)
             breakdown["must_have_features"] = features_result
             total_score += features_result["score"]
-            matched_features = features_result.get("matched", [])
+            # Extend matched features with must-haves
+            matched_features.extend(features_result.get("matched", []))
             missing_features = features_result.get("missing", [])
 
         # Location scoring
