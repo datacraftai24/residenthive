@@ -628,110 +628,6 @@ function AIRecommendationsView({
 
   return (
     <div className="space-y-6">
-      {/* 10-Second Overview for Agent */}
-      <Card className="border-2 border-blue-200 bg-blue-50/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-blue-600" />
-              <span className="text-lg">10-Second Agent Overview</span>
-            </div>
-            <Badge variant="outline" className="bg-white">
-              {results.listings.length} Properties Analyzed
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Quick Status Overview */}
-          <div className="flex items-center gap-6 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-medium">
-                {results.listings.filter(p => p.matchScore >= 80).length} Strong Matches
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span className="text-sm font-medium">
-                {results.listings.filter(p => p.matchScore >= 60 && p.matchScore < 80).length} Good Options
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-              <span className="text-sm font-medium">
-                {results.listings.filter(p => p.aiInsights?.personalizedAnalysis?.hiddenGems && p.aiInsights.personalizedAnalysis.hiddenGems.length > 0).length} Hidden Gems
-              </span>
-            </div>
-          </div>
-
-          {/* Visual Property Grid */}
-          <div className="grid grid-cols-10 gap-1">
-            {results.listings.slice(0, 30).map((property, idx) => (
-              <div
-                key={property.mlsNumber}
-                className={`relative w-8 h-8 rounded flex items-center justify-center text-xs font-semibold cursor-pointer group
-                  ${property.matchScore >= 80 ? 'bg-green-500 text-white' : 
-                    property.matchScore >= 60 ? 'bg-yellow-500 text-white' : 
-                    'bg-gray-400 text-white'}
-                  ${property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 ? 'ring-2 ring-purple-600 ring-offset-1' : ''}
-                `}
-                title={`${property.address} - ${property.matchScore}% match`}
-              >
-                {idx + 1}
-                {property.matchScore >= 85 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-600 rounded-full"></div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Legend */}
-          <div className="mt-3 text-xs text-gray-600 flex items-center gap-4">
-            <span>Click number to jump to property</span>
-            <span className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-purple-600 rounded-full"></div> AI Recommended
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-4 h-4 border-2 border-purple-600 rounded"></div> Hidden Gem
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Analysis Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5" />
-            AI Analysis Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <div className="text-2xl font-bold">{results.aiAnalysis.topMatches}</div>
-              <div className="text-sm text-gray-600">Top Matches Found</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{results.aiAnalysis.visualAnalysis ? 'Yes' : 'No'}</div>
-              <div className="text-sm text-gray-600">Visual Analysis Applied</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{results.executionTime}ms</div>
-              <div className="text-sm text-gray-600">Analysis Time</div>
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="text-sm font-medium mb-2">Scoring Factors:</div>
-            <div className="flex flex-wrap gap-2">
-              {results.aiAnalysis.scoringFactors.map((factor) => (
-                <Badge key={factor} variant="outline">{factor}</Badge>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Select All Header */}
       <Card>
         <CardContent className="py-4">
@@ -905,236 +801,54 @@ function AIRecommendationsView({
                 </div>
               </div>
 
-              {/* Agent's Professional Analysis */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-white" />
-                  </div>
-                  <h4 className="font-semibold text-gray-900">Agent's AI-Powered Analysis</h4>
-                </div>
-                
-                {/* AI Generated Personalized Analysis */}
-                {property.aiInsights?.personalizedAnalysis && (
-                  <div className="space-y-3 mb-4">
-                    {/* Personal Summary */}
-                    <div className="p-3 bg-white rounded-lg">
-                      <p className="text-sm text-gray-800 font-medium mb-1">Why I Selected This Property:</p>
-                      <p className="text-sm text-gray-700">
-                        {property.aiInsights.personalizedAnalysis.summary}
-                      </p>
+              {/* 3 CORE SECTIONS: What's Matching, What's Missing, Red Flags */}
+              <div className="space-y-4">
+                {/* Section 1: ✅ What's Matching */}
+                {property.matchReasons.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <h4 className="font-semibold text-green-900">What's Matching</h4>
                     </div>
-                    
-                    {/* Hidden Gems */}
-                    {property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
-                      <div className="p-3 bg-green-50 rounded-lg border border-green-100">
-                        <p className="text-sm font-medium text-green-900 mb-2">💎 Hidden Gems Found:</p>
-                        <ul className="text-sm text-green-800 space-y-1">
-                          {property.aiInsights.personalizedAnalysis.hiddenGems.map((gem, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <span className="text-green-600 mt-0.5">•</span>
-                              <span>{gem}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {/* Missing Information */}
-                    {property.aiInsights.personalizedAnalysis.missingInfo.length > 0 && (
-                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                        <p className="text-sm font-medium text-amber-900 mb-2">ℹ️ Information Needed:</p>
-                        <ul className="text-sm text-amber-800 space-y-1">
-                          {property.aiInsights.personalizedAnalysis.missingInfo.slice(0, 3).map((info, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <span className="text-amber-600 mt-0.5">•</span>
-                              <span>{info}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {/* Agent Research Tasks */}
-                    {property.aiInsights.personalizedAnalysis.agentTasks.length > 0 && (
-                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-sm font-medium text-blue-900 mb-2">📋 Agent To-Do:</p>
-                        <ul className="text-sm text-blue-800 space-y-1">
-                          {property.aiInsights.personalizedAnalysis.agentTasks.map((task, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <input type="checkbox" className="mt-1" />
-                              <span>{task}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Fallback to old display if no personalized analysis */}
-                {!property.aiInsights?.personalizedAnalysis && (property.aiInsights?.agentSummary || property.aiInsights?.visualAnalysis) && (
-                  <div className="mb-4 p-3 bg-white rounded-lg">
-                    <p className="text-sm text-gray-800 whitespace-pre-line">
-                      {property.aiInsights.agentSummary || property.aiInsights.visualAnalysis || property.reason}
-                    </p>
-                  </div>
-                )}
-                
-                {/* 10-Second Agent Summary */}
-                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                  {/* Quick Match Status */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {property.matchScore >= 80 ? (
-                        <div className="flex items-center gap-1 text-green-700 font-semibold">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          STRONG MATCH
-                        </div>
-                      ) : property.matchScore >= 60 ? (
-                        <div className="flex items-center gap-1 text-yellow-700 font-semibold">
-                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                          GOOD MATCH
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-gray-600 font-semibold">
-                          <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                          CONSIDER
-                        </div>
-                      )}
-                      <span className="text-sm text-gray-600">({property.matchScore}%)</span>
-                    </div>
-                    {property.matchScore >= 85 && (
-                      <Badge className="bg-purple-100 text-purple-800">AI RECOMMENDED</Badge>
-                    )}
-                  </div>
-
-                  {/* Key Highlights in One Line */}
-                  <div className="text-sm space-y-1">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      {/* What Works */}
-                      {property.matchReasons.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-green-800">{property.matchReasons.slice(0, 2).join(', ')}</span>
-                        </div>
-                      )}
-                      
-                      {/* Hidden Gems */}
-                      {property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 text-yellow-600" />
-                          <span className="text-yellow-800">
-                            {property.aiInsights.personalizedAnalysis.hiddenGems.length} hidden gem{property.aiInsights.personalizedAnalysis.hiddenGems.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Concerns */}
-                      {property.dealbreakers.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4 text-red-600" />
-                          <span className="text-red-800">{property.dealbreakers[0]}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Tags */}
-                    <div className="flex gap-2 mt-2">
-                      {property.matchScore >= 80 && (
-                        <Badge variant="default" className="bg-green-600">SHOW FIRST</Badge>
-                      )}
-                      {property.aiInsights?.personalizedAnalysis?.hiddenGems && property.aiInsights.personalizedAnalysis.hiddenGems.length > 0 && (
-                        <Badge variant="default" className="bg-purple-600">HIDDEN GEM</Badge>
-                      )}
-                      {property.aiInsights?.personalizedAnalysis?.agentTasks && property.aiInsights.personalizedAnalysis.agentTasks.length > 0 && (
-                        <Badge variant="default" className="bg-orange-600">NEEDS RESEARCH</Badge>
-                      )}
-                      {property.matchScore < 60 && property.dealbreakers.length === 0 && (
-                        <Badge variant="default" className="bg-gray-600">BACKUP OPTION</Badge>
-                      )}
-                      {property.dealbreakers.length > 2 && (
-                        <Badge variant="default" className="bg-red-600">SKIP</Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Due Diligence Badges */}
-                <div className="mt-4 pt-3 border-t border-blue-100">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="text-xs bg-white">
-                      🤖 AI Scoring: {property.matchScore}%
-                    </Badge>
-                    <Badge variant="outline" className="text-xs bg-white">
-                      ✓ {property.photoCount} Photos Analyzed
-                    </Badge>
-                    {property.aiInsights?.visualAnalysis && (
-                      <Badge variant="outline" className="text-xs bg-white">
-                        👁️ Visual AI Active
-                      </Badge>
-                    )}
-                    <Badge variant="outline" className="text-xs bg-white">
-                      🎯 {property.matchReasons.length} Matches Found
-                    </Badge>
-                    {property.dealbreakers.length > 0 && (
-                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                        ⚠️ {property.dealbreakers.length} Concerns
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Match Score Breakdown */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm text-gray-900">Match Score Breakdown</h4>
-                <div className="space-y-2">
-                  {Object.entries(property.scoreBreakdown).slice(0, 4).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 capitalize">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(100, value * 5)}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium w-10 text-right">{value}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Key Features & Concerns */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Matched Features */}
-                <div>
-                  <h4 className="font-medium text-sm text-gray-900 mb-2">Matched Requirements</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {property.matchReasons.length > 0 ? (
-                      property.matchReasons.map((reason, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    <div className="flex flex-wrap gap-2">
+                      {property.matchReasons.map((reason, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs bg-white text-green-700 border-green-300">
                           ✓ {reason}
                         </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-gray-500">Analyzing matches...</span>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Potential Concerns */}
+                {/* Section 2: ⚠️ What's Missing */}
+                {property.aiInsights?.personalizedAnalysis?.missingInfo &&
+                 property.aiInsights.personalizedAnalysis.missingInfo.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600" />
+                      <h4 className="font-semibold text-amber-900">What's Missing</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {property.aiInsights.personalizedAnalysis.missingInfo.map((info, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs bg-white text-amber-700 border-amber-300">
+                          ⚠️ {info}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 3: 🚩 Red Flags */}
                 {property.dealbreakers.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-sm text-gray-900 mb-2">Points to Consider</h4>
-                    <div className="flex flex-wrap gap-1">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                      <h4 className="font-semibold text-red-900">Red Flags</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                       {property.dealbreakers.map((concern, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                          ⚠ {concern}
+                        <Badge key={idx} variant="outline" className="text-xs bg-white text-red-700 border-red-300">
+                          🚩 {concern}
                         </Badge>
                       ))}
                     </div>

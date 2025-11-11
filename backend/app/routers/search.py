@@ -31,16 +31,31 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
             "images": x["listing"].get("images", []),
             "photoCount": len(x["listing"].get("images", [])),
             "description": x["listing"].get("description"),
+            "yearBuilt": x["listing"].get("year_built"),
+            "lotSize": x["listing"].get("lot_size"),
+            "daysOnMarket": x["listing"].get("days_on_market"),
             "matchScore": int((x.get("match_score", 0) or 0) * 100),
             "matchLabel": x.get("label", "Match"),
             "matchReasons": x.get("matched_features", []),
-            "dealbreakers": x.get("dealbreaker_flags", []),
+            "dealbreakers": x.get("red_flags", []),  # Map red_flags to dealbreakers for UI
             "aiInsights": {
                 "agentSummary": x.get("agent_insight", ""),
                 "headline": x.get("headline", ""),
                 "whyItWorks": x.get("why_it_works", {}),
                 "considerations": x.get("considerations", []),
-                "matchReasoning": x.get("match_reasoning", {})
+                "matchReasoning": x.get("match_reasoning", {}),
+                # Add personalizedAnalysis for the 3-section UI
+                "personalizedAnalysis": {
+                    "summary": x.get("agent_insight", "") or x.get("why_picked", ""),
+                    "hiddenGems": x.get("hidden_gems", []),
+                    # Filter must_have_checklist to only show missing items
+                    "missingInfo": [
+                        f"{item['feature']}" + (f" - {item['notes']}" if item.get('notes') else "")
+                        for item in x.get("must_have_checklist", [])
+                        if item.get("status") == "missing"
+                    ],
+                    "agentTasks": []  # Could be populated from considerations if needed
+                }
             },
             "scoreBreakdown": {
                 "featureMatch": x.get("score_breakdown", {}).get("must_have_features", {}).get("score", 0),
