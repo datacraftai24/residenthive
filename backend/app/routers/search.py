@@ -79,6 +79,9 @@ def agent_search(req: AgentSearchRequest):
     # Market Overview: Show ALL scored properties (not just top 20)
     all_listings = _map_to_agent_listing({"top_picks": base.get("all_scored_matches", []), "other_matches": []})
 
+    # Rejected properties: Map rejected properties for Market Overview
+    rejected_listings = _map_to_agent_listing({"top_picks": base.get("rejected_matches", []), "other_matches": []})
+
     # AI Recommendations: Show only top 20 with AI analysis
     ai_listings = _map_to_agent_listing(base)
 
@@ -87,6 +90,7 @@ def agent_search(req: AgentSearchRequest):
         "searchCriteria": {"budgetRange": "", "bedrooms": "", "location": "", "propertyType": ""},
         "totalFound": len(all_listings),  # Total ALL scored properties
         "listings": all_listings,  # ALL properties for Market Overview
+        "rejectedListings": rejected_listings,  # Filtered out properties with dealbreaker reasons
         "executionTime": 0,
     }
     view2 = {

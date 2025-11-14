@@ -51,14 +51,11 @@ gcloud run deploy ${SERVICE_NAME} \
   --platform managed \
   --region ${REGION} \
   --allow-unauthenticated \
-  --port 8000 \
   --memory 512Mi \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 10 \
-  --timeout 300 \
-  --set-env-vars "PORT=8000" \
-  --set-env-vars "NODE_ENV=production"
+  --timeout 300
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')

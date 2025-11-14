@@ -44,6 +44,7 @@ interface SearchView1Results {
   };
   totalFound: number;
   listings: MarketOverviewListing[];
+  rejectedListings?: MarketOverviewListing[];  // Properties filtered out due to dealbreakers
   executionTime: number;
 }
 
@@ -454,22 +455,25 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 }
 
 // Market Overview Component
-function MarketOverviewView({ 
-  results, 
+function MarketOverviewView({
+  results,
   formatPrice,
   profile,
   selectedProperties,
   setSelectedProperties,
   onSaveProperties
-}: { 
-  results: SearchView1Results; 
+}: {
+  results: SearchView1Results;
   formatPrice: (price: number) => string;
   profile: BuyerProfile;
   selectedProperties: Set<string>;
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
 }) {
+  const [showRejected, setShowRejected] = useState(true);
+
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -582,6 +586,90 @@ function MarketOverviewView({
         </div>
       </CardContent>
     </Card>
+
+      {/* Filtered Out Properties Section */}
+      {results.rejectedListings && results.rejectedListings.length > 0 && (
+        <Card className="border-red-200">
+          <CardHeader className="cursor-pointer" onClick={() => setShowRejected(!showRejected)}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-red-800">
+                <AlertCircle className="h-5 w-5" />
+                Filtered Out Properties ({results.rejectedListings.length})
+              </CardTitle>
+              <Button variant="ghost" size="sm">
+                {showRejected ? 'Hide' : 'Show'}
+              </Button>
+            </div>
+            <div className="text-sm text-red-600 mt-1">
+              Properties excluded due to dealbreakers or major mismatches
+            </div>
+          </CardHeader>
+          {showRejected && (
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-red-50 border-b border-red-200">
+                    <tr>
+                      <th className="text-left p-4 font-medium text-red-900">Property</th>
+                      <th className="text-left p-4 font-medium text-red-900">Price</th>
+                      <th className="text-left p-4 font-medium text-red-900">Beds/Baths</th>
+                      <th className="text-left p-4 font-medium text-red-900">Rejection Reasons</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.rejectedListings.map((property, index) => (
+                      <tr key={property.mlsNumber || `rejected-${index}`} className="border-b border-red-100 hover:bg-red-50">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-16 h-12 bg-red-100 rounded flex items-center justify-center">
+                              <Home className="h-6 w-6 text-red-400" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{property.address}</div>
+                              <div className="text-sm text-gray-600">
+                                {property.city}, {property.state} {property.zip}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 font-semibold text-gray-900">{formatPrice(property.listPrice)}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1 text-gray-700">
+                              <Bed className="h-4 w-4" />
+                              {property.bedrooms}
+                            </span>
+                            <span className="flex items-center gap-1 text-gray-700">
+                              <Bath className="h-4 w-4" />
+                              {property.bathrooms}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {property.dealbreakers && property.dealbreakers.length > 0 ? (
+                              property.dealbreakers.map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
+                                  🚩 {reason}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
+                                🚩 Filtered out
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+    </div>
   );
 }
 

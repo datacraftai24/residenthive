@@ -83,12 +83,17 @@ def listings_search(payload: Dict[str, Any]):
 
     # Stage 1: Score ALL listings (fast, no AI)
     scored_listings = []
-    rejected_count = 0
+    rejected_listings = []
 
     for listing in listings:
         # Check dealbreakers first
         if scorer.check_dealbreakers(listing, profile):
-            rejected_count += 1
+            # Get rejection reasons
+            rejection_reasons = scorer.get_rejection_reasons(listing, profile)
+            rejected_listings.append({
+                "listing": listing,
+                "rejection_reasons": rejection_reasons,
+            })
             continue
 
         # Score the listing
@@ -100,7 +105,7 @@ def listings_search(payload: Dict[str, Any]):
             "score_data": score_data,
         })
 
-    print(f"[LISTINGS SEARCH] Scored {len(scored_listings)} listings, rejected {rejected_count} dealbreakers")
+    print(f"[LISTINGS SEARCH] Scored {len(scored_listings)} listings, rejected {len(rejected_listings)} dealbreakers")
 
     # Stage 2: Sort and pick top 20
     scored_listings.sort(key=lambda x: x["score"], reverse=True)
@@ -213,15 +218,33 @@ def listings_search(payload: Dict[str, Any]):
                 for l in listings
             )
 
+    # Create lightweight rejected listings for Market Overview
+    rejected_for_overview = []
+    for item in rejected_listings:
+        listing = item["listing"]
+        rejected_for_overview.append({
+            "listing": listing,
+            "rejection_reasons": item["rejection_reasons"],
+            "match_score": 0,  # Rejected properties have 0 score
+            "score": 0,
+            "headline": "",
+            "agent_insight": "",
+            "matched_features": [],
+            "red_flags": item["rejection_reasons"],  # Show rejection reasons as red flags
+            "score_breakdown": {},
+            "label": "Filtered Out",
+        })
+
     return {
         "top_picks": top_picks,
         "other_matches": other_matches,
         "all_scored_matches": all_scored_for_overview,  # NEW: All scored properties for Market Overview
+        "rejected_matches": rejected_for_overview,  # NEW: Rejected properties with reasons
         "chat_blocks": [],
         "search_summary": {
             "total_found": len(listings),
             "total_scored": len(scored_listings),
-            "rejected_count": rejected_count,
+            "rejected_count": len(rejected_listings),
             "analyzed_count": len(analyzed_listings),
             "top_picks_count": len(top_picks),
             "other_matches_count": len(other_matches),
