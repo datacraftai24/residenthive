@@ -219,12 +219,16 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   });
 
   const handleSearch = () => {
+    // Clear cache to ensure fresh results
+    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
     setHasSearched(true);
     setForceEnhanced(false); // Reset force enhanced
     refetch();
   };
 
   const handleEnhancedSearch = () => {
+    // Clear cache for enhanced search too
+    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
     setForceEnhanced(true);
     refetch();
   };
