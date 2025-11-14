@@ -92,35 +92,47 @@ class PropertyScorer:
             "missing_features": missing_features,
         }
 
-    def check_dealbreakers(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> bool:
+    def check_hard_filters(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> bool:
         """
-        Check if listing has any dealbreakers.
+        Check if listing fails OBJECTIVE, VERIFIABLE hard filters.
+
+        NO keyword matching, NO AI guessing, NO subjective criteria.
+        Only check things we can determine from structured data.
 
         Args:
             listing: Property data
             profile: Buyer profile
 
         Returns:
-            True if property should be rejected, False otherwise
+            True if property should be filtered out, False otherwise
         """
-        dealbreaker_config = self.rules.get("dealbreakers", {})
-        if not dealbreaker_config.get("enabled", True):
-            return False
+        # Hard Filter 1: Budget (way over maximum)
+        price = listing.get("price", 0) or 0
+        budget_max = profile.get("budgetMax", 0) or 0
 
-        description = str(listing.get("description", "")).lower()
-        dealbreakers_list = profile.get("dealbreakers", [])
+        if budget_max and price > budget_max * 1.2:  # More than 20% over budget
+            return True
 
-        # Check configured dealbreaker keywords
-        for dealbreaker_type, keywords in dealbreaker_config.get("keywords", {}).items():
-            for keyword in keywords:
-                if keyword.lower() in description:
+        # Hard Filter 2: Bedrooms (below minimum)
+        property_bedrooms = listing.get("bedrooms")
+        min_bedrooms = profile.get("bedrooms")
+
+        if property_bedrooms is not None and min_bedrooms is not None:
+            try:
+                if int(property_bedrooms) < int(min_bedrooms):
                     return True
+            except (ValueError, TypeError):
+                pass
 
-        # Check profile-specific dealbreakers
-        for dealbreaker in dealbreakers_list:
-            dealbreaker_text = str(dealbreaker).lower()
-            if dealbreaker_text in description:
-                return True
+        # Hard Filter 3: Property Type (completely wrong type)
+        # Only filter if buyer specified a type AND property doesn't match
+        # (Keep it flexible - don't filter if buyer didn't specify)
+        # This is commented out for now - most buyers are flexible on type
+        # property_type = str(listing.get("property_type", "")).lower()
+        # requested_type = str(profile.get("homeType", "")).lower()
+        # if requested_type and property_type:
+        #     if "single" in requested_type and "condo" in property_type:
+        #         return True
 
         return False
 
@@ -387,29 +399,74 @@ class PropertyScorer:
             "details": f"{listing.get('city')}, {listing.get('state')} (different location)"
         }
 
-    def get_rejection_reasons(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> List[str]:
+    def get_filter_reasons(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> List[str]:
         """
-        Get list of reasons why a property was rejected.
+        Get OBJECTIVE, CLEAR reasons why a property was filtered out.
+
+        Returns SPECIFIC, ACTIONABLE reasons (not vague AI guesses).
 
         Returns:
-            List of human-readable rejection reasons
+            List of structured filter reasons with context
         """
         reasons = []
-        description = str(listing.get("description", "")).lower()
-        dealbreaker_config = self.rules.get("dealbreakers", {})
 
-        # Check configured dealbreakers
-        for dealbreaker_type, keywords in dealbreaker_config.get("keywords", {}).items():
-            for keyword in keywords:
-                if keyword.lower() in description:
-                    reasons.append(f"Dealbreaker: {dealbreaker_type.replace('_', ' ').title()}")
-                    break
+        # Budget Filter
+        price = listing.get("price", 0) or 0
+        budget_min = profile.get("budgetMin", 0) or 0
+        budget_max = profile.get("budgetMax", 0) or 0
 
-        # Check profile dealbreakers
-        dealbreakers_list = profile.get("dealbreakers", [])
-        for dealbreaker in dealbreakers_list:
-            dealbreaker_text = str(dealbreaker).lower()
-            if dealbreaker_text in description:
-                reasons.append(f"Dealbreaker: {dealbreaker}")
+        if budget_max and price > budget_max:
+            over_amount = price - budget_max
+            over_pct = int((over_amount / budget_max) * 100)
+
+            if over_pct > 20:
+                reasons.append(f"Over budget by ${over_amount:,} ({over_pct}%)")
+            elif over_pct > 10:
+                reasons.append(f"Over budget by ${over_amount:,} ({over_pct}%) - negotiable?")
+            else:
+                reasons.append(f"Slightly over budget by ${over_amount:,} ({over_pct}%)")
+
+        # Bedroom Filter
+        property_bedrooms = listing.get("bedrooms")
+        min_bedrooms = profile.get("bedrooms")
+
+        if property_bedrooms is not None and min_bedrooms is not None:
+            try:
+                prop_beds = int(property_bedrooms)
+                min_beds = int(min_bedrooms)
+
+                if prop_beds < min_beds:
+                    diff = min_beds - prop_beds
+                    reasons.append(f"Only {prop_beds} bedroom{'s' if prop_beds != 1 else ''} (needs {min_beds}+)")
+            except (ValueError, TypeError):
+                pass
+
+        # Bathroom Filter
+        property_bathrooms = listing.get("bathrooms")
+        required_bathrooms = profile.get("bathrooms")
+
+        if property_bathrooms is not None and required_bathrooms is not None:
+            try:
+                prop_baths = float(property_bathrooms)
+                req_baths = float(required_bathrooms) if isinstance(required_bathrooms, (int, float)) else float(str(required_bathrooms).replace("+", ""))
+
+                if prop_baths < req_baths - 1:  # Significantly below
+                    reasons.append(f"Only {prop_baths} bathroom{'s' if prop_baths != 1 else ''} (needs {req_baths}+)")
+            except (ValueError, TypeError):
+                pass
+
+        # Location Filter (if applicable)
+        property_city = str(listing.get("city", "")).lower().strip()
+        property_state = str(listing.get("state", "")).lower().strip()
+        profile_location = profile.get("location", "")
+
+        if profile_location and "," in profile_location:
+            parts = profile_location.split(",")
+            requested_city = parts[0].strip().lower()
+            requested_state = parts[1].strip().lower() if len(parts) > 1 else ""
+
+            # Only flag if it's a different state (different city is okay - could be nearby)
+            if property_state and requested_state and property_state != requested_state:
+                reasons.append(f"Different state ({listing.get('city')}, {listing.get('state')})")
 
         return reasons

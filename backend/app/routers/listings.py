@@ -15,6 +15,33 @@ from ..db import get_conn, fetchone_dict
 router = APIRouter(prefix="/api")
 
 
+def calculate_market_metrics(listing: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate market intelligence metrics for a listing"""
+    price = listing.get("price", 0) or 0
+    sqft = listing.get("square_feet", 0) or 0
+    dom = listing.get("days_on_market", 0) or 0
+
+    # Calculate price per square foot
+    price_per_sqft = round(price / sqft) if sqft > 0 else None
+
+    # Determine status indicators
+    status_indicators = []
+
+    if dom < 7:
+        status_indicators.append({"type": "hot", "label": "New", "color": "red"})
+    elif dom > 60:
+        status_indicators.append({"type": "stale", "label": f"{dom} DOM", "color": "yellow"})
+
+    # Check for potential deal (below average $/sqft would require market data)
+    # For now, just flag properties with good $/sqft if available
+
+    return {
+        "price_per_sqft": price_per_sqft,
+        "days_on_market": dom,
+        "status_indicators": status_indicators,
+    }
+
+
 @router.post("/listings/search")
 def listings_search(payload: Dict[str, Any]):
     """
@@ -86,13 +113,13 @@ def listings_search(payload: Dict[str, Any]):
     rejected_listings = []
 
     for listing in listings:
-        # Check dealbreakers first
-        if scorer.check_dealbreakers(listing, profile):
-            # Get rejection reasons
-            rejection_reasons = scorer.get_rejection_reasons(listing, profile)
+        # Check HARD filters first (objective criteria only)
+        if scorer.check_hard_filters(listing, profile):
+            # Get clear, objective filter reasons
+            filter_reasons = scorer.get_filter_reasons(listing, profile)
             rejected_listings.append({
                 "listing": listing,
-                "rejection_reasons": rejection_reasons,
+                "filter_reasons": filter_reasons,
             })
             continue
 
@@ -172,6 +199,9 @@ def listings_search(payload: Dict[str, Any]):
         listing = item["listing"]
         score_data = item["score_data"]
 
+        # Calculate market intelligence metrics
+        market_metrics = calculate_market_metrics(listing)
+
         all_scored_for_overview.append({
             "listing": listing,
             "match_score": item["score"] / 100.0,
@@ -185,6 +215,10 @@ def listings_search(payload: Dict[str, Any]):
             "match_reasoning": {},
             "score_breakdown": score_data.get("breakdown", {}),
             "label": "Top Pick" if item["score"] >= 80 else "Match",
+            # Market intelligence metrics for Market Overview
+            "price_per_sqft": market_metrics["price_per_sqft"],
+            "days_on_market": market_metrics["days_on_market"],
+            "status_indicators": market_metrics["status_indicators"],
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
@@ -224,13 +258,13 @@ def listings_search(payload: Dict[str, Any]):
         listing = item["listing"]
         rejected_for_overview.append({
             "listing": listing,
-            "rejection_reasons": item["rejection_reasons"],
+            "filter_reasons": item["filter_reasons"],  # Clear, objective reasons
             "match_score": 0,  # Rejected properties have 0 score
             "score": 0,
             "headline": "",
             "agent_insight": "",
             "matched_features": [],
-            "red_flags": item["rejection_reasons"],  # Show rejection reasons as red flags
+            "red_flags": item["filter_reasons"],  # Show filter reasons as flags
             "score_breakdown": {},
             "label": "Filtered Out",
         })

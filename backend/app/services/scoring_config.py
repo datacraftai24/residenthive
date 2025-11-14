@@ -66,15 +66,13 @@ DEFAULT_SCORING_RULES = {
         ]
     },
 
+    # REMOVED: Keyword-based dealbreakers are unreliable
+    # AI cannot determine subjective criteria like "busy street" from text
+    # Hard filters are implemented in property_scorer.check_hard_filters() instead
     "dealbreakers": {
-        "enabled": True,
-        "auto_reject": True,
-        "keywords": {
-            "busy_street": ["main road", "highway", "busy street", "arterial", "high traffic"],
-            "major_repairs": ["needs work", "fixer upper", "as-is", "handyman special", "tlc needed"],
-            "short_sale": ["short sale", "foreclosure"],
-            "hoa_issues": ["pending litigation", "special assessment"],
-        }
+        "enabled": False,  # Disabled - using hard filters instead
+        "auto_reject": False,
+        "keywords": {}  # Cleared - no keyword matching
     },
 
     "property_age": {
