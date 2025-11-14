@@ -202,29 +202,29 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     }
   });
 
-  // Search query with reactive search enabled
+  // Search query with reactive search enabled - NO CACHING
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
-    queryKey: ['/api/agent-search', profile.id, forceEnhanced],
+    queryKey: ['/api/agent-search', profile.id, forceEnhanced, Date.now()], // Add timestamp to force fresh queries
     queryFn: async () => {
       const response = await fetch('/api/agent-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           profileId: profile.id,
           useReactive: true,  // Enable reactive search
           forceEnhanced
         })
       });
-      
+
       if (!response.ok) {
         throw new Error('Search failed');
       }
-      
+
       return response.json();
     },
     enabled: hasSearched,
-    staleTime: 300000, // 5 minutes
-    gcTime: 1800000, // Keep in cache for 30 minutes (was cacheTime)
+    staleTime: 0, // Never use cache - always fetch fresh
+    gcTime: 0, // Don't keep in cache
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
