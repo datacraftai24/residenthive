@@ -66,6 +66,12 @@ interface SearchView2Results {
   };
 }
 
+interface StatusIndicator {
+  type: string;
+  label: string;
+  color: string;
+}
+
 interface MarketOverviewListing {
   mlsNumber: string;
   address: string;
@@ -85,6 +91,11 @@ interface MarketOverviewListing {
   yearBuilt?: number;
   lotSize?: number;
   features?: string[];
+  // Market intelligence metrics
+  pricePerSqft?: number;
+  statusIndicators?: StatusIndicator[];
+  filterReasons?: string[];  // Clear, objective filter reasons
+  matchScore?: number;
 }
 
 interface AIRecommendationListing extends MarketOverviewListing {
@@ -521,10 +532,10 @@ function MarketOverviewView({
                 </th>
                 <th className="text-left p-4 font-medium">Property</th>
                 <th className="text-left p-4 font-medium">Price</th>
+                <th className="text-left p-4 font-medium">$/SqFt</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
                 <th className="text-left p-4 font-medium">Sq Ft</th>
-                <th className="text-left p-4 font-medium">Type</th>
-                <th className="text-left p-4 font-medium">Days on Market</th>
+                <th className="text-left p-4 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -558,7 +569,15 @@ function MarketOverviewView({
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 font-semibold">{formatPrice(property.listPrice)}</td>
+                  <td className="p-4">
+                    <div className="font-semibold">{formatPrice(property.listPrice)}</div>
+                    {property.pricePerSqft && (
+                      <div className="text-xs text-gray-500">${property.pricePerSqft}/sqft</div>
+                    )}
+                  </td>
+                  <td className="p-4 font-medium text-gray-700">
+                    {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1">
@@ -571,17 +590,29 @@ function MarketOverviewView({
                       </span>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className="flex items-center gap-1">
-                      <Square className="h-4 w-4" />
-                      {property.sqft ? `${property.sqft?.toLocaleString()} sq ft` : 'N/A'}
-                    </span>
+                  <td className="p-4 text-sm text-gray-600">
+                    {property.sqft ? `${property.sqft?.toLocaleString()}` : 'N/A'}
                   </td>
                   <td className="p-4">
-                    <Badge variant="secondary">{property.propertyType}</Badge>
-                  </td>
-                  <td className="p-4">
-                    {property.daysOnMarket ? `${property.daysOnMarket} days` : 'New'}
+                    <div className="flex flex-wrap gap-1">
+                      {property.statusIndicators && property.statusIndicators.length > 0 ? (
+                        property.statusIndicators.map((indicator, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className={`text-xs ${
+                              indicator.color === 'red' ? 'bg-red-100 text-red-800 border-red-300' :
+                              indicator.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                              'bg-gray-100 text-gray-800 border-gray-300'
+                            }`}
+                          >
+                            {indicator.label}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-gray-600">{property.propertyType}</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -605,7 +636,7 @@ function MarketOverviewView({
               </Button>
             </div>
             <div className="text-sm text-red-600 mt-1">
-              Properties excluded due to dealbreakers or major mismatches
+              Properties excluded based on objective criteria (budget, bedrooms, etc.)
             </div>
           </CardHeader>
           {showRejected && (
@@ -617,7 +648,7 @@ function MarketOverviewView({
                       <th className="text-left p-4 font-medium text-red-900">Property</th>
                       <th className="text-left p-4 font-medium text-red-900">Price</th>
                       <th className="text-left p-4 font-medium text-red-900">Beds/Baths</th>
-                      <th className="text-left p-4 font-medium text-red-900">Rejection Reasons</th>
+                      <th className="text-left p-4 font-medium text-red-900">Filter Reasons</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -651,15 +682,15 @@ function MarketOverviewView({
                         </td>
                         <td className="p-4">
                           <div className="flex flex-wrap gap-2">
-                            {property.dealbreakers && property.dealbreakers.length > 0 ? (
-                              property.dealbreakers.map((reason, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
-                                  🚩 {reason}
+                            {property.filterReasons && property.filterReasons.length > 0 ? (
+                              property.filterReasons.map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-300">
+                                  {reason}
                                 </Badge>
                               ))
                             ) : (
-                              <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-300">
-                                🚩 Filtered out
+                              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 border-gray-300">
+                                Filtered out
                               </Badge>
                             )}
                           </div>
