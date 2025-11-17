@@ -42,6 +42,14 @@ class BuyerProfileBase(BaseModel):
     emotionalTone: Optional[str] = None
     priorityScore: Optional[int] = 50
 
+    # AI-generated insights (migrations 007, 008)
+    aiSummary: Optional[str] = None
+    decisionDrivers: List[str] = Field(default_factory=list)
+    constraints: List[str] = Field(default_factory=list)
+    niceToHaves: List[str] = Field(default_factory=list)
+    flexibilityExplanations: Optional[dict] = Field(default_factory=dict)
+    visionChecklist: Optional[dict] = Field(default_factory=dict)
+
     rawInput: str = ""
     inputMethod: str = "form"
     nlpConfidence: Optional[int] = 100
@@ -86,6 +94,13 @@ class BuyerProfileUpdate(BaseModel):
     inferredTags: Optional[List[str]] = None
     emotionalTone: Optional[str] = None
     priorityScore: Optional[int] = None
+    # AI-generated insights (migrations 007, 008)
+    aiSummary: Optional[str] = None
+    decisionDrivers: Optional[List[str]] = None
+    constraints: Optional[List[str]] = None
+    niceToHaves: Optional[List[str]] = None
+    flexibilityExplanations: Optional[dict] = None
+    visionChecklist: Optional[dict] = None
     rawInput: Optional[str] = None
     inputMethod: Optional[str] = None
     nlpConfidence: Optional[int] = None

@@ -47,6 +47,13 @@ ALLOWED_COLUMNS = {
     "inferredTags",
     "emotionalTone",
     "priorityScore",
+    # AI-generated insights (migrations 007, 008)
+    "aiSummary",
+    "decisionDrivers",
+    "constraints",
+    "niceToHaves",
+    "flexibilityExplanations",
+    "visionChecklist",
     "rawInput",
     "inputMethod",
     "nlpConfidence",
@@ -69,7 +76,7 @@ def _transform_for_db(data: dict) -> dict:
     for k, v in data.items():
         if k not in ALLOWED_COLUMNS:
             continue
-        if isinstance(v, list):
+        if isinstance(v, (list, dict)):
             out[k] = json.dumps(v)
         else:
             out[k] = v
@@ -178,6 +185,12 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "voice_transcript" if k == "voiceTranscript" else
             "inferred_tags" if k == "inferredTags" else
             "priority_score" if k == "priorityScore" else
+            "ai_summary" if k == "aiSummary" else
+            "decision_drivers" if k == "decisionDrivers" else
+            "constraints" if k == "constraints" else
+            "nice_to_haves" if k == "niceToHaves" else
+            "flexibility_explanations" if k == "flexibilityExplanations" else
+            "vision_checklist" if k == "visionChecklist" else
             "input_method" if k == "inputMethod" else
             "nlp_confidence" if k == "nlpConfidence" else
             "raw_input" if k == "rawInput" else
@@ -263,6 +276,12 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "voice_transcript" if k == "voiceTranscript" else
             "inferred_tags" if k == "inferredTags" else
             "priority_score" if k == "priorityScore" else
+            "ai_summary" if k == "aiSummary" else
+            "decision_drivers" if k == "decisionDrivers" else
+            "constraints" if k == "constraints" else
+            "nice_to_haves" if k == "niceToHaves" else
+            "flexibility_explanations" if k == "flexibilityExplanations" else
+            "vision_checklist" if k == "visionChecklist" else
             "input_method" if k == "inputMethod" else
             "nlp_confidence" if k == "nlpConfidence" else
             "raw_input" if k == "rawInput" else
