@@ -15,6 +15,33 @@ from ..db import get_conn, fetchone_dict
 router = APIRouter(prefix="/api")
 
 
+def calculate_market_metrics(listing: Dict[str, Any]) -> Dict[str, Any]:
+    """Calculate market intelligence metrics for a listing"""
+    price = listing.get("price", 0) or 0
+    sqft = listing.get("square_feet", 0) or 0
+    dom = listing.get("days_on_market", 0) or 0
+
+    # Calculate price per square foot
+    price_per_sqft = round(price / sqft) if sqft > 0 else None
+
+    # Determine status indicators
+    status_indicators = []
+
+    if dom < 7:
+        status_indicators.append({"type": "hot", "label": "New", "color": "red"})
+    elif dom > 60:
+        status_indicators.append({"type": "stale", "label": f"{dom} DOM", "color": "yellow"})
+
+    # Check for potential deal (below average $/sqft would require market data)
+    # For now, just flag properties with good $/sqft if available
+
+    return {
+        "price_per_sqft": price_per_sqft,
+        "days_on_market": dom,
+        "status_indicators": status_indicators,
+    }
+
+
 @router.post("/listings/search")
 def listings_search(payload: Dict[str, Any]):
     """
@@ -83,12 +110,17 @@ def listings_search(payload: Dict[str, Any]):
 
     # Stage 1: Score ALL listings (fast, no AI)
     scored_listings = []
-    rejected_count = 0
+    rejected_listings = []
 
     for listing in listings:
-        # Check dealbreakers first
-        if scorer.check_dealbreakers(listing, profile):
-            rejected_count += 1
+        # Check HARD filters first (objective criteria only)
+        if scorer.check_hard_filters(listing, profile):
+            # Get clear, objective filter reasons
+            filter_reasons = scorer.get_filter_reasons(listing, profile)
+            rejected_listings.append({
+                "listing": listing,
+                "filter_reasons": filter_reasons,
+            })
             continue
 
         # Score the listing
@@ -100,7 +132,7 @@ def listings_search(payload: Dict[str, Any]):
             "score_data": score_data,
         })
 
-    print(f"[LISTINGS SEARCH] Scored {len(scored_listings)} listings, rejected {rejected_count} dealbreakers")
+    print(f"[LISTINGS SEARCH] Scored {len(scored_listings)} listings, rejected {len(rejected_listings)} dealbreakers")
 
     # Stage 2: Sort and pick top 20
     scored_listings.sort(key=lambda x: x["score"], reverse=True)
@@ -167,6 +199,9 @@ def listings_search(payload: Dict[str, Any]):
         listing = item["listing"]
         score_data = item["score_data"]
 
+        # Calculate market intelligence metrics
+        market_metrics = calculate_market_metrics(listing)
+
         all_scored_for_overview.append({
             "listing": listing,
             "match_score": item["score"] / 100.0,
@@ -180,6 +215,10 @@ def listings_search(payload: Dict[str, Any]):
             "match_reasoning": {},
             "score_breakdown": score_data.get("breakdown", {}),
             "label": "Top Pick" if item["score"] >= 80 else "Match",
+            # Market intelligence metrics for Market Overview
+            "price_per_sqft": market_metrics["price_per_sqft"],
+            "days_on_market": market_metrics["days_on_market"],
+            "status_indicators": market_metrics["status_indicators"],
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
@@ -213,15 +252,33 @@ def listings_search(payload: Dict[str, Any]):
                 for l in listings
             )
 
+    # Create lightweight rejected listings for Market Overview
+    rejected_for_overview = []
+    for item in rejected_listings:
+        listing = item["listing"]
+        rejected_for_overview.append({
+            "listing": listing,
+            "filter_reasons": item["filter_reasons"],  # Clear, objective reasons
+            "match_score": 0,  # Rejected properties have 0 score
+            "score": 0,
+            "headline": "",
+            "agent_insight": "",
+            "matched_features": [],
+            "red_flags": item["filter_reasons"],  # Show filter reasons as flags
+            "score_breakdown": {},
+            "label": "Filtered Out",
+        })
+
     return {
         "top_picks": top_picks,
         "other_matches": other_matches,
         "all_scored_matches": all_scored_for_overview,  # NEW: All scored properties for Market Overview
+        "rejected_matches": rejected_for_overview,  # NEW: Rejected properties with reasons
         "chat_blocks": [],
         "search_summary": {
             "total_found": len(listings),
             "total_scored": len(scored_listings),
-            "rejected_count": rejected_count,
+            "rejected_count": len(rejected_listings),
             "analyzed_count": len(analyzed_listings),
             "top_picks_count": len(top_picks),
             "other_matches_count": len(other_matches),

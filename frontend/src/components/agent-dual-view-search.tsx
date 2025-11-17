@@ -44,6 +44,7 @@ interface SearchView1Results {
   };
   totalFound: number;
   listings: MarketOverviewListing[];
+  rejectedListings?: MarketOverviewListing[];  // Properties filtered out due to dealbreakers
   executionTime: number;
 }
 
@@ -65,6 +66,12 @@ interface SearchView2Results {
   };
 }
 
+interface StatusIndicator {
+  type: string;
+  label: string;
+  color: string;
+}
+
 interface MarketOverviewListing {
   mlsNumber: string;
   address: string;
@@ -84,6 +91,11 @@ interface MarketOverviewListing {
   yearBuilt?: number;
   lotSize?: number;
   features?: string[];
+  // Market intelligence metrics
+  pricePerSqft?: number;
+  statusIndicators?: StatusIndicator[];
+  filterReasons?: string[];  // Clear, objective filter reasons
+  matchScore?: number;
 }
 
 interface AIRecommendationListing extends MarketOverviewListing {
@@ -190,40 +202,44 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     }
   });
 
-  // Search query with reactive search enabled
+  // Search query with reactive search enabled - NO CACHING
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
-    queryKey: ['/api/agent-search', profile.id, forceEnhanced],
+    queryKey: ['/api/agent-search', profile.id, forceEnhanced, Date.now()], // Add timestamp to force fresh queries
     queryFn: async () => {
       const response = await fetch('/api/agent-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           profileId: profile.id,
           useReactive: true,  // Enable reactive search
           forceEnhanced
         })
       });
-      
+
       if (!response.ok) {
         throw new Error('Search failed');
       }
-      
+
       return response.json();
     },
     enabled: hasSearched,
-    staleTime: 300000, // 5 minutes
-    gcTime: 1800000, // Keep in cache for 30 minutes (was cacheTime)
+    staleTime: 0, // Never use cache - always fetch fresh
+    gcTime: 0, // Don't keep in cache
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
 
   const handleSearch = () => {
+    // Clear cache to ensure fresh results
+    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
     setHasSearched(true);
     setForceEnhanced(false); // Reset force enhanced
     refetch();
   };
 
   const handleEnhancedSearch = () => {
+    // Clear cache for enhanced search too
+    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
     setForceEnhanced(true);
     refetch();
   };
@@ -454,22 +470,25 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 }
 
 // Market Overview Component
-function MarketOverviewView({ 
-  results, 
+function MarketOverviewView({
+  results,
   formatPrice,
   profile,
   selectedProperties,
   setSelectedProperties,
   onSaveProperties
-}: { 
-  results: SearchView1Results; 
+}: {
+  results: SearchView1Results;
   formatPrice: (price: number) => string;
   profile: BuyerProfile;
   selectedProperties: Set<string>;
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
 }) {
+  const [showRejected, setShowRejected] = useState(true);
+
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -513,10 +532,10 @@ function MarketOverviewView({
                 </th>
                 <th className="text-left p-4 font-medium">Property</th>
                 <th className="text-left p-4 font-medium">Price</th>
+                <th className="text-left p-4 font-medium">$/SqFt</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
                 <th className="text-left p-4 font-medium">Sq Ft</th>
-                <th className="text-left p-4 font-medium">Type</th>
-                <th className="text-left p-4 font-medium">Days on Market</th>
+                <th className="text-left p-4 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -550,7 +569,15 @@ function MarketOverviewView({
                       </div>
                     </div>
                   </td>
-                  <td className="p-4 font-semibold">{formatPrice(property.listPrice)}</td>
+                  <td className="p-4">
+                    <div className="font-semibold">{formatPrice(property.listPrice)}</div>
+                    {property.pricePerSqft && (
+                      <div className="text-xs text-gray-500">${property.pricePerSqft}/sqft</div>
+                    )}
+                  </td>
+                  <td className="p-4 font-medium text-gray-700">
+                    {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1">
@@ -563,17 +590,29 @@ function MarketOverviewView({
                       </span>
                     </div>
                   </td>
-                  <td className="p-4">
-                    <span className="flex items-center gap-1">
-                      <Square className="h-4 w-4" />
-                      {property.sqft ? `${property.sqft?.toLocaleString()} sq ft` : 'N/A'}
-                    </span>
+                  <td className="p-4 text-sm text-gray-600">
+                    {property.sqft ? `${property.sqft?.toLocaleString()}` : 'N/A'}
                   </td>
                   <td className="p-4">
-                    <Badge variant="secondary">{property.propertyType}</Badge>
-                  </td>
-                  <td className="p-4">
-                    {property.daysOnMarket ? `${property.daysOnMarket} days` : 'New'}
+                    <div className="flex flex-wrap gap-1">
+                      {property.statusIndicators && property.statusIndicators.length > 0 ? (
+                        property.statusIndicators.map((indicator, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className={`text-xs ${
+                              indicator.color === 'red' ? 'bg-red-100 text-red-800 border-red-300' :
+                              indicator.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                              'bg-gray-100 text-gray-800 border-gray-300'
+                            }`}
+                          >
+                            {indicator.label}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-gray-600">{property.propertyType}</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -582,6 +621,90 @@ function MarketOverviewView({
         </div>
       </CardContent>
     </Card>
+
+      {/* Filtered Out Properties Section */}
+      {results.rejectedListings && results.rejectedListings.length > 0 && (
+        <Card className="border-red-200">
+          <CardHeader className="cursor-pointer" onClick={() => setShowRejected(!showRejected)}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-red-800">
+                <AlertCircle className="h-5 w-5" />
+                Filtered Out Properties ({results.rejectedListings.length})
+              </CardTitle>
+              <Button variant="ghost" size="sm">
+                {showRejected ? 'Hide' : 'Show'}
+              </Button>
+            </div>
+            <div className="text-sm text-red-600 mt-1">
+              Properties excluded based on objective criteria (budget, bedrooms, etc.)
+            </div>
+          </CardHeader>
+          {showRejected && (
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-red-50 border-b border-red-200">
+                    <tr>
+                      <th className="text-left p-4 font-medium text-red-900">Property</th>
+                      <th className="text-left p-4 font-medium text-red-900">Price</th>
+                      <th className="text-left p-4 font-medium text-red-900">Beds/Baths</th>
+                      <th className="text-left p-4 font-medium text-red-900">Filter Reasons</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.rejectedListings.map((property, index) => (
+                      <tr key={property.mlsNumber || `rejected-${index}`} className="border-b border-red-100 hover:bg-red-50">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-16 h-12 bg-red-100 rounded flex items-center justify-center">
+                              <Home className="h-6 w-6 text-red-400" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{property.address}</div>
+                              <div className="text-sm text-gray-600">
+                                {property.city}, {property.state} {property.zip}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 font-semibold text-gray-900">{formatPrice(property.listPrice)}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1 text-gray-700">
+                              <Bed className="h-4 w-4" />
+                              {property.bedrooms}
+                            </span>
+                            <span className="flex items-center gap-1 text-gray-700">
+                              <Bath className="h-4 w-4" />
+                              {property.bathrooms}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {property.filterReasons && property.filterReasons.length > 0 ? (
+                              property.filterReasons.map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-300">
+                                  {reason}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 border-gray-300">
+                                Filtered out
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+    </div>
   );
 }
 
