@@ -35,6 +35,7 @@ import ProfileShareButton from "./profile-share-button";
 import InvestmentStrategy from "./investment-strategy";
 import ChatLinkGenerator from "./chat-link-generator";
 import { SavedPropertiesList } from "./saved-properties-list";
+import ProfileDetailsCard from "./ProfileDetailsCard";
 import { useUser } from "@clerk/clerk-react";
 
 type EnhancedProfileResponse = {
@@ -230,167 +231,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6 mt-6">
-          {/* Basic Information */}
-          <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Basic Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <Mail className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Email</p>
-                <p className="font-medium text-sm sm:text-base truncate">{profile.email}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <DollarSign className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Budget</p>
-                <p className="font-medium text-sm sm:text-base">{profile.budget}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <Home className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Home Type</p>
-                <p className="font-medium text-sm sm:text-base capitalize">{profile.homeType?.replace('-', ' ') || 'Not specified'}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <Bed className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Bedrooms</p>
-                <p className="font-medium text-sm sm:text-base">{profile.bedrooms}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <Bath className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Bathrooms</p>
-                <p className="font-medium text-sm sm:text-base">{profile.bathrooms}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-lg sm:rounded-none">
-              <Clock className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600">Priority Score</p>
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-sm sm:text-base">{profile.priorityScore}/100</p>
-                  <div className="w-12 h-2 bg-gray-200 rounded-full">
-                    <div 
-                      className="h-2 bg-blue-500 rounded-full" 
-                      style={{ width: `${Math.min(100, profile.priorityScore)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Features and Preferences */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="pb-3 sm:pb-6">
-            <CardTitle className="text-base sm:text-lg">Must-Have Features</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {profile.mustHaveFeatures.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {profile.mustHaveFeatures.map((feature, index) => (
-                  <Badge key={`${feature}-${index}`} variant="outline" className="text-xs">
-                    {feature.replace('-', ' ')}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-xs sm:text-sm">No specific features required</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Dealbreakers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {profile.dealbreakers.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {profile.dealbreakers.map((dealbreaker, index) => (
-                  <Badge key={`${dealbreaker}-${index}`} variant="destructive">
-                    {dealbreaker.replace('-', ' ')}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm">No specific dealbreakers</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Flexibility Scores */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Flexibility Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Budget Flexibility</span>
-                <span className="text-sm text-gray-600">{profile.budgetFlexibility}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full">
-                <div 
-                  className="h-2 bg-green-500 rounded-full" 
-                  style={{ width: `${profile.budgetFlexibility}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Location Flexibility</span>
-                <span className="text-sm text-gray-600">{profile.locationFlexibility}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full">
-                <div 
-                  className="h-2 bg-blue-500 rounded-full" 
-                  style={{ width: `${profile.locationFlexibility}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Timing Flexibility</span>
-                <span className="text-sm text-gray-600">{profile.timingFlexibility}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full">
-                <div 
-                  className="h-2 bg-orange-500 rounded-full" 
-                  style={{ width: `${profile.timingFlexibility}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Use ProfileDetailsCard for consistent display */}
+          <ProfileDetailsCard profile={profile} />
 
       {/* Agent Actions */}
       <AgentActions 
@@ -417,8 +259,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TagPersonaDisplay 
-              tags={enhancedTags} 
+            <TagPersonaDisplay
+              tags={enhancedTags}
               persona={enhancedPersona || {
                 urgencyLevel: 50,
                 personalityTraits: [],
@@ -428,20 +270,6 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </CardContent>
         </Card>
       )}
-
-          {/* Raw Input (if available) */}
-          {profile.rawInput && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Original Input</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm whitespace-pre-wrap">{profile.rawInput}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="agent-search" className="space-y-6 mt-6">
