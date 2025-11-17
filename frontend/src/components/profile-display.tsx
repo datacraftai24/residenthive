@@ -1,24 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  DollarSign, 
-  MapPin, 
-  Bed, 
-  Bath, 
-  Star, 
-  XCircle, 
-  Save,
-  Edit,
-  Copy,
-  Search,
-  Clock,
-  Settings
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Save, Edit, Copy, Search, Clock, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ExtractedProfile, InsertBuyerProfile } from "@shared/schema";
+import ProfileDetailsCard from "./ProfileDetailsCard";
+import { useState } from "react";
 
 interface Agent {
   id: number;
@@ -37,6 +27,8 @@ interface ProfileDisplayProps {
 export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved }: ProfileDisplayProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isEditingBasics, setIsEditingBasics] = useState(false);
+  const [editedProfile, setEditedProfile] = useState(extractedProfile);
 
   const saveMutation = useMutation({
     mutationFn: async (profile: InsertBuyerProfile) => {
@@ -61,35 +53,82 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
   });
 
   const handleSave = () => {
-    if (agent) {
-      console.log("Saving profile for agent:", agent);
+    // Validate required fields
+    const missingFields: string[] = [];
+
+    if (!editedProfile.name) missingFields.push("Name");
+    if (!editedProfile.email) missingFields.push("Email");
+
+    // Validate email format
+    if (editedProfile.email && !editedProfile.email.includes("@")) {
+      toast({
+        title: "Invalid Email",
+        description: "Please provide a valid email address with @ symbol",
+        variant: "destructive",
+      });
+      setIsEditingBasics(true); // Open edit mode to fix email
+      return;
+    }
+
+    if (!editedProfile.location && !editedProfile.preferredAreas?.[0]) missingFields.push("Location");
+    if (!editedProfile.budget) {
+      missingFields.push("Budget");
+    }
+    if (!editedProfile.homeType) missingFields.push("Home Type");
+    if (editedProfile.bedrooms === null || editedProfile.bedrooms === undefined) missingFields.push("Bedrooms");
+    if (!editedProfile.bathrooms) missingFields.push("Bathrooms");
+
+    if (missingFields.length > 0) {
+      toast({
+        title: "Missing Required Fields",
+        description: `Please provide the following required fields: ${missingFields.join(", ")}. Click Edit to fill them in.`,
+        variant: "destructive",
+      });
+      setIsEditingBasics(true); // Open edit mode
+      return;
     }
 
     const profileToSave: InsertBuyerProfile = {
-      name: extractedProfile.name,
-      email: extractedProfile.email || "noemail@provided.com",
-      agentId: agent?.id, // Associate with current agent if available
-      location: extractedProfile.location || extractedProfile.preferredAreas?.[0] || "Location not specified", // Required field
-      budget: extractedProfile.budget,
-      budgetMin: extractedProfile.budgetMin,
-      budgetMax: extractedProfile.budgetMax,
-      homeType: extractedProfile.homeType,
-      bedrooms: extractedProfile.bedrooms,
-      bathrooms: extractedProfile.bathrooms,
-      mustHaveFeatures: extractedProfile.mustHaveFeatures,
-      dealbreakers: extractedProfile.dealbreakers,
-      preferredAreas: extractedProfile.preferredAreas || [],
-      lifestyleDrivers: extractedProfile.lifestyleDrivers || [],
-      specialNeeds: extractedProfile.specialNeeds || [],
-      budgetFlexibility: extractedProfile.budgetFlexibility || 50,
-      locationFlexibility: extractedProfile.locationFlexibility || 50,
-      timingFlexibility: extractedProfile.timingFlexibility || 50,
-      emotionalContext: extractedProfile.emotionalContext,
+      name: editedProfile.name,
+      email: editedProfile.email,
+      agentId: agent?.id,
+      location: editedProfile.location || editedProfile.preferredAreas[0],
+      budget: editedProfile.budget,
+      budgetMin: editedProfile.budgetMin || null,
+      budgetMax: editedProfile.budgetMax || null,
+      homeType: editedProfile.homeType,
+      bedrooms: editedProfile.bedrooms,
+      maxBedrooms: editedProfile.maxBedrooms || null,
+      bathrooms: editedProfile.bathrooms,
+      mustHaveFeatures: editedProfile.mustHaveFeatures,
+      niceToHaves: editedProfile.niceToHaves || [],
+      dealbreakers: editedProfile.dealbreakers,
+      preferredAreas: editedProfile.preferredAreas || [],
+      lifestyleDrivers: editedProfile.lifestyleDrivers || [],
+      specialNeeds: editedProfile.specialNeeds || [],
+      budgetFlexibility: editedProfile.budgetFlexibility || 50,
+      locationFlexibility: editedProfile.locationFlexibility || 50,
+      timingFlexibility: editedProfile.timingFlexibility || 50,
+      emotionalContext: editedProfile.emotionalContext,
       voiceTranscript: undefined,
-      inferredTags: extractedProfile.inferredTags || [],
-      emotionalTone: extractedProfile.emotionalTone,
-      priorityScore: extractedProfile.priorityScore || 50,
-      rawInput: `Budget: ${extractedProfile.budget}, Home Type: ${extractedProfile.homeType}, ${extractedProfile.bedrooms} bedrooms, ${extractedProfile.bathrooms} bathrooms`
+      inferredTags: editedProfile.inferredTags || [],
+      emotionalTone: editedProfile.emotionalTone,
+      priorityScore: editedProfile.priorityScore || 50,
+      aiSummary: editedProfile.aiSummary,
+      decisionDrivers: editedProfile.decisionDrivers || [],
+      constraints: editedProfile.constraints || [],
+      flexibilityExplanations: editedProfile.flexibilityExplanations || {
+        budget: "",
+        location: "",
+        timing: ""
+      },
+      visionChecklist: editedProfile.visionChecklist || {
+        structural: [],
+        lifestyle: [],
+        dealbreakers: [],
+        optional: []
+      },
+      rawInput: `Budget: ${editedProfile.budget}, Home Type: ${editedProfile.homeType}, ${editedProfile.bedrooms} bedrooms, ${editedProfile.bathrooms} bathrooms`
     };
 
     saveMutation.mutate(profileToSave);
@@ -100,7 +139,7 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Extracted Profile</CardTitle>
-          <Button 
+          <Button
             onClick={handleSave}
             disabled={saveMutation.isPending}
             className="bg-green-600 hover:bg-green-700"
@@ -111,242 +150,77 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
         </div>
       </CardHeader>
       <CardContent>
-        {/* Profile Overview */}
-        <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">{extractedProfile.name}</h2>
-              {extractedProfile.email && (
-                <p className="text-slate-600 mb-2">{extractedProfile.email}</p>
-              )}
-              <p className="text-3xl font-bold text-primary">{extractedProfile.budget}</p>
+        {/* Basic Fields Edit Mode */}
+        {isEditingBasics && (
+          <div className="mb-6 p-4 border-2 border-blue-500 rounded-lg bg-blue-50">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-blue-900">Edit Basic Information</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingBasics(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-600 mb-1">Priority Score</p>
-              <div className="flex items-center space-x-2">
-                <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold">{extractedProfile.priorityScore || 50}</span>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-name" className="text-sm font-medium mb-2 block">
+                  Buyer Name *
+                </Label>
+                <Input
+                  id="edit-name"
+                  value={editedProfile.name || ""}
+                  onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                  placeholder="John & Sarah Smith"
+                  className="bg-white"
+                />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Profile Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-
-          {/* Preferred Areas */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <MapPin className="h-4 w-4 text-blue-600" />
-              <h3 className="font-medium text-slate-900">Areas</h3>
-            </div>
-            <p className="text-lg font-semibold text-slate-900">
-              {extractedProfile.preferredAreas && extractedProfile.preferredAreas.length > 0 
-                ? extractedProfile.preferredAreas.join(", ") 
-                : "Flexible"}
-            </p>
-          </div>
-
-          {/* Bedrooms */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Bed className="h-4 w-4 text-purple-600" />
-              <h3 className="font-medium text-slate-900">Bedrooms</h3>
-            </div>
-            <p className="text-lg font-semibold text-slate-900">{extractedProfile.bedrooms}</p>
-          </div>
-
-          {/* Bathrooms */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Bath className="h-4 w-4 text-teal-600" />
-              <h3 className="font-medium text-slate-900">Bathrooms</h3>
-            </div>
-            <p className="text-lg font-semibold text-slate-900">{extractedProfile.bathrooms}</p>
-          </div>
-
-          {/* Home Type */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <DollarSign className="h-4 w-4 text-orange-600" />
-              <h3 className="font-medium text-slate-900">Home Type</h3>
-            </div>
-            <p className="text-lg font-semibold text-slate-900 capitalize">
-              {extractedProfile.homeType.replace('-', ' ')}
-            </p>
-          </div>
-
-          {/* Must-Have Features */}
-          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-3">
-              <Star className="h-4 w-4 text-yellow-600" />
-              <h3 className="font-medium text-slate-900">Must-Have Features</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {extractedProfile.mustHaveFeatures.length > 0 ? (
-                extractedProfile.mustHaveFeatures.map((feature, index) => (
-                  <Badge key={index} className="bg-green-100 text-green-800 hover:bg-green-100">
-                    {feature}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No specific requirements</span>
-              )}
-            </div>
-          </div>
-
-          {/* Preferred Areas */}
-          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-3">
-              <MapPin className="h-4 w-4 text-indigo-600" />
-              <h3 className="font-medium text-slate-900">Preferred Areas</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {extractedProfile.preferredAreas?.length > 0 ? (
-                extractedProfile.preferredAreas.map((area, index) => (
-                  <Badge key={index} className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                    {area}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No specific areas</span>
-              )}
-            </div>
-          </div>
-
-          {/* Lifestyle Drivers */}
-          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-3">
-              <Star className="h-4 w-4 text-purple-600" />
-              <h3 className="font-medium text-slate-900">Lifestyle Priorities</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {extractedProfile.lifestyleDrivers?.length > 0 ? (
-                extractedProfile.lifestyleDrivers.map((driver, index) => (
-                  <Badge key={index} className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-                    {driver}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No specific priorities</span>
-              )}
-            </div>
-          </div>
-
-          {/* Special Needs */}
-          <div className="bg-slate-50 rounded-lg p-4 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-3">
-              <Star className="h-4 w-4 text-cyan-600" />
-              <h3 className="font-medium text-slate-900">Special Requirements</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {extractedProfile.specialNeeds?.length > 0 ? (
-                extractedProfile.specialNeeds.map((need, index) => (
-                  <Badge key={index} className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100">
-                    {need}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No special requirements</span>
-              )}
-            </div>
-          </div>
-
-          {/* Dealbreakers */}
-          <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">
-            <div className="flex items-center space-x-2 mb-3">
-              <XCircle className="h-4 w-4 text-red-600" />
-              <h3 className="font-medium text-slate-900">Dealbreakers</h3>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {extractedProfile.dealbreakers.length > 0 ? (
-                extractedProfile.dealbreakers.map((dealbreaker, index) => (
-                  <Badge key={index} className="bg-red-100 text-red-800 hover:bg-red-100">
-                    {dealbreaker}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-sm text-slate-500">No specific dealbreakers</span>
-              )}
-            </div>
-          </div>
-
-          {/* Flexibility Scores */}
-          {(extractedProfile.budgetFlexibility !== undefined || 
-            extractedProfile.locationFlexibility !== undefined || 
-            extractedProfile.timingFlexibility !== undefined) && (
-            <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">
-              <div className="flex items-center space-x-2 mb-3">
-                <Settings className="h-4 w-4 text-slate-600" />
-                <h3 className="font-medium text-slate-900">Flexibility Scores</h3>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {extractedProfile.budgetFlexibility !== undefined && (
-                  <div className="text-center">
-                    <p className="text-sm text-slate-600">Budget</p>
-                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.budgetFlexibility}%</p>
-                  </div>
-                )}
-                {extractedProfile.locationFlexibility !== undefined && (
-                  <div className="text-center">
-                    <p className="text-sm text-slate-600">Location</p>
-                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.locationFlexibility}%</p>
-                  </div>
-                )}
-                {extractedProfile.timingFlexibility !== undefined && (
-                  <div className="text-center">
-                    <p className="text-sm text-slate-600">Timing</p>
-                    <p className="text-lg font-semibold text-slate-900">{extractedProfile.timingFlexibility}%</p>
-                  </div>
+              <div>
+                <Label htmlFor="edit-email" className="text-sm font-medium mb-2 block">
+                  Email Address *
+                </Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editedProfile.email || ""}
+                  onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
+                  placeholder="john.smith@email.com"
+                  className={`bg-white ${editedProfile.email && !editedProfile.email.includes("@") ? "border-red-500" : ""}`}
+                />
+                {editedProfile.email && !editedProfile.email.includes("@") && (
+                  <p className="text-xs text-red-600 mt-1">Email must contain @ symbol</p>
                 )}
               </div>
             </div>
-          )}
-
-          {/* AI Insights */}
-          {(extractedProfile.inferredTags?.length > 0 || extractedProfile.emotionalTone || extractedProfile.priorityScore !== undefined) && (
-            <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">
-              <div className="flex items-center space-x-2 mb-3">
-                <Star className="h-4 w-4 text-amber-600" />
-                <h3 className="font-medium text-slate-900">AI Insights</h3>
-              </div>
-              <div className="space-y-3">
-                {extractedProfile.inferredTags?.length > 0 && (
-                  <div>
-                    <p className="text-sm text-slate-600 mb-2">Profile Tags:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {extractedProfile.inferredTags.map((tag, index) => (
-                        <Badge key={index} className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {extractedProfile.emotionalTone && (
-                  <div>
-                    <p className="text-sm text-slate-600">Emotional Tone: <span className="font-medium text-slate-900">{extractedProfile.emotionalTone}</span></p>
-                  </div>
-                )}
-                {extractedProfile.priorityScore !== undefined && (
-                  <div>
-                    <p className="text-sm text-slate-600">Priority Score: <span className="font-medium text-slate-900">{extractedProfile.priorityScore}/100</span></p>
-                  </div>
-                )}
-              </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={() => setIsEditingBasics(false)}
+                size="sm"
+                disabled={!editedProfile.name || !editedProfile.email || !editedProfile.email.includes("@")}
+              >
+                Done Editing
+              </Button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Use shared ProfileDetailsCard component */}
+        <ProfileDetailsCard profile={editedProfile as any} />
 
         {/* Profile Actions */}
-        <div className="flex items-center justify-between pt-6 border-t border-slate-200">
+        <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-6">
           <div className="flex items-center space-x-2 text-sm text-slate-500">
             <Clock className="h-4 w-4" />
             <span>Just extracted</span>
           </div>
           <div className="flex items-center space-x-3">
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingBasics(true)}
+            >
               <Edit className="h-4 w-4 mr-1" />
               Edit
             </Button>
@@ -354,9 +228,14 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
               <Copy className="h-4 w-4 mr-1" />
               Duplicate
             </Button>
-            <Button variant="outline" size="sm" className="text-primary hover:text-primary">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary"
+              title="Scan the MLS for this buyer using their profile and generate AI recommendations"
+            >
               <Search className="h-4 w-4 mr-1" />
-              Find Listings
+              Run AI Search
             </Button>
           </div>
         </div>
