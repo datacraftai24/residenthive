@@ -71,6 +71,47 @@ def _coerce_json_list(val):
     return val or []
 
 
+def _coerce_json_dict(val):
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return {}
+    return val or {}
+
+
+def _row_to_profile(row: dict) -> dict:
+    """Convert a database row to a BuyerProfile dict with proper field mapping."""
+    return {
+        **row,
+        "agentId": row.get("agent_id"),
+        "budgetMin": row.get("budget_min"),
+        "budgetMax": row.get("budget_max"),
+        "homeType": row.get("home_type"),
+        "maxBedrooms": row.get("max_bedrooms"),
+        "targetMonthlyReturn": row.get("target_monthly_return"),
+        "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
+        "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
+        "dealbreakers": _coerce_json_list(row.get("dealbreakers")),
+        "preferredAreas": _coerce_json_list(row.get("preferred_areas")),
+        "lifestyleDrivers": _coerce_json_list(row.get("lifestyle_drivers")),
+        "specialNeeds": _coerce_json_list(row.get("special_needs")),
+        "inferredTags": _coerce_json_list(row.get("inferred_tags")),
+        "budgetFlexibility": row.get("budget_flexibility"),
+        "locationFlexibility": row.get("location_flexibility"),
+        "timingFlexibility": row.get("timing_flexibility"),
+        "priorityScore": row.get("priority_score"),
+        # AI-generated insights
+        "aiSummary": row.get("ai_summary"),
+        "decisionDrivers": _coerce_json_list(row.get("decision_drivers")),
+        "constraints": _coerce_json_list(row.get("constraints")),
+        "niceToHaves": _coerce_json_list(row.get("nice_to_haves")),
+        "flexibilityExplanations": _coerce_json_dict(row.get("flexibility_explanations")),
+        "visionChecklist": _coerce_json_dict(row.get("vision_checklist")),
+        "createdAt": row.get("created_at"),
+    }
+
+
 def _transform_for_db(data: dict) -> dict:
     out = {}
     for k, v in data.items():
@@ -98,23 +139,7 @@ def list_profiles(agent_id: int = Depends(get_current_agent_id)):
             rows = fetchall_dicts(cur)
     result = []
     for row in rows:
-        bp = BuyerProfile(**{
-            **row,
-            "agentId": row.get("agent_id"),
-            "budgetMin": row.get("budget_min"),
-            "budgetMax": row.get("budget_max"),
-            "homeType": row.get("home_type"),
-            "maxBedrooms": row.get("max_bedrooms"),
-            "targetMonthlyReturn": row.get("target_monthly_return"),
-            "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
-            "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
-            "dealbreakers": _coerce_json_list(row.get("dealbreakers")),
-            "preferredAreas": _coerce_json_list(row.get("preferred_areas")),
-            "lifestyleDrivers": _coerce_json_list(row.get("lifestyle_drivers")),
-            "specialNeeds": _coerce_json_list(row.get("special_needs")),
-            "inferredTags": _coerce_json_list(row.get("inferred_tags")),
-            "createdAt": row.get("created_at"),
-        })
+        bp = BuyerProfile(**_row_to_profile(row))
         result.append(bp)
     return result
 
@@ -130,23 +155,7 @@ def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
             row = fetchone_dict(cur)
             if not row:
                 raise HTTPException(status_code=404, detail="Profile not found")
-    return BuyerProfile(**{
-        **row,
-        "agentId": row.get("agent_id"),
-        "budgetMin": row.get("budget_min"),
-        "budgetMax": row.get("budget_max"),
-        "homeType": row.get("home_type"),
-        "maxBedrooms": row.get("max_bedrooms"),
-        "targetMonthlyReturn": row.get("target_monthly_return"),
-        "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
-        "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
-        "dealbreakers": _coerce_json_list(row.get("dealbreakers")),
-        "preferredAreas": _coerce_json_list(row.get("preferred_areas")),
-        "lifestyleDrivers": _coerce_json_list(row.get("lifestyle_drivers")),
-        "specialNeeds": _coerce_json_list(row.get("special_needs")),
-        "inferredTags": _coerce_json_list(row.get("inferred_tags")),
-        "createdAt": row.get("created_at"),
-    })
+    return BuyerProfile(**_row_to_profile(row))
 
 
 @router.post("/buyer-profiles", response_model=BuyerProfile)
@@ -211,23 +220,7 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             row = fetchone_dict(cur)
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create profile")
-    return BuyerProfile(**{
-        **row,
-        "agentId": row.get("agent_id"),
-        "budgetMin": row.get("budget_min"),
-        "budgetMax": row.get("budget_max"),
-        "homeType": row.get("home_type"),
-        "maxBedrooms": row.get("max_bedrooms"),
-        "targetMonthlyReturn": row.get("target_monthly_return"),
-        "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
-        "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
-        "dealbreakers": _coerce_json_list(row.get("dealbreakers")),
-        "preferredAreas": _coerce_json_list(row.get("preferred_areas")),
-        "lifestyleDrivers": _coerce_json_list(row.get("lifestyle_drivers")),
-        "specialNeeds": _coerce_json_list(row.get("special_needs")),
-        "inferredTags": _coerce_json_list(row.get("inferred_tags")),
-        "createdAt": row.get("created_at"),
-    })
+    return BuyerProfile(**_row_to_profile(row))
 
 @router.patch("/buyer-profiles/{profile_id}", response_model=BuyerProfile)
 def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int = Depends(get_current_agent_id)):
@@ -301,23 +294,7 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             row = fetchone_dict(cur)
     if not row:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return BuyerProfile(**{
-        **row,
-        "agentId": row.get("agent_id"),
-        "budgetMin": row.get("budget_min"),
-        "budgetMax": row.get("budget_max"),
-        "homeType": row.get("home_type"),
-        "maxBedrooms": row.get("max_bedrooms"),
-        "targetMonthlyReturn": row.get("target_monthly_return"),
-        "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
-        "mustHaveFeatures": row.get("must_have_features") or [],
-        "dealbreakers": row.get("dealbreakers") or [],
-        "preferredAreas": row.get("preferred_areas") or [],
-        "lifestyleDrivers": row.get("lifestyle_drivers") or [],
-        "specialNeeds": row.get("special_needs") or [],
-        "inferredTags": row.get("inferred_tags") or [],
-        "createdAt": row.get("created_at"),
-    })
+    return BuyerProfile(**_row_to_profile(row))
 
 @router.delete("/buyer-profiles/{profile_id}")
 def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
