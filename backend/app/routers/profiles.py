@@ -155,7 +155,9 @@ def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
             row = fetchone_dict(cur)
             if not row:
                 raise HTTPException(status_code=404, detail="Profile not found")
-    return BuyerProfile(**_row_to_profile(row))
+    profile_data = _row_to_profile(row)
+    print(f"[DEBUG] Profile {profile_id} AI fields: ai_summary={profile_data.get('aiSummary') is not None}, decision_drivers={len(profile_data.get('decisionDrivers', []))}")
+    return BuyerProfile(**profile_data)
 
 
 @router.post("/buyer-profiles", response_model=BuyerProfile)

@@ -17,6 +17,22 @@ interface ProfileDetailsCardProps {
 }
 
 export default function ProfileDetailsCard({ profile }: ProfileDetailsCardProps) {
+  // Debug logging to trace AI fields
+  console.log('[ProfileDetailsCard] Profile data:', {
+    id: profile.id,
+    name: profile.name,
+    hasAiSummary: !!profile.aiSummary,
+    aiSummaryLength: profile.aiSummary?.length || 0,
+    hasDecisionDrivers: !!(profile.decisionDrivers && profile.decisionDrivers.length > 0),
+    decisionDriversCount: profile.decisionDrivers?.length || 0,
+    hasConstraints: !!(profile.constraints && profile.constraints.length > 0),
+    constraintsCount: profile.constraints?.length || 0,
+    hasNiceToHaves: !!(profile.niceToHaves && profile.niceToHaves.length > 0),
+    niceToHavesCount: profile.niceToHaves?.length || 0,
+    hasVisionChecklist: !!profile.visionChecklist,
+    conditionalCheck: (profile.aiSummary || (profile.decisionDrivers && profile.decisionDrivers.length > 0) || (profile.constraints && profile.constraints.length > 0))
+  });
+
   return (
     <div className="space-y-6">
       {/* Profile Overview */}
