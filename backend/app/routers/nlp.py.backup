@@ -1,0 +1,907 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Dict, Any, Set
+import os
+import json
+import re
+import time
+from openai import OpenAI
+
+
+router = APIRouter(prefix="/api")
+
+
+# ===== MODEL ROUTING CONFIGURATION =====
+# Route different tasks to different GPT-5o models for optimal performance
+MODEL_CONFIG = {
+    "extraction": {
+        "model": "gpt-5o-mini",
+        "temperature": 0.2,
+        "description": "Profile parsing and structured data extraction"
+    },
+    "insights": {
+        "model": "gpt-5o",
+        "temperature": 0.3,
+        "description": "AI summary, decision drivers, constraints, flexibility"
+    },
+    "vision_checklist": {
+        "model": "gpt-5o",
+        "temperature": 0.2,
+        "description": "Photo requirements checklist generation"
+    },
+    "chat": {
+        "model": "gpt-5o-mini",
+        "temperature": 0.7,
+        "description": "General chat and Q&A"
+    }
+}
+
+
+def _get_model_config(task: str) -> dict:
+    """Get model configuration for specific task."""
+    config = MODEL_CONFIG.get(task, MODEL_CONFIG["chat"])
+    print(f"[MODEL ROUTER] Using {config['model']} (temp={config['temperature']}) for {task}")
+    return config
+
+
+class ValidationError(BaseModel):
+    field: str
+    message: str
+
+
+class ExtractRequest(BaseModel):
+    input: str
+
+
+class EnhanceRequest(BaseModel):
+    formData: Dict[str, Any]
+
+
+def _validate_extracted_profile(data: Dict[str, Any]) -> bool:
+    """
+    Validate that extracted profile has required fields and correct types.
+    Returns True if valid, False otherwise.
+    """
+    try:
+        # Check required fields exist
+        required_fields = ["name", "location", "budget", "bedrooms", "bathrooms"]
+        for field in required_fields:
+            if field not in data:
+                print(f"[NLP VALIDATION] Missing required field: {field}")
+                return False
+
+        # Validate budgetMin/Max are numbers if provided
+        if data.get("budgetMin") is not None:
+            if not isinstance(data["budgetMin"], (int, float)):
+                print(f"[NLP VALIDATION] budgetMin is not a number: {data['budgetMin']}")
+                return False
+            if data["budgetMin"] < 0 or data["budgetMin"] > 100000000:
+                print(f"[NLP VALIDATION] budgetMin out of range: {data['budgetMin']}")
+                return False
+
+        if data.get("budgetMax") is not None:
+            if not isinstance(data["budgetMax"], (int, float)):
+                print(f"[NLP VALIDATION] budgetMax is not a number: {data['budgetMax']}")
+                return False
+            if data["budgetMax"] < 0 or data["budgetMax"] > 100000000:
+                print(f"[NLP VALIDATION] budgetMax out of range: {data['budgetMax']}")
+                return False
+
+        # Validate bedrooms is a number
+        if not isinstance(data["bedrooms"], (int, float)):
+            print(f"[NLP VALIDATION] bedrooms is not a number: {data['bedrooms']}")
+            return False
+
+        # Validate arrays are actually arrays
+        array_fields = ["mustHaveFeatures", "niceToHaves", "dealbreakers", "lifestyleDrivers", "specialNeeds"]
+        for field in array_fields:
+            if field in data and not isinstance(data[field], list):
+                print(f"[NLP VALIDATION] {field} is not an array: {data[field]}")
+                return False
+
+        return True
+
+    except Exception as e:
+        print(f"[NLP VALIDATION] Validation error: {e}")
+        return False
+
+
+def validate_profile(data: Dict[str, Any]) -> tuple[bool, list[Dict[str, str]]]:
+    """
+    Comprehensive validation for buyer profiles before saving to database.
+    Returns (is_valid, errors) tuple.
+
+    Validation Rules:
+    1. Budget: Must have budgetMin OR budgetMax OR parseable budget string
+    2. Bedrooms: Must be 1-10
+    3. Bathrooms: Must be parseable as 0.5-10
+    4. Location: Cannot be empty
+    5. Email: Must be provided (database constraint)
+    6. Name: Cannot be empty
+    """
+    errors = []
+
+    # Rule 1: Budget validation
+    budget_min = data.get("budgetMin")
+    budget_max = data.get("budgetMax")
+    budget_str = data.get("budget", "")
+
+    if budget_min is None and budget_max is None:
+        # Try to parse budget string
+        if budget_str and budget_str != "TBD":
+            parsed_min, parsed_max = _parse_budget_string(budget_str)
+            if parsed_min is None and parsed_max is None:
+                errors.append({
+                    "field": "budget",
+                    "message": f"Cannot parse budget string '{budget_str}'. Please use format like '$400K-$550K', 'Around $500K', or 'Under $600K'"
+                })
+        else:
+            errors.append({
+                "field": "budget",
+                "message": "Budget is required. Please provide budgetMin, budgetMax, or a budget string like 'Around $500K'"
+            })
+
+    # Validate budget ranges
+    if budget_min is not None:
+        if not isinstance(budget_min, (int, float)) or budget_min < 0:
+            errors.append({
+                "field": "budgetMin",
+                "message": "budgetMin must be a positive number"
+            })
+        elif budget_min > 100000000:
+            errors.append({
+                "field": "budgetMin",
+                "message": "budgetMin seems unrealistically high (max $100M)"
+            })
+
+    if budget_max is not None:
+        if not isinstance(budget_max, (int, float)) or budget_max < 0:
+            errors.append({
+                "field": "budgetMax",
+                "message": "budgetMax must be a positive number"
+            })
+        elif budget_max > 100000000:
+            errors.append({
+                "field": "budgetMax",
+                "message": "budgetMax seems unrealistically high (max $100M)"
+            })
+
+    if budget_min is not None and budget_max is not None and budget_min > budget_max:
+        errors.append({
+            "field": "budget",
+            "message": f"budgetMin (${budget_min:,}) cannot be greater than budgetMax (${budget_max:,})"
+        })
+
+    # Rule 2: Bedrooms validation
+    bedrooms = data.get("bedrooms")
+    if bedrooms is None:
+        errors.append({
+            "field": "bedrooms",
+            "message": "Bedrooms is required"
+        })
+    elif not isinstance(bedrooms, (int, float)):
+        errors.append({
+            "field": "bedrooms",
+            "message": "Bedrooms must be a number"
+        })
+    elif bedrooms < 1 or bedrooms > 10:
+        errors.append({
+            "field": "bedrooms",
+            "message": "Bedrooms must be between 1 and 10"
+        })
+
+    # Rule 3: Bathrooms validation
+    bathrooms = data.get("bathrooms")
+    if not bathrooms:
+        errors.append({
+            "field": "bathrooms",
+            "message": "Bathrooms is required"
+        })
+    else:
+        # Try to parse bathrooms (can be "2" or "2.5")
+        try:
+            bath_num = float(str(bathrooms))
+            if bath_num < 0.5 or bath_num > 10:
+                errors.append({
+                    "field": "bathrooms",
+                    "message": "Bathrooms must be between 0.5 and 10"
+                })
+        except:
+            errors.append({
+                "field": "bathrooms",
+                "message": f"Cannot parse bathrooms value '{bathrooms}'"
+            })
+
+    # Rule 4: Location validation
+    location = data.get("location", "").strip()
+    if not location:
+        errors.append({
+            "field": "location",
+            "message": "Location is required"
+        })
+
+    # Rule 5: Email validation
+    email = data.get("email", "").strip()
+    if not email:
+        errors.append({
+            "field": "email",
+            "message": "Email is required (database constraint)"
+        })
+    elif "@" not in email or "." not in email:
+        errors.append({
+            "field": "email",
+            "message": "Email format is invalid"
+        })
+
+    # Rule 6: Name validation
+    name = data.get("name", "").strip()
+    if not name or name == "Buyer":
+        errors.append({
+            "field": "name",
+            "message": "Name is required (cannot be empty or generic 'Buyer')"
+        })
+
+    is_valid = len(errors) == 0
+
+    if not is_valid:
+        print(f"[PROFILE VALIDATION] Failed with {len(errors)} errors: {errors}")
+
+    return (is_valid, errors)
+
+
+def _extract_profile_with_ai(text: str, retry_count: int = 0) -> Dict[str, Any]:
+    """
+    Use OpenAI to extract buyer profile from natural language text.
+    Positions AI as real estate agent with proper categorization.
+    Includes validation and retry logic.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+
+    client = OpenAI(api_key=api_key)
+
+    prompt = f"""You are an experienced real estate agent taking notes during a client consultation.
+Extract and organize the buyer's requirements into a structured profile.
+
+CATEGORIZATION GUIDELINES:
+
+**Must-Have Features** - Physical property features that are NON-NEGOTIABLE (use keywords: must/require/need/at least):
+- Kitchen features (updated kitchen, granite counters, island, etc.)
+- Flooring (hardwood, carpet, tile)
+- HVAC (central air, heating type)
+- Garage/parking (2-car garage, covered parking, off-street parking)
+- Rooms (finished basement, bonus room, office)
+- Appliances (stainless steel, washer/dryer included)
+- Outdoor space (deck, patio, fenced yard, pool, yard for kids)
+
+**Nice-to-Have Features** - Features they PREFER but can compromise on (use keywords: like/would love/prefer/nice to have):
+- Updated finishes (modern bathrooms, renovated spaces)
+- Storage (walk-in closets, extra storage)
+- Layout preferences (open floor plan, separate dining)
+- Bonus features (fireplace, balcony, hardwood floors)
+- Pet-friendly features (yard, pet door)
+
+**Lifestyle Priorities** - Neighborhood vibe and quality of life (anything about location/community/family/parks/schools):
+- Schools (good school district, near specific schools)
+- Family-friendly (safe neighborhood, quiet street, parks nearby)
+- Commute (close to work, easy highway access, public transit)
+- Neighborhood feel (walkable, quiet, urban/suburban)
+- Amenities (near parks, shopping, restaurants, gyms)
+- Community (tight-knit neighborhood, family-oriented)
+
+**Dealbreakers** - Absolute no-gos that would disqualify a property:
+- Structural issues (foundation problems, major repairs needed)
+- Location issues (flood zone, airport noise, busy highway, busy roads)
+- Property condition (foreclosure, needs major renovation)
+- Safety concerns (high crime area, unstable neighborhood)
+
+Return ONLY valid JSON with this exact structure (no markdown, no extra text):
+
+{{
+  "name": "buyer's full name or 'Buyer' if not provided",
+  "email": "email address or null",
+  "location": "city, state format (e.g., 'Worcester, MA')",
+  "budget": "human-readable budget string (e.g., '$400K - $550K')",
+  "budgetMin": 400000,
+  "budgetMax": 550000,
+  "homeType": "single-family",
+  "bedrooms": 3,
+  "maxBedrooms": 4,
+  "bathrooms": "2",
+  "mustHaveFeatures": ["outdoor space for kids", "off-street parking"],
+  "niceToHaves": ["updated kitchen", "hardwood floors"],
+  "dealbreakers": ["busy roads", "major renovation"],
+  "lifestyleDrivers": ["safe family-friendly neighborhood", "close to parks"],
+  "emotionalContext": "brief summary or null"
+}}
+
+CRITICAL VALIDATION RULES:
+1. budgetMin and budgetMax MUST be numbers (integers), not strings
+2. bedrooms MUST be a number (integer), not a string
+3. bathrooms can be a string (e.g., "2.5")
+4. All arrays (mustHaveFeatures, dealbreakers, etc.) MUST be arrays, not strings
+5. Budget numbers must be realistic (between 0 and 100,000,000)
+6. If budget range like "$400,000 to $550,000", extract 400000 and 550000 as numbers
+
+EXTRACTION RULES:
+1. Budget: Handle all formats correctly ($400,000, $400K, 400k, four hundred thousand) → convert to numbers
+2. Location: Always include city AND state if mentioned (e.g., "Worcester, MA" not just "Worcester")
+3. **Must-Haves**: Physical features with keywords "must/require/need/at least" - NON-NEGOTIABLE
+4. **Nice-to-Haves**: Features with keywords "like/prefer/would love/nice to have" - PREFERRED but flexible
+5. **Lifestyle Priorities**: Anything about neighborhood/vibe/family/parks/schools/commute/community
+6. **Dealbreakers**: Hard no-gos that would disqualify a property (busy roads, flood zones, major repairs)
+7. Emotional Context: Capture urgency, anxiety, budget concerns
+
+EXAMPLES:
+
+Input: "I need 3-4 bedrooms, updated kitchen, good schools, under $500k"
+Output:
+{{
+  "name": "Buyer",
+  "email": null,
+  "location": "Massachusetts",
+  "budget": "Under $500K",
+  "budgetMin": null,
+  "budgetMax": 500000,
+  "homeType": "single-family",
+  "bedrooms": 3,
+  "maxBedrooms": 4,
+  "bathrooms": "2",
+  "mustHaveFeatures": [],
+  "niceToHaves": ["updated kitchen"],
+  "dealbreakers": [],
+  "lifestyleDrivers": ["good school district"],
+  "emotionalContext": null
+}}
+
+Input: "Must have central air and garage, no flood zones, close to highway, budget $300k-$450k"
+Output:
+{{
+  "name": "Buyer",
+  "email": null,
+  "location": "Massachusetts",
+  "budget": "$300K - $450K",
+  "budgetMin": 300000,
+  "budgetMax": 450000,
+  "homeType": "single-family",
+  "bedrooms": 2,
+  "maxBedrooms": null,
+  "bathrooms": "2",
+  "mustHaveFeatures": ["central air conditioning", "garage"],
+  "niceToHaves": [],
+  "dealbreakers": ["flood zone"],
+  "lifestyleDrivers": ["close to highway"],
+  "emotionalContext": null
+}}
+
+Now extract from this buyer consultation:
+{text}"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an experienced real estate agent extracting buyer requirements. Return ONLY valid JSON. Numbers must be numbers, not strings."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"}
+        )
+
+        content = response.choices[0].message.content
+        print(f"[NLP EXTRACTION] Raw AI response: {content[:200]}...")
+
+        # Parse JSON
+        extracted = json.loads(content)
+
+        # Validate the extracted data
+        if not _validate_extracted_profile(extracted):
+            print(f"[NLP EXTRACTION] Validation failed, extracted data: {json.dumps(extracted, indent=2)}")
+
+            # Retry once if validation fails
+            if retry_count < 1:
+                print(f"[NLP EXTRACTION] Retrying extraction (attempt {retry_count + 1})")
+                return _extract_profile_with_ai(text, retry_count + 1)
+            else:
+                print(f"[NLP EXTRACTION] Max retries reached, using fallback")
+                raise ValueError("AI extraction validation failed after retry")
+
+        print(f"[NLP EXTRACTION] Successfully extracted and validated profile")
+
+        # Ensure all required fields exist with defaults
+        profile = {
+            "name": extracted.get("name", "Buyer"),
+            "email": extracted.get("email"),
+            "location": extracted.get("location", "Massachusetts"),
+            "budget": extracted.get("budget", "TBD"),
+            "budgetMin": extracted.get("budgetMin"),
+            "budgetMax": extracted.get("budgetMax"),
+            "homeType": extracted.get("homeType", "single-family"),
+            "bedrooms": int(extracted.get("bedrooms", 2)),
+            "maxBedrooms": int(extracted["maxBedrooms"]) if extracted.get("maxBedrooms") else None,
+            "bathrooms": str(extracted.get("bathrooms", "2")),
+            "mustHaveFeatures": extracted.get("mustHaveFeatures", []),
+            "niceToHaves": extracted.get("niceToHaves", []),
+            "dealbreakers": extracted.get("dealbreakers", []),
+            "preferredAreas": [extracted.get("location", "Massachusetts")],
+            "lifestyleDrivers": extracted.get("lifestyleDrivers", []),
+            "specialNeeds": extracted.get("specialNeeds", []),
+            "budgetFlexibility": 50,
+            "locationFlexibility": 50,
+            "timingFlexibility": 50,
+            "emotionalContext": extracted.get("emotionalContext"),
+            "inferredTags": [],
+            "emotionalTone": None,
+            "priorityScore": 50,
+        }
+
+        # Generate AI insights using the extracted profile
+        print(f"[NLP EXTRACTION] Generating AI insights...")
+        try:
+            insights = _generate_complete_insights(profile)
+            profile.update(insights)
+            print(f"[NLP EXTRACTION] AI insights generated successfully")
+        except Exception as e:
+            print(f"[NLP EXTRACTION] Failed to generate insights: {e}")
+            # Continue without insights - they're optional
+
+        return profile
+
+    except json.JSONDecodeError as e:
+        print(f"[NLP EXTRACTION] JSON parse error: {e}")
+        print(f"[NLP EXTRACTION] Raw content: {content}")
+
+        # Retry once on JSON parse error
+        if retry_count < 1:
+            print(f"[NLP EXTRACTION] Retrying due to JSON error (attempt {retry_count + 1})")
+            return _extract_profile_with_ai(text, retry_count + 1)
+
+        # Fall through to fallback
+        raise
+
+    except Exception as e:
+        print(f"[NLP EXTRACTION] AI extraction error: {e}")
+        import traceback
+        traceback.print_exc()
+
+        # Use fallback only if retries exhausted
+        if retry_count >= 1:
+            print(f"[NLP EXTRACTION] Using fallback profile after {retry_count + 1} attempts")
+            return {
+                "name": "Buyer",
+                "email": None,
+                "location": "Massachusetts",
+                "budget": "TBD",
+                "budgetMin": None,
+                "budgetMax": None,
+                "homeType": "single-family",
+                "bedrooms": 2,
+                "maxBedrooms": None,
+                "bathrooms": "2",
+                "mustHaveFeatures": [],
+                "dealbreakers": [],
+                "preferredAreas": ["Massachusetts"],
+                "lifestyleDrivers": [],
+                "specialNeeds": [],
+                "budgetFlexibility": 50,
+                "locationFlexibility": 50,
+                "timingFlexibility": 50,
+                "emotionalContext": None,
+                "inferredTags": [],
+                "emotionalTone": None,
+                "priorityScore": 50,
+            }
+        else:
+            # Retry once
+            return _extract_profile_with_ai(text, retry_count + 1)
+
+
+@router.post("/extract-profile")
+def extract_profile(req: ExtractRequest):
+    """Extract buyer profile using AI (GPT-4o-mini) with validation and retry logic"""
+    text = req.input.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Input text is required")
+
+    return _extract_profile_with_ai(text)
+
+
+def _parse_budget_string(budget_str: str) -> tuple[int | None, int | None]:
+    """
+    Parse budget string into budgetMin and budgetMax.
+
+    Examples:
+    - "Around 700K" -> (560000, 840000)  # ±20%
+    - "$400K - $550K" -> (400000, 550000)
+    - "Under $500K" -> (None, 500000)
+    - "At least $300K" -> (300000, None)
+    - "700000" -> (560000, 840000)  # ±20% if no range
+    """
+    import re
+
+    if not budget_str or not isinstance(budget_str, str):
+        return (None, None)
+
+    budget_str = budget_str.strip()
+
+    # Helper to convert "700K" or "$700,000" to 700000
+    def parse_amount(s: str) -> int | None:
+        if not s:
+            return None
+        # Remove $, commas, spaces
+        s = s.replace("$", "").replace(",", "").replace(" ", "").upper()
+        # Handle K suffix
+        if s.endswith("K"):
+            try:
+                return int(float(s[:-1]) * 1000)
+            except:
+                return None
+        # Handle M suffix
+        if s.endswith("M"):
+            try:
+                return int(float(s[:-1]) * 1000000)
+            except:
+                return None
+        # Plain number
+        try:
+            return int(float(s))
+        except:
+            return None
+
+    # Pattern 1: Range with dash: "$400K - $550K" or "400000 - 550000"
+    range_match = re.search(r'([\$\d,KM]+)\s*[-–—to]\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    if range_match:
+        min_val = parse_amount(range_match.group(1))
+        max_val = parse_amount(range_match.group(2))
+        return (min_val, max_val)
+
+    # Pattern 2: "Under $500K" or "Below $500K"
+    under_match = re.search(r'(under|below|less than|max|maximum)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    if under_match:
+        max_val = parse_amount(under_match.group(2))
+        return (None, max_val)
+
+    # Pattern 3: "At least $300K" or "Minimum $300K" or "Above $300K"
+    above_match = re.search(r'(at least|minimum|min|above|over|more than)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    if above_match:
+        min_val = parse_amount(above_match.group(2))
+        return (min_val, None)
+
+    # Pattern 4: "Around $700K" or "About $700K" or "Approximately $700K"
+    around_match = re.search(r'(around|about|approximately|roughly|near)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    if around_match:
+        center = parse_amount(around_match.group(2))
+        if center:
+            # ±20% range
+            min_val = int(center * 0.8)
+            max_val = int(center * 1.2)
+            return (min_val, max_val)
+
+    # Pattern 5: Single number (treat as center with ±20% range)
+    single_match = re.search(r'[\$]?([\d,KM]+)', budget_str, re.IGNORECASE)
+    if single_match:
+        center = parse_amount(single_match.group(1))
+        if center:
+            # ±20% range
+            min_val = int(center * 0.8)
+            max_val = int(center * 1.2)
+            return (min_val, max_val)
+
+    return (None, None)
+
+
+def _call_llm_with_retry(func, max_retries=1, delay=2):
+    """
+    Retry wrapper for LLM calls with exponential backoff.
+
+    Args:
+        func: Function to call (should return a value)
+        max_retries: Maximum number of retries (default 1)
+        delay: Delay in seconds between retries (default 2)
+
+    Returns:
+        Result from successful function call
+
+    Raises:
+        Last exception if all retries fail
+    """
+    import time
+
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"[LLM RETRY] All retries exhausted. Last error: {e}")
+                raise
+            print(f"[LLM RETRY] Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
+            time.sleep(delay)
+
+
+def _generate_complete_insights(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate complete AI insights for a buyer profile using a single LLM call.
+
+    Generates:
+    - aiSummary: 2-3 sentence summary of the buyer
+    - decisionDrivers: Top 3 decision drivers (list)
+    - constraints: Top 3 key constraints (list)
+    - flexibilityExplanations: Plain-language explanations for budget/location/timing flexibility
+
+    Args:
+        profile: Dictionary containing buyer profile data
+
+    Returns:
+        Dictionary with ai_summary, decision_drivers, constraints, flexibility_explanations
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("[INSIGHTS] OpenAI API key not configured, returning empty insights")
+        return {
+            "aiSummary": "AI summary not available yet.",
+            "decisionDrivers": [],
+            "constraints": [],
+            "flexibilityExplanations": {"budget": "", "location": "", "timing": ""}
+        }
+
+    client = OpenAI(api_key=api_key)
+
+    # Build context from profile
+    name = profile.get("name", "The buyer")
+    location = profile.get("location", "Massachusetts")
+    budget = profile.get("budget", "TBD")
+    budget_min = profile.get("budgetMin")
+    budget_max = profile.get("budgetMax")
+    bedrooms = profile.get("bedrooms", "unknown")
+    bathrooms = profile.get("bathrooms", "unknown")
+    must_haves = profile.get("mustHaveFeatures", [])
+    nice_to_haves = profile.get("niceToHaves", [])
+    dealbreakers = profile.get("dealbreakers", [])
+    lifestyle = profile.get("lifestyleDrivers", [])
+
+    # Flexibility scores
+    budget_flex = profile.get("budgetFlexibility", 50)
+    location_flex = profile.get("locationFlexibility", 50)
+    timing_flex = profile.get("timingFlexibility", 50)
+
+    prompt = f"""You are a real estate agent creating insights for a buyer profile.
+
+BUYER PROFILE:
+- Name: {name}
+- Location: {location}
+- Budget: {budget} (Min: ${budget_min:,} | Max: ${budget_max:,})
+- Bedrooms: {bedrooms}
+- Bathrooms: {bathrooms}
+- Must-Have Features: {', '.join(must_haves) if must_haves else 'None'}
+- Nice-to-Have Features: {', '.join(nice_to_haves) if nice_to_haves else 'None'}
+- Dealbreakers: {', '.join(dealbreakers) if dealbreakers else 'None'}
+- Lifestyle Priorities: {', '.join(lifestyle) if lifestyle else 'None'}
+- Budget Flexibility: {budget_flex}%
+- Location Flexibility: {location_flex}%
+- Timing Flexibility: {timing_flex}%
+
+Generate insights in JSON format with these fields:
+
+1. **aiSummary**: A 2-3 sentence summary capturing who this buyer is, what they want, and their key priorities. Mention specific budget, bedroom count, location, and timeline if available.
+
+2. **decisionDrivers**: Array of exactly 3 strings - the top factors that will drive their home purchase decision. Focus on what matters MOST to them.
+
+3. **constraints**: Array of exactly 3 strings - the key limitations or non-negotiable requirements that bound their search.
+
+4. **flexibilityExplanations**: Object with 3 keys:
+   - budget: One sentence explaining budget flexibility (mention specific numbers if available)
+   - location: One sentence explaining location flexibility (mention specific areas/cities)
+   - timing: One sentence explaining timing flexibility (mention months/urgency)
+
+FLEXIBILITY EXPLANATION GUIDELINES:
+- 0-30%: "not flexible / very fixed"
+- 31-70%: "somewhat flexible / open with conditions"
+- 71-100%: "very flexible / open to alternatives"
+
+Return ONLY valid JSON, no markdown:
+{{
+  "aiSummary": "...",
+  "decisionDrivers": ["...", "...", "..."],
+  "constraints": ["...", "...", "..."],
+  "flexibilityExplanations": {{
+    "budget": "...",
+    "location": "...",
+    "timing": "..."
+  }}
+}}
+"""
+
+    def call_llm():
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a real estate agent creating buyer insights. Return ONLY valid JSON."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"}
+        )
+        return response.choices[0].message.content
+
+    try:
+        # Call LLM with retry logic
+        content = _call_llm_with_retry(call_llm, max_retries=1, delay=2)
+        print(f"[INSIGHTS] Raw AI response: {content[:150]}...")
+
+        # Parse JSON response
+        insights = json.loads(content)
+
+        # Validate and extract fields
+        ai_summary = insights.get("aiSummary", "AI summary not available yet.")
+        decision_drivers = insights.get("decisionDrivers", [])[:3]  # Limit to 3
+        constraints = insights.get("constraints", [])[:3]  # Limit to 3
+        flexibility_explanations = insights.get("flexibilityExplanations", {})
+
+        # Ensure flexibility explanations has all keys
+        if not isinstance(flexibility_explanations, dict):
+            flexibility_explanations = {}
+
+        flexibility_explanations = {
+            "budget": flexibility_explanations.get("budget", ""),
+            "location": flexibility_explanations.get("location", ""),
+            "timing": flexibility_explanations.get("timing", "")
+        }
+
+        print(f"[INSIGHTS] Generated: summary={len(ai_summary)} chars, drivers={len(decision_drivers)}, constraints={len(constraints)}")
+
+        return {
+            "aiSummary": ai_summary,
+            "decisionDrivers": decision_drivers,
+            "constraints": constraints,
+            "flexibilityExplanations": flexibility_explanations
+        }
+
+    except Exception as e:
+        print(f"[INSIGHTS] Failed to generate insights: {e}")
+        import traceback
+        traceback.print_exc()
+
+        # Return empty insights on failure
+        return {
+            "aiSummary": "AI summary not available yet.",
+            "decisionDrivers": [],
+            "constraints": [],
+            "flexibilityExplanations": {"budget": "", "location": "", "timing": ""}
+        }
+
+
+class ParseBudgetRequest(BaseModel):
+    budget: str
+
+
+@router.post("/parse-budget")
+def parse_budget(req: ParseBudgetRequest):
+    """
+    Parse budget string into budgetMin and budgetMax.
+    Useful for profile edit and form validation.
+
+    Examples:
+    - "Around 700K" -> {"budgetMin": 560000, "budgetMax": 840000}
+    - "$400K - $550K" -> {"budgetMin": 400000, "budgetMax": 550000}
+    - "Under $500K" -> {"budgetMin": null, "budgetMax": 500000}
+    """
+    budget_min, budget_max = _parse_budget_string(req.budget)
+    print(f"[PARSE BUDGET] Input: '{req.budget}' -> min={budget_min}, max={budget_max}")
+
+    return {
+        "budget": req.budget,
+        "budgetMin": budget_min,
+        "budgetMax": budget_max
+    }
+
+
+@router.post("/enhance-profile")
+def enhance_profile(req: EnhanceRequest):
+    """Enhance profile with budget parsing, voice transcript analysis, and structure validation"""
+    data = req.formData
+
+    # STEP 1: Analyze voice transcript if provided
+    voice_extracted = None
+    if data.get("voiceTranscript"):
+        voice_text = data["voiceTranscript"].strip()
+        if voice_text:
+            print(f"[ENHANCE PROFILE] Processing voice transcript: {voice_text[:100]}...")
+            try:
+                voice_extracted = _extract_profile_with_ai(voice_text)
+                print(f"[ENHANCE PROFILE] Voice analysis complete: budget={voice_extracted.get('budget')}, bedrooms={voice_extracted.get('bedrooms')}")
+            except Exception as e:
+                print(f"[ENHANCE PROFILE] Voice analysis failed: {e}")
+                # Continue without voice data
+
+    # STEP 2: Parse budget if budgetMin/Max not already set
+    budget_min = data.get("budgetMin")
+    budget_max = data.get("budgetMax")
+
+    if (budget_min is None or budget_max is None) and data.get("budget"):
+        parsed_min, parsed_max = _parse_budget_string(data.get("budget", ""))
+        if budget_min is None:
+            budget_min = parsed_min
+        if budget_max is None:
+            budget_max = parsed_max
+        print(f"[ENHANCE PROFILE] Parsed budget '{data.get('budget')}' -> min={budget_min}, max={budget_max}")
+
+    # STEP 3: If voice analysis succeeded, use it to fill missing fields
+    # Voice data takes precedence for specific fields like budget, bedrooms, location
+    if voice_extracted:
+        # Use voice budget if form budget is not provided
+        if not data.get("budget") or data.get("budget") == "TBD":
+            if voice_extracted.get("budgetMin"):
+                budget_min = voice_extracted["budgetMin"]
+            if voice_extracted.get("budgetMax"):
+                budget_max = voice_extracted["budgetMax"]
+            print(f"[ENHANCE PROFILE] Using voice budget: min={budget_min}, max={budget_max}")
+
+        # Use voice location if form location is generic
+        if not data.get("location") or data.get("location") == "Massachusetts":
+            if voice_extracted.get("location") and voice_extracted["location"] != "Massachusetts":
+                data["location"] = voice_extracted["location"]
+                print(f"[ENHANCE PROFILE] Using voice location: {data['location']}")
+
+        # Merge arrays (voice data adds to form data, doesn't replace)
+        for field in ["mustHaveFeatures", "dealbreakers", "lifestyleDrivers", "specialNeeds"]:
+            form_items = data.get(field, [])
+            voice_items = voice_extracted.get(field, [])
+            if voice_items:
+                # Combine and deduplicate
+                combined = list(set(form_items + voice_items))
+                data[field] = combined
+                print(f"[ENHANCE PROFILE] Merged {field}: {len(combined)} items")
+
+    # STEP 4: Build enhanced profile with all merged and parsed data
+    enhanced_profile = {
+        "name": data.get("name", "Buyer"),
+        "email": data.get("email"),
+        "location": data.get("location", "Massachusetts"),
+        "budget": data.get("budget", "TBD"),
+        "budgetMin": budget_min,
+        "budgetMax": budget_max,
+        "homeType": data.get("homeType", "single-family"),
+        "bedrooms": data.get("bedrooms", 2),
+        "maxBedrooms": data.get("maxBedrooms"),
+        "bathrooms": data.get("bathrooms", "2"),
+        "mustHaveFeatures": data.get("mustHaveFeatures", []),
+        "niceToHaves": data.get("niceToHaves", []),
+        "dealbreakers": data.get("dealbreakers", []),
+        "preferredAreas": data.get("preferredAreas", []),
+        "lifestyleDrivers": data.get("lifestyleDrivers", []),
+        "specialNeeds": data.get("specialNeeds", []),
+        "budgetFlexibility": data.get("budgetFlexibility", 50),
+        "locationFlexibility": data.get("locationFlexibility", 50),
+        "timingFlexibility": data.get("timingFlexibility", 50),
+        "emotionalContext": data.get("emotionalContext") or (voice_extracted.get("emotionalContext") if voice_extracted else None),
+        "inferredTags": [],
+        "emotionalTone": voice_extracted.get("emotionalTone") if voice_extracted else None,
+        "priorityScore": 50,
+    }
+
+    # STEP 5: Generate AI insights if we have sufficient data
+    # Only generate insights if budget data is available
+    if budget_min is not None or budget_max is not None:
+        print(f"[ENHANCE PROFILE] Generating AI insights...")
+        try:
+            insights = _generate_complete_insights(enhanced_profile)
+            enhanced_profile.update(insights)
+            print(f"[ENHANCE PROFILE] AI insights generated successfully")
+        except Exception as e:
+            print(f"[ENHANCE PROFILE] Failed to generate insights: {e}")
+            # Continue without insights - they're optional
+
+    return enhanced_profile

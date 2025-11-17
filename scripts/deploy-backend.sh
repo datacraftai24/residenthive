@@ -38,14 +38,16 @@ gcloud config set project ${PROJECT_ID}
 echo "Enabling required APIs..."
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com containerregistry.googleapis.com
 
-# Build the Docker image
+# Build the Docker image using cloudbuild.yaml
 echo "Building Docker image..."
 cd backend
-gcloud builds submit --tag ${IMAGE_NAME}
+gcloud builds submit --config=cloudbuild.yaml
 cd ..
 
 # Deploy to Cloud Run
 echo "Deploying to Cloud Run..."
+# Note: Do NOT set PORT env var - Cloud Run sets this automatically
+# Setting it will cause deployment failure with "reserved env names" error
 gcloud run deploy ${SERVICE_NAME} \
   --image ${IMAGE_NAME} \
   --platform managed \

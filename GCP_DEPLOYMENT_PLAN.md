@@ -177,6 +177,10 @@ gcloud run services update residenthive-backend \
 
 ### 7. Get Backend URL
 ```bash
+# Custom domain (preferred)
+export BACKEND_URL="https://api.residencehive.com"
+
+# OR use Cloud Run URL
 export BACKEND_URL=$(gcloud run services describe residenthive-backend \
   --region us-central1 --format 'value(status.url)')
 echo "Backend URL: $BACKEND_URL"
@@ -184,6 +188,7 @@ echo "Backend URL: $BACKEND_URL"
 
 ### 8. Deploy Frontend
 ```bash
+export BACKEND_URL="https://api.residencehive.com"
 export VITE_CLERK_PUBLISHABLE_KEY="your_clerk_publishable_key"
 ./scripts/deploy-frontend.sh
 ```

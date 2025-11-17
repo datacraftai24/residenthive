@@ -1,0 +1,90 @@
+{
+  "name": "Emily and Jason Carter",
+  "email": null,
+  "location": "Worcester, MA",
+  "budget": "$450K - $650K",
+  "budgetMin": 450000,
+  "budgetMax": 700000,
+  "homeType": "single-family",
+  "bedrooms": 3,
+  "maxBedrooms": null,
+  "bathrooms": "2",
+  "mustHaveFeatures": [
+    "3+ bedrooms",
+    "2+ full bathrooms",
+    "off-street parking",
+    "outdoor space suitable for kids and dog",
+    "safe family-friendly neighborhood"
+  ],
+  "niceToHaves": [
+    "updated kitchen",
+    "hardwood floors",
+    "finished basement or bonus room",
+    "quiet street not on busy road",
+    "walking distance to park or playground"
+  ],
+  "dealbreakers": [
+    "homes directly on very busy roads",
+    "homes with visible power lines in the yard",
+    "major structural issues",
+    "properties requiring heavy renovation"
+  ],
+  "preferredAreas": [
+    "Worcester, MA"
+  ],
+  "lifestyleDrivers": [
+    "great schools",
+    "safe neighborhood"
+  ],
+  "specialNeeds": [],
+  "budgetFlexibility": 50,
+  "locationFlexibility": 50,
+  "timingFlexibility": 50,
+  "emotionalContext": "open to minor cosmetic updates, ideal timeline to purchase within next 3\u20136 months",
+  "inferredTags": [],
+  "emotionalTone": null,
+  "priorityScore": 50,
+  "aiSummary": "Emily and Jason Carter are looking for a family-friendly home in Worcester, MA, with a budget ranging from $450K to $650K. They need a 3-bedroom, 2-bathroom home with off-street parking and outdoor space, prioritizing safety and good schools.",
+  "decisionDrivers": [
+    "Safe, family-friendly neighborhood",
+    "Proximity to great schools",
+    "Outdoor space suitable for kids and dog"
+  ],
+  "constraints": [
+    "Homes not on very busy roads",
+    "No visible power lines in the yard",
+    "No major structural issues"
+  ],
+  "flexibilityExplanations": {
+    "budget": "Their budget is somewhat flexible, with a maximum of $700,000.",
+    "location": "They are somewhat flexible on location, open to areas within Worcester, MA.",
+    "timing": "Their timing is somewhat flexible, with a 50% openness to adjusting their timeline."
+  },
+  "visionChecklist": {
+    "structural": [
+      "3+ bedrooms",
+      "2+ full bathrooms",
+      "off-street parking",
+      "outdoor space suitable for kids and dog",
+      "updated kitchen",
+      "hardwood floors",
+      "finished basement or bonus room"
+    ],
+    "lifestyle": [
+      "quiet street",
+      "family-friendly neighborhood",
+      "walking distance to park or playground"
+    ],
+    "dealbreakers": [
+      "homes directly on very busy roads",
+      "visible power lines in the yard",
+      "major structural issues",
+      "properties requiring heavy renovation"
+    ],
+    "optional": [
+      "natural light",
+      "modern finishes",
+      "curb appeal"
+    ]
+  }
+}

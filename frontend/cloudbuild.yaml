@@ -3,18 +3,12 @@ steps:
     args:
       - 'build'
       - '--build-arg'
-      - 'VITE_CLERK_PUBLISHABLE_KEY=$$VITE_CLERK_PUBLISHABLE_KEY'
+      - 'VITE_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsucmVzaWRlbmNlaGl2ZS5jb20k'
       - '--build-arg'
       - 'VITE_BACKEND_URL=https://api.residencehive.com'
       - '-t'
       - 'gcr.io/$PROJECT_ID/residenthive-frontend:latest'
       - '.'
-    secretEnv: ['VITE_CLERK_PUBLISHABLE_KEY']
-
-availableSecrets:
-  secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/VITE_CLERK_PUBLISHABLE_KEY/versions/latest
-      env: 'VITE_CLERK_PUBLISHABLE_KEY'
 
 images:
   - 'gcr.io/$PROJECT_ID/residenthive-frontend:latest'

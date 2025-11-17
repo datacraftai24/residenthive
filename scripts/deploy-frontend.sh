@@ -10,12 +10,8 @@ REGION="${GCP_REGION:-us-central1}"
 SERVICE_NAME="residenthive-frontend"
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 
-# Backend URL (must be set or provided)
-if [ -z "$BACKEND_URL" ]; then
-    echo "Error: BACKEND_URL environment variable is not set"
-    echo "Example: export BACKEND_URL=https://your-backend-service-url.run.app"
-    exit 1
-fi
+# Note: Backend URL is configured in frontend/cloudbuild.yaml as a build arg
+# and baked into the Docker image at build time
 
 echo "======================================"
 echo "Deploying Frontend to Cloud Run"
@@ -23,7 +19,7 @@ echo "======================================"
 echo "Project: ${PROJECT_ID}"
 echo "Region: ${REGION}"
 echo "Service: ${SERVICE_NAME}"
-echo "Backend URL: ${BACKEND_URL}"
+echo "Note: Backend URL is configured in cloudbuild.yaml"
 echo ""
 
 # Check if gcloud is installed
@@ -54,6 +50,9 @@ cd ..
 
 # Deploy to Cloud Run
 echo "Deploying to Cloud Run..."
+# Note: VITE_BACKEND_URL is already baked into the Docker image during build
+# It's set via build args in cloudbuild.yaml and Dockerfile
+# Setting it here would override the build-time value
 gcloud run deploy ${SERVICE_NAME} \
   --image ${IMAGE_NAME} \
   --platform managed \
@@ -63,8 +62,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --cpu 1 \
   --min-instances 1 \
   --max-instances 10 \
-  --timeout 300 \
-  --set-env-vars "VITE_BACKEND_URL=${BACKEND_URL},NODE_ENV=production"
+  --timeout 300
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
