@@ -17,9 +17,19 @@ router = APIRouter(prefix="/api")
 
 def calculate_market_metrics(listing: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate market intelligence metrics for a listing"""
-    price = listing.get("price", 0) or 0
-    sqft = listing.get("square_feet", 0) or 0
-    dom = listing.get("days_on_market", 0) or 0
+    # Ensure numeric types - API may return strings
+    try:
+        price = int(listing.get("price", 0) or 0)
+    except (ValueError, TypeError):
+        price = 0
+    try:
+        sqft = int(listing.get("square_feet", 0) or 0)
+    except (ValueError, TypeError):
+        sqft = 0
+    try:
+        dom = int(listing.get("days_on_market", 0) or 0)
+    except (ValueError, TypeError):
+        dom = 0
 
     # Calculate price per square foot
     price_per_sqft = round(price / sqft) if sqft > 0 else None

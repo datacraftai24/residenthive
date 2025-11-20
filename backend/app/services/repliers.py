@@ -1,5 +1,6 @@
 import os
 import re
+import math
 from typing import Any, Dict, List
 from datetime import datetime, timezone
 import httpx
@@ -72,15 +73,18 @@ class RepliersClient:
                 try:
                     val = re.sub(r"[^0-9\.]", "", baths)
                     if val:
-                        q["minBaths"] = float(val)
+                        # Round up to nearest int - Repliers API requires integers for bath filter
+                        q["minBaths"] = math.ceil(float(val))
                 except Exception:
                     pass
             else:
-                q["minBaths"] = float(baths)
+                # Round up to nearest int - Repliers API requires integers for bath filter
+                q["minBaths"] = math.ceil(float(baths))
         # Support max bathrooms filter
         max_baths = profile.get("maxBathrooms")
         if max_baths is not None:
-            q["maxBaths"] = float(max_baths)
+            # Round up to nearest int - Repliers API requires integers for bath filter
+            q["maxBaths"] = math.ceil(float(max_baths))
         # Property type - map user-friendly values to Repliers API style field
         # Note: Use 'style' parameter (not 'propertyType') for specific property types
         # propertyType is high-level (Residential, Commercial), style is specific (Single Family Residence, Condominium)
@@ -89,10 +93,14 @@ class RepliersClient:
             # Map common values to Repliers API style values (from aggregates data)
             style_map = {
                 "single-family": "Single Family Residence",
+                "single family": "Single Family Residence",
+                "singlefamily": "Single Family Residence",
                 "condo": "Condominium",
                 "condominium": "Condominium",
                 "townhouse": "Attached (Townhouse/Rowhouse/Duplex)",
                 "multi-family": "Multi Family",
+                "multi family": "Multi Family",
+                "multifamily": "Multi Family",
                 "apartment": "Apartment"
             }
             # Use mapped value, or pass through as-is if not in map

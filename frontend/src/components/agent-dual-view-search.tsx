@@ -96,6 +96,7 @@ interface MarketOverviewListing {
   statusIndicators?: StatusIndicator[];
   filterReasons?: string[];  // Clear, objective filter reasons
   matchScore?: number;
+  matchReasons?: string[];  // What criteria this property matches
 }
 
 interface AIRecommendationListing extends MarketOverviewListing {
@@ -204,7 +205,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
   // Search query with reactive search enabled - NO CACHING
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
-    queryKey: ['/api/agent-search', profile.id, forceEnhanced, Date.now()], // Add timestamp to force fresh queries
+    queryKey: ['/api/agent-search', profile.id, forceEnhanced], // Stable query key
     queryFn: async () => {
       const response = await fetch('/api/agent-search', {
         method: 'POST',
@@ -227,6 +228,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     gcTime: 0, // Don't keep in cache
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    retry: false, // Don't retry on failure to avoid loops
   });
 
   const handleSearch = () => {
@@ -487,8 +489,276 @@ function MarketOverviewView({
 }) {
   const [showRejected, setShowRejected] = useState(true);
 
+  // Calculate market average $/sqft for value comparison
+  const avgPricePerSqft = React.useMemo(() => {
+    const validPrices = results.listings
+      .map(p => p.pricePerSqft)
+      .filter((p): p is number => p !== undefined && p !== null && p > 0);
+
+    if (validPrices.length === 0) return null;
+    return Math.round(validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length);
+  }, [results.listings]);
+
+  // Helper to get priority badge based on property characteristics
+  const getPriorityBadge = (property: MarketOverviewListing) => {
+    const valueIndicator = getValueIndicator(property.pricePerSqft);
+    const isNew = property.statusIndicators?.some(ind => ind.type === 'hot' || ind.label === 'New');
+    const isStale = property.daysOnMarket && property.daysOnMarket > 60;
+    const matchScore = property.matchScore || 0;
+    const isBelowMarket = valueIndicator && valueIndicator.icon === '🔥';
+    const isOverpriced = valueIndicator && valueIndicator.icon === '⚠️';
+
+    // Helper to format DOM status (always show for consistency)
+    const dom = property.daysOnMarket;
+    const getDOMStatus = (additionalInfo?: string) => {
+      if (dom === undefined || dom === null) return additionalInfo || property.propertyType || 'Residential';
+
+      const domText = dom === 0 ? 'New listing' : `${dom} DOM`;
+      return additionalInfo ? `${domText} • ${additionalInfo}` : domText;
+    };
+
+    // Priority 1: URGENT - New listing + below market + high match
+    if (isNew && isBelowMarket && matchScore >= 70) {
+      return {
+        label: 'URGENT',
+        icon: '⚡',
+        className: 'bg-red-100 text-red-800 border-red-300 font-semibold',
+        description: 'New + Great Value + High Match',
+        sortOrder: 1,
+        statusReason: getDOMStatus(`${valueIndicator.label} market`)
+      };
+    }
+
+    // Priority 2: DEAL - Below market value
+    if (isBelowMarket) {
+      return {
+        label: 'DEAL',
+        icon: '💎',
+        className: 'bg-green-100 text-green-800 border-green-300 font-semibold',
+        description: 'Below market value',
+        sortOrder: 2,
+        statusReason: getDOMStatus(`${valueIndicator.label} market`)
+      };
+    }
+
+    // Priority 3: NEGOTIATE - Stale listing (seller likely motivated)
+    if (isStale && !isOverpriced) {
+      return {
+        label: 'NEGOTIATE',
+        icon: '🤝',
+        className: 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
+        description: 'High days on market',
+        sortOrder: 3,
+        statusReason: getDOMStatus('motivated seller')
+      };
+    }
+
+    // Priority 4: SKIP - Overpriced
+    if (isOverpriced) {
+      return {
+        label: 'SKIP',
+        icon: '⚠️',
+        className: 'bg-gray-100 text-gray-600 border-gray-300',
+        description: 'Above market value',
+        sortOrder: 5,
+        statusReason: getDOMStatus(`${valueIndicator.label} market`)
+      };
+    }
+
+    // Default: Always show DOM for consistency
+    return {
+      label: null,
+      icon: null,
+      className: '',
+      description: '',
+      sortOrder: 4, // Normal properties between NEGOTIATE and SKIP
+      statusReason: getDOMStatus()
+    };
+  };
+
+  // Helper to get value indicator based on $/sqft vs market average
+  const getValueIndicator = (pricePerSqft?: number) => {
+    if (!pricePerSqft || !avgPricePerSqft) return null;
+
+    const percentDiff = ((pricePerSqft - avgPricePerSqft) / avgPricePerSqft) * 100;
+
+    if (percentDiff < -20) {
+      return { icon: '🔥', label: `${Math.abs(Math.round(percentDiff))}% below`, color: 'text-green-700' };
+    } else if (percentDiff > 20) {
+      return { icon: '⚠️', label: `${Math.round(percentDiff)}% above`, color: 'text-orange-700' };
+    }
+    return null;
+  };
+
+  // Sort properties by priority
+  const sortedListings = React.useMemo(() => {
+    return [...results.listings].sort((a, b) => {
+      const aBadge = getPriorityBadge(a);
+      const bBadge = getPriorityBadge(b);
+      return aBadge.sortOrder - bBadge.sortOrder;
+    });
+  }, [results.listings]);
+
+  // Calculate insight metrics
+  const insights = React.useMemo(() => {
+    const allProperties = results.listings;
+
+    // Count priority types
+    let urgentCount = 0;
+    let dealCount = 0;
+    let negotiateCount = 0;
+    let skipCount = 0;
+    let belowMarketTotal = 0;
+    let belowMarketProperties = 0;
+
+    allProperties.forEach(property => {
+      const valueIndicator = getValueIndicator(property.pricePerSqft);
+      const priorityBadge = getPriorityBadge(property);
+
+      if (priorityBadge) {
+        switch (priorityBadge.label) {
+          case 'URGENT': urgentCount++; break;
+          case 'DEAL': dealCount++; break;
+          case 'NEGOTIATE': negotiateCount++; break;
+          case 'SKIP': skipCount++; break;
+        }
+      }
+
+      // Calculate average savings for below-market properties
+      if (valueIndicator && valueIndicator.icon === '🔥' && avgPricePerSqft) {
+        const percentDiff = Math.abs(((property.pricePerSqft! - avgPricePerSqft) / avgPricePerSqft) * 100);
+        belowMarketTotal += percentDiff;
+        belowMarketProperties++;
+      }
+    });
+
+    // Price range
+    const prices = allProperties.map(p => p.listPrice).filter(p => p > 0);
+    const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+    const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
+    // $/sqft range
+    const sqftPrices = allProperties.map(p => p.pricePerSqft).filter((p): p is number => p !== undefined && p > 0);
+    const minSqft = sqftPrices.length > 0 ? Math.min(...sqftPrices) : 0;
+    const maxSqft = sqftPrices.length > 0 ? Math.max(...sqftPrices) : 0;
+
+    const avgSavings = belowMarketProperties > 0 ? Math.round(belowMarketTotal / belowMarketProperties) : 0;
+
+    return {
+      urgentCount,
+      dealCount,
+      negotiateCount,
+      skipCount,
+      avgSavings,
+      minPrice,
+      maxPrice,
+      minSqft,
+      maxSqft,
+      totalProperties: allProperties.length
+    };
+  }, [results.listings, avgPricePerSqft]);
+
   return (
     <div className="space-y-4">
+    {/* Insight Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Market Snapshot Card */}
+      <Card className="col-span-1 md:col-span-3">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Market Snapshot
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div className="text-gray-600">Total Properties</div>
+              <div className="text-2xl font-bold">{insights.totalProperties}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Avg $/SqFt</div>
+              <div className="text-2xl font-bold">{avgPricePerSqft ? `$${avgPricePerSqft}` : 'N/A'}</div>
+              <div className="text-xs text-gray-500">${insights.minSqft} - ${insights.maxSqft}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Price Range</div>
+              <div className="text-lg font-bold">{formatPrice(insights.minPrice)}</div>
+              <div className="text-xs text-gray-500">to {formatPrice(insights.maxPrice)}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Priority Actions</div>
+              <div className="flex gap-2 mt-1">
+                {insights.urgentCount > 0 && (
+                  <Badge className="bg-red-100 text-red-800 border-red-300">
+                    ⚡ {insights.urgentCount}
+                  </Badge>
+                )}
+                {insights.dealCount > 0 && (
+                  <Badge className="bg-green-100 text-green-800 border-green-300">
+                    💎 {insights.dealCount}
+                  </Badge>
+                )}
+                {insights.negotiateCount > 0 && (
+                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                    🤝 {insights.negotiateCount}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Priority Actions Card */}
+      {insights.urgentCount > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-red-900">
+              ⚡ Priority Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-900 mb-1">{insights.urgentCount}</div>
+            <div className="text-sm text-red-700">URGENT properties</div>
+            <div className="text-xs text-red-600 mt-2">New + Great Value + High Match</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Value Opportunities Card */}
+      {insights.dealCount > 0 && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-green-900">
+              💎 Value Opportunities
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-900 mb-1">{insights.dealCount}</div>
+            <div className="text-sm text-green-700">below market</div>
+            <div className="text-xs text-green-600 mt-2">Avg savings: {insights.avgSavings}%</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Negotiation Opportunities Card */}
+      {insights.negotiateCount > 0 && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-yellow-900">
+              🤝 Negotiation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-yellow-900 mb-1">{insights.negotiateCount}</div>
+            <div className="text-sm text-yellow-700">properties &gt;60 DOM</div>
+            <div className="text-xs text-yellow-600 mt-2">Motivated sellers</div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -517,7 +787,7 @@ function MarketOverviewView({
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left p-4 font-medium">
+                <th className="text-left p-4 font-medium w-12">
                   <Checkbox
                     checked={selectedProperties.size === results.listings.slice(0, 20).length && results.listings.length > 0}
                     onCheckedChange={(checked) => {
@@ -530,16 +800,20 @@ function MarketOverviewView({
                     }}
                   />
                 </th>
+                <th className="text-left p-4 font-medium">Priority</th>
                 <th className="text-left p-4 font-medium">Property</th>
                 <th className="text-left p-4 font-medium">Price</th>
                 <th className="text-left p-4 font-medium">$/SqFt</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
-                <th className="text-left p-4 font-medium">Sq Ft</th>
+                <th className="text-left p-4 font-medium">What Matches</th>
                 <th className="text-left p-4 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
-              {results.listings.slice(0, 20).map((property, index) => (
+              {sortedListings.map((property, index) => {
+                const valueIndicator = getValueIndicator(property.pricePerSqft);
+                const priorityBadge = getPriorityBadge(property);
+                return (
                 <tr key={property.mlsNumber || `property-${index}`} className="border-b hover:bg-gray-50">
                   <td className="p-4">
                     <Checkbox
@@ -557,6 +831,15 @@ function MarketOverviewView({
                     />
                   </td>
                   <td className="p-4">
+                    {priorityBadge ? (
+                      <Badge variant="outline" className={`text-xs ${priorityBadge.className}`}>
+                        {priorityBadge.icon} {priorityBadge.label}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
                         <Home className="h-6 w-6 text-gray-400" />
@@ -571,12 +854,16 @@ function MarketOverviewView({
                   </td>
                   <td className="p-4">
                     <div className="font-semibold">{formatPrice(property.listPrice)}</div>
-                    {property.pricePerSqft && (
-                      <div className="text-xs text-gray-500">${property.pricePerSqft}/sqft</div>
-                    )}
                   </td>
-                  <td className="p-4 font-medium text-gray-700">
-                    {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                  <td className="p-4">
+                    <div className="font-medium text-gray-700">
+                      {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                    </div>
+                    {valueIndicator && (
+                      <div className={`text-xs font-medium ${valueIndicator.color}`}>
+                        {valueIndicator.icon} {valueIndicator.label}
+                      </div>
+                    )}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-4">
@@ -588,34 +875,38 @@ function MarketOverviewView({
                         <Bath className="h-4 w-4" />
                         {property.bathrooms}
                       </span>
+                      <span className="text-sm text-gray-500">
+                        {property.sqft ? `${property.sqft?.toLocaleString()} sf` : ''}
+                      </span>
                     </div>
-                  </td>
-                  <td className="p-4 text-sm text-gray-600">
-                    {property.sqft ? `${property.sqft?.toLocaleString()}` : 'N/A'}
                   </td>
                   <td className="p-4">
                     <div className="flex flex-wrap gap-1">
-                      {property.statusIndicators && property.statusIndicators.length > 0 ? (
-                        property.statusIndicators.map((indicator, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="outline"
-                            className={`text-xs ${
-                              indicator.color === 'red' ? 'bg-red-100 text-red-800 border-red-300' :
-                              indicator.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                              'bg-gray-100 text-gray-800 border-gray-300'
-                            }`}
-                          >
-                            {indicator.label}
-                          </Badge>
+                      {property.matchReasons && property.matchReasons.length > 0 ? (
+                        property.matchReasons.slice(0, 3).map((reason, idx) => (
+                          <span key={idx} className="text-xs text-green-700">
+                            ✓ {reason}
+                            {idx < Math.min(2, property.matchReasons!.length - 1) ? ',' : ''}
+                          </span>
                         ))
                       ) : (
-                        <span className="text-gray-600">{property.propertyType}</span>
+                        <span className="text-xs text-gray-500">No specific matches</span>
+                      )}
+                      {property.matchReasons && property.matchReasons.length > 3 && (
+                        <span className="text-xs text-gray-500">
+                          +{property.matchReasons.length - 3} more
+                        </span>
                       )}
                     </div>
                   </td>
+                  <td className="p-4">
+                    <span className="text-sm text-gray-700">
+                      {priorityBadge.statusReason}
+                    </span>
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
