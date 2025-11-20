@@ -252,6 +252,69 @@ class RepliersClient:
             # Fallback to existing daysOnMarket field if available
             days_on_market = item.get("daysOnMarket") or details.get("daysOnMarket")
 
+        # Price history extraction
+        original_price = item.get("originalPrice") or item.get("originalListPrice")
+        list_price = item.get("listPrice") or item.get("price") or 0
+        price_log = item.get("listPriceLog") or []
+        timestamps = item.get("timestamps", {}) or {}
+
+        # Calculate price cuts count and total reduction
+        price_cuts_count = len(price_log) if isinstance(price_log, list) else 0
+
+        # Calculate total price reduction
+        total_price_reduction = 0
+        if original_price and list_price:
+            try:
+                reduction = int(original_price) - int(list_price)
+                total_price_reduction = max(0, reduction)  # Never negative
+            except (ValueError, TypeError):
+                pass
+
+        # Determine price trend direction
+        price_trend_direction = None
+        if original_price and list_price:
+            try:
+                orig = int(original_price)
+                curr = int(list_price)
+                if curr < orig:
+                    price_trend_direction = "down"
+                elif curr > orig:
+                    price_trend_direction = "up"
+                else:
+                    price_trend_direction = "flat"
+            except (ValueError, TypeError):
+                pass
+
+        # Last price change date
+        last_price_change_date = timestamps.get("lastPriceChanged")
+
+        # Lot acres
+        lot_obj = item.get("lot", {}) or {}
+        lot_acres = lot_obj.get("acres")
+
+        # Parse special flags from description
+        special_flags = []
+        desc_lower = (description or "").lower()
+
+        # Keyword matching for special conditions
+        if "cash only" in desc_lower:
+            special_flags.append("Cash Only")
+        if "as-is" in desc_lower or "as is" in desc_lower:
+            special_flags.append("As-Is")
+        if "investor" in desc_lower or "investment" in desc_lower:
+            special_flags.append("Investor Special")
+        if "tear down" in desc_lower or "teardown" in desc_lower:
+            special_flags.append("Tear Down / Builder Opportunity")
+        if any(phrase in desc_lower for phrase in ["complete renovation", "total renovation", "gut reno", "needs complete reno", "complete reno"]):
+            special_flags.append("Complete Renovation")
+        if "builder" in desc_lower or "contractor special" in desc_lower:
+            if "Tear Down / Builder Opportunity" not in special_flags:
+                special_flags.append("Builder / Contractor Special")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        special_flags = [f for f in special_flags if not (f in seen or seen.add(f))]
+
         return {
             "id": item.get("id") or item.get("mlsNumber") or item.get("listingId") or item.get("_id"),
             "mls_number": item.get("mlsNumber") or item.get("mls_id"),
@@ -271,5 +334,14 @@ class RepliersClient:
             "lot_size": lot_size,
             "days_on_market": days_on_market,
             "list_date": list_date,
+            # Price history fields for market recommendations
+            "original_price": original_price,
+            "price_cuts_count": price_cuts_count,
+            "total_price_reduction": total_price_reduction,
+            "last_price_change_date": last_price_change_date,
+            "price_trend_direction": price_trend_direction,
+            # Additional context
+            "lot_acres": lot_acres,
+            "special_flags": special_flags,
             "_raw": item,  # Preserve raw API response for quality analysis
         }

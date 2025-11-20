@@ -229,6 +229,14 @@ def listings_search(payload: Dict[str, Any]):
             "price_per_sqft": market_metrics["price_per_sqft"],
             "days_on_market": market_metrics["days_on_market"],
             "status_indicators": market_metrics["status_indicators"],
+            # Price history fields for market recommendations (camelCase for frontend)
+            "originalPrice": listing.get("original_price"),
+            "priceCutsCount": listing.get("price_cuts_count", 0),
+            "totalPriceReduction": listing.get("total_price_reduction", 0),
+            "lastPriceChangeDate": listing.get("last_price_change_date"),
+            "priceTrendDirection": listing.get("price_trend_direction"),
+            "lotAcres": listing.get("lot_acres"),
+            "specialFlags": listing.get("special_flags", []),
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
