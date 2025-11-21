@@ -30,6 +30,271 @@ import {
 } from 'lucide-react';
 import type { BuyerProfile } from '@shared/schema';
 
+// ============================================================================
+// FIT CHIPS: Deterministic buyer-property match signals
+// ============================================================================
+interface FitChip {
+  type: 'hard' | 'soft' | 'positive';
+  icon: string;
+  label: string;
+  key: string;
+  className: string;
+}
+
+interface FitResult {
+  chips: FitChip[];
+  fitScore: number;
+  hardCount: number;
+  softCount: number;
+}
+
+/**
+ * Derive fit chips for a property based on profile requirements
+ * Priority: Hard mismatches first, then soft risks, then positives
+ * Caps: Max 2 hard, max 2 soft, fill with positives up to 5 total
+ */
+function deriveFitChips(
+  listing: MarketOverviewListing,
+  profile: BuyerProfile | null
+): FitResult {
+  if (!profile) {
+    return { chips: [], fitScore: 100, hardCount: 0, softCount: 0 };
+  }
+
+  const hardChips: FitChip[] = [];
+  const softChips: FitChip[] = [];
+  const positiveChips: FitChip[] = [];
+
+  // --- HARD MISMATCHES (deal-breakers) ---
+
+  // 1. Fewer beds than required
+  const profileBeds = typeof profile.bedrooms === 'number' ? profile.bedrooms : parseInt(String(profile.bedrooms)) || 0;
+  const listingBeds = listing.bedrooms || 0;
+  if (profileBeds > 0 && listingBeds < profileBeds) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${listingBeds} beds (need ${profileBeds})`,
+      key: 'beds-short',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 2. Fewer baths than required
+  const profileBaths = typeof profile.bathrooms === 'number'
+    ? profile.bathrooms
+    : parseFloat(String(profile.bathrooms).replace(/[^0-9.]/g, '')) || 0;
+  const listingBaths = listing.bathrooms || 0;
+  if (profileBaths > 0 && listingBaths < profileBaths) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${listingBaths} baths (need ${profileBaths})`,
+      key: 'baths-short',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 3. Over budget >110%
+  const budgetMax = profile.budgetMax || 0;
+  const listPrice = listing.listPrice || 0;
+  if (budgetMax > 0 && listPrice > budgetMax * 1.1) {
+    const overPct = Math.round(((listPrice - budgetMax) / budgetMax) * 100);
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${overPct}% over budget`,
+      key: 'over-budget',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 4. Contains dealbreaker from profile.dealbreakers
+  // (Would need description analysis - skip for now as it requires NLP)
+
+  // --- SOFT RISKS (caution flags) ---
+
+  // 1. At budget limit (100-110% of max)
+  if (budgetMax > 0 && listPrice > budgetMax && listPrice <= budgetMax * 1.1) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: 'At budget limit',
+      key: 'budget-limit',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+
+  // 2. Year built logic - smarter buckets
+  // Hard: <1900 (major rehab risk)
+  // Soft: 1900-1959 (older build)
+  // Neutral: 1960-1999 (no chip)
+  // Positive: 2000+ (newer construction)
+  const yearBuilt = listing.yearBuilt || 0;
+  if (yearBuilt > 0 && yearBuilt < 1900) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `Built ${yearBuilt} - rehab risk`,
+      key: 'rehab-risk',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  } else if (yearBuilt >= 1900 && yearBuilt < 1960) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: `Built ${yearBuilt}`,
+      key: 'old-build',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+  // 1960-1999 = no chip (neutral)
+  // 2000+ = positive (added below in positives section)
+
+  // 3. Smaller home (<1200 sqft)
+  const sqft = listing.sqft || 0;
+  if (sqft > 0 && sqft < 1200) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: `${sqft.toLocaleString()} sqft`,
+      key: 'small-home',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+
+  // --- POSITIVES (matching criteria) ---
+
+  // 1. Under budget (<90% of max)
+  if (budgetMax > 0 && listPrice < budgetMax * 0.9) {
+    const underPct = Math.round(((budgetMax - listPrice) / budgetMax) * 100);
+    positiveChips.push({
+      type: 'positive',
+      icon: '✓',
+      label: `${underPct}% under budget`,
+      key: 'under-budget',
+      className: 'bg-green-100 text-green-800 border-green-300',
+    });
+  }
+
+  // 2. Beds match or exceed
+  if (profileBeds > 0 && listingBeds >= profileBeds) {
+    if (listingBeds > profileBeds) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `+${listingBeds - profileBeds} bed${listingBeds - profileBeds > 1 ? 's' : ''}`,
+        key: 'beds-plus',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    } else {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `${listingBeds} beds`,
+        key: 'beds-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 3. Baths match or exceed
+  if (profileBaths > 0 && listingBaths >= profileBaths) {
+    if (listingBaths > profileBaths) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `+${(listingBaths - profileBaths).toFixed(1).replace('.0', '')} bath${listingBaths - profileBaths > 1 ? 's' : ''}`,
+        key: 'baths-plus',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    } else {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `${listingBaths} baths`,
+        key: 'baths-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 4. Home type match
+  const profileHomeType = (profile.homeType || '').toLowerCase();
+  const listingType = (listing.propertyType || '').toLowerCase();
+  if (profileHomeType && listingType) {
+    // Fuzzy match for common variations
+    const typeMatches =
+      listingType.includes(profileHomeType) ||
+      profileHomeType.includes(listingType) ||
+      (profileHomeType.includes('single') && listingType.includes('single')) ||
+      (profileHomeType.includes('condo') && listingType.includes('condo')) ||
+      (profileHomeType.includes('town') && listingType.includes('town'));
+
+    if (typeMatches) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: listing.propertyType || 'Type match',
+        key: 'type-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 5. Target area (city in preferredAreas)
+  const preferredAreas = profile.preferredAreas || [];
+  const listingCity = (listing.city || '').toLowerCase();
+  if (listingCity && preferredAreas.length > 0) {
+    const inPreferredArea = preferredAreas.some(area =>
+      listingCity.includes(area.toLowerCase()) ||
+      area.toLowerCase().includes(listingCity)
+    );
+    if (inPreferredArea) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: listing.city,
+        key: 'area-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 6. Newer construction (2000+)
+  if (yearBuilt >= 2000) {
+    positiveChips.push({
+      type: 'positive',
+      icon: '✓',
+      label: `Built ${yearBuilt}`,
+      key: 'newer-build',
+      className: 'bg-green-100 text-green-800 border-green-300',
+    });
+  }
+
+  // --- APPLY CAPS ---
+  // Max 2 hard, max 2 soft, fill with positives up to 5 total
+  const selectedHard = hardChips.slice(0, 2);
+  const selectedSoft = softChips.slice(0, 2);
+  const remainingSlots = 5 - selectedHard.length - selectedSoft.length;
+  const selectedPositive = positiveChips.slice(0, Math.max(0, remainingSlots));
+
+  const finalChips = [...selectedHard, ...selectedSoft, ...selectedPositive];
+
+  // --- CALCULATE FIT SCORE ---
+  // Formula: 100 - (30 * hardCount) - (10 * softCount)
+  const hardCount = selectedHard.length;
+  const softCount = selectedSoft.length;
+  const fitScore = Math.max(0, 100 - (30 * hardCount) - (10 * softCount));
+
+  return {
+    chips: finalChips,
+    fitScore,
+    hardCount,
+    softCount,
+  };
+}
+
 interface AgentDualViewSearchProps {
   profile: BuyerProfile;
 }
@@ -1136,7 +1401,7 @@ function MarketOverviewView({
                 <th className="text-left p-4 font-medium">Price</th>
                 <th className="text-left p-4 font-medium">$/SqFt</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
-                <th className="text-left p-4 font-medium">What Matches</th>
+                <th className="text-left p-4 font-medium">Buyer Fit</th>
                 <th className="text-left p-4 font-medium">Status</th>
               </tr>
             </thead>
@@ -1220,23 +1485,36 @@ function MarketOverviewView({
                     </div>
                   </td>
                   <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
-                      {property.matchReasons && property.matchReasons.length > 0 ? (
-                        property.matchReasons.slice(0, 3).map((reason, idx) => (
-                          <span key={idx} className="text-xs text-green-700">
-                            ✓ {reason}
-                            {idx < Math.min(2, property.matchReasons!.length - 1) ? ',' : ''}
+                    {(() => {
+                      const fitResult = deriveFitChips(property, profile);
+                      return (
+                        <div className="flex flex-col gap-1">
+                          {/* Fit Score */}
+                          <span className={`text-xs font-medium ${
+                            fitResult.fitScore >= 80 ? 'text-green-700' :
+                            fitResult.fitScore >= 50 ? 'text-amber-700' :
+                            'text-red-700'
+                          }`}>
+                            Fit: {fitResult.fitScore}%
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-500">No specific matches</span>
-                      )}
-                      {property.matchReasons && property.matchReasons.length > 3 && (
-                        <span className="text-xs text-gray-500">
-                          +{property.matchReasons.length - 3} more
-                        </span>
-                      )}
-                    </div>
+                          {/* Chips */}
+                          <div className="flex flex-wrap gap-1">
+                            {fitResult.chips.length > 0 ? (
+                              fitResult.chips.map((chip) => (
+                                <span
+                                  key={chip.key}
+                                  className={`text-xs px-1.5 py-0.5 rounded border ${chip.className}`}
+                                >
+                                  {chip.icon} {chip.label}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-500">No specific signals</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="p-4">
                     <div className="text-sm space-y-0.5">
