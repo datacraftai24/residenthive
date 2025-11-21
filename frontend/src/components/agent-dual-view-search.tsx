@@ -30,6 +30,271 @@ import {
 } from 'lucide-react';
 import type { BuyerProfile } from '@shared/schema';
 
+// ============================================================================
+// FIT CHIPS: Deterministic buyer-property match signals
+// ============================================================================
+interface FitChip {
+  type: 'hard' | 'soft' | 'positive';
+  icon: string;
+  label: string;
+  key: string;
+  className: string;
+}
+
+interface FitResult {
+  chips: FitChip[];
+  fitScore: number;
+  hardCount: number;
+  softCount: number;
+}
+
+/**
+ * Derive fit chips for a property based on profile requirements
+ * Priority: Hard mismatches first, then soft risks, then positives
+ * Caps: Max 2 hard, max 2 soft, fill with positives up to 5 total
+ */
+function deriveFitChips(
+  listing: MarketOverviewListing,
+  profile: BuyerProfile | null
+): FitResult {
+  if (!profile) {
+    return { chips: [], fitScore: 100, hardCount: 0, softCount: 0 };
+  }
+
+  const hardChips: FitChip[] = [];
+  const softChips: FitChip[] = [];
+  const positiveChips: FitChip[] = [];
+
+  // --- HARD MISMATCHES (deal-breakers) ---
+
+  // 1. Fewer beds than required
+  const profileBeds = typeof profile.bedrooms === 'number' ? profile.bedrooms : parseInt(String(profile.bedrooms)) || 0;
+  const listingBeds = listing.bedrooms || 0;
+  if (profileBeds > 0 && listingBeds < profileBeds) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${listingBeds} beds (need ${profileBeds})`,
+      key: 'beds-short',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 2. Fewer baths than required
+  const profileBaths = typeof profile.bathrooms === 'number'
+    ? profile.bathrooms
+    : parseFloat(String(profile.bathrooms).replace(/[^0-9.]/g, '')) || 0;
+  const listingBaths = listing.bathrooms || 0;
+  if (profileBaths > 0 && listingBaths < profileBaths) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${listingBaths} baths (need ${profileBaths})`,
+      key: 'baths-short',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 3. Over budget >110%
+  const budgetMax = profile.budgetMax || 0;
+  const listPrice = listing.listPrice || 0;
+  if (budgetMax > 0 && listPrice > budgetMax * 1.1) {
+    const overPct = Math.round(((listPrice - budgetMax) / budgetMax) * 100);
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `${overPct}% over budget`,
+      key: 'over-budget',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  }
+
+  // 4. Contains dealbreaker from profile.dealbreakers
+  // (Would need description analysis - skip for now as it requires NLP)
+
+  // --- SOFT RISKS (caution flags) ---
+
+  // 1. At budget limit (100-110% of max)
+  if (budgetMax > 0 && listPrice > budgetMax && listPrice <= budgetMax * 1.1) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: 'At budget limit',
+      key: 'budget-limit',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+
+  // 2. Year built logic - smarter buckets
+  // Hard: <1900 (major rehab risk)
+  // Soft: 1900-1959 (older build)
+  // Neutral: 1960-1999 (no chip)
+  // Positive: 2000+ (newer construction)
+  const yearBuilt = listing.yearBuilt || 0;
+  if (yearBuilt > 0 && yearBuilt < 1900) {
+    hardChips.push({
+      type: 'hard',
+      icon: '❌',
+      label: `Built ${yearBuilt} - rehab risk`,
+      key: 'rehab-risk',
+      className: 'bg-red-100 text-red-800 border-red-300',
+    });
+  } else if (yearBuilt >= 1900 && yearBuilt < 1960) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: `Built ${yearBuilt}`,
+      key: 'old-build',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+  // 1960-1999 = no chip (neutral)
+  // 2000+ = positive (added below in positives section)
+
+  // 3. Smaller home (<1200 sqft)
+  const sqft = listing.sqft || 0;
+  if (sqft > 0 && sqft < 1200) {
+    softChips.push({
+      type: 'soft',
+      icon: '⚠',
+      label: `${sqft.toLocaleString()} sqft`,
+      key: 'small-home',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    });
+  }
+
+  // --- POSITIVES (matching criteria) ---
+
+  // 1. Under budget (<90% of max)
+  if (budgetMax > 0 && listPrice < budgetMax * 0.9) {
+    const underPct = Math.round(((budgetMax - listPrice) / budgetMax) * 100);
+    positiveChips.push({
+      type: 'positive',
+      icon: '✓',
+      label: `${underPct}% under budget`,
+      key: 'under-budget',
+      className: 'bg-green-100 text-green-800 border-green-300',
+    });
+  }
+
+  // 2. Beds match or exceed
+  if (profileBeds > 0 && listingBeds >= profileBeds) {
+    if (listingBeds > profileBeds) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `+${listingBeds - profileBeds} bed${listingBeds - profileBeds > 1 ? 's' : ''}`,
+        key: 'beds-plus',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    } else {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `${listingBeds} beds`,
+        key: 'beds-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 3. Baths match or exceed
+  if (profileBaths > 0 && listingBaths >= profileBaths) {
+    if (listingBaths > profileBaths) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `+${(listingBaths - profileBaths).toFixed(1).replace('.0', '')} bath${listingBaths - profileBaths > 1 ? 's' : ''}`,
+        key: 'baths-plus',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    } else {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: `${listingBaths} baths`,
+        key: 'baths-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 4. Home type match
+  const profileHomeType = (profile.homeType || '').toLowerCase();
+  const listingType = (listing.propertyType || '').toLowerCase();
+  if (profileHomeType && listingType) {
+    // Fuzzy match for common variations
+    const typeMatches =
+      listingType.includes(profileHomeType) ||
+      profileHomeType.includes(listingType) ||
+      (profileHomeType.includes('single') && listingType.includes('single')) ||
+      (profileHomeType.includes('condo') && listingType.includes('condo')) ||
+      (profileHomeType.includes('town') && listingType.includes('town'));
+
+    if (typeMatches) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: listing.propertyType || 'Type match',
+        key: 'type-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 5. Target area (city in preferredAreas)
+  const preferredAreas = profile.preferredAreas || [];
+  const listingCity = (listing.city || '').toLowerCase();
+  if (listingCity && preferredAreas.length > 0) {
+    const inPreferredArea = preferredAreas.some(area =>
+      listingCity.includes(area.toLowerCase()) ||
+      area.toLowerCase().includes(listingCity)
+    );
+    if (inPreferredArea) {
+      positiveChips.push({
+        type: 'positive',
+        icon: '✓',
+        label: listing.city,
+        key: 'area-match',
+        className: 'bg-green-100 text-green-800 border-green-300',
+      });
+    }
+  }
+
+  // 6. Newer construction (2000+)
+  if (yearBuilt >= 2000) {
+    positiveChips.push({
+      type: 'positive',
+      icon: '✓',
+      label: `Built ${yearBuilt}`,
+      key: 'newer-build',
+      className: 'bg-green-100 text-green-800 border-green-300',
+    });
+  }
+
+  // --- APPLY CAPS ---
+  // Max 2 hard, max 2 soft, fill with positives up to 5 total
+  const selectedHard = hardChips.slice(0, 2);
+  const selectedSoft = softChips.slice(0, 2);
+  const remainingSlots = 5 - selectedHard.length - selectedSoft.length;
+  const selectedPositive = positiveChips.slice(0, Math.max(0, remainingSlots));
+
+  const finalChips = [...selectedHard, ...selectedSoft, ...selectedPositive];
+
+  // --- CALCULATE FIT SCORE ---
+  // Formula: 100 - (30 * hardCount) - (10 * softCount)
+  const hardCount = selectedHard.length;
+  const softCount = selectedSoft.length;
+  const fitScore = Math.max(0, 100 - (30 * hardCount) - (10 * softCount));
+
+  return {
+    chips: finalChips,
+    fitScore,
+    hardCount,
+    softCount,
+  };
+}
+
 interface AgentDualViewSearchProps {
   profile: BuyerProfile;
 }
@@ -96,6 +361,237 @@ interface MarketOverviewListing {
   statusIndicators?: StatusIndicator[];
   filterReasons?: string[];  // Clear, objective filter reasons
   matchScore?: number;
+  matchReasons?: string[];  // What criteria this property matches
+  // Price history fields for market recommendations
+  originalPrice?: number | null;
+  priceCutsCount?: number;
+  totalPriceReduction?: number;
+  lastPriceChangeDate?: string | null;
+  priceTrendDirection?: 'down' | 'up' | 'flat' | null;
+  lotAcres?: number | null;
+  specialFlags?: string[];
+}
+
+// Market recommendation types - Action verbs for agents
+type PriorityTag = 'STRIKE_NOW' | 'ACT_NOW' | 'LOWBALL' | 'REVIEW' | 'WALK_AWAY' | 'SKIP' | null;
+
+interface MarketRecommendation {
+  priorityTag: PriorityTag;
+  statusLines: string[];
+}
+
+// Pure function to get market recommendation for a listing
+// Priority order: STRIKE_NOW > ACT_NOW > LOWBALL > REVIEW > WALK_AWAY > SKIP
+function getMarketRecommendation(
+  listing: MarketOverviewListing,
+  marketPricePerSqft?: number | null,
+  minPricePerSqft?: number | null  // NEW: For "Top value in this search" detection
+): MarketRecommendation {
+  const {
+    originalPrice,
+    priceCutsCount = 0,
+    totalPriceReduction = 0,
+    daysOnMarket = 0,
+    listPrice,
+    pricePerSqft,
+    priceTrendDirection,
+    specialFlags = [],
+  } = listing;
+
+  // Check if investor-type listing based on special flags
+  const investorKeywords = ['cash only', 'as-is', 'investor', 'tear down', 'builder', 'contractor'];
+  const isInvestor = specialFlags.some(flag =>
+    investorKeywords.some(keyword => flag.toLowerCase().includes(keyword))
+  );
+
+  // Calculate below/above market percentage
+  let belowMarketPct: number | null = null;
+  if (marketPricePerSqft && marketPricePerSqft > 0 && pricePerSqft && pricePerSqft > 0) {
+    belowMarketPct = (marketPricePerSqft - pricePerSqft) / marketPricePerSqft;
+  }
+
+  // Check for meaningful price drop (>= 5%)
+  const hasMeaningfulDrop =
+    totalPriceReduction > 0 &&
+    originalPrice &&
+    totalPriceReduction / originalPrice >= 0.05;
+
+  // Check for price increase (RED FLAG - erratic seller)
+  const hadPriceIncrease = priceTrendDirection === 'up';
+
+  // Overpriced thresholds - CORRECTED (30% = delusional, not 50%)
+  const isOverpriced10 = belowMarketPct !== null && belowMarketPct <= -0.10;
+  const isOverpriced15 = belowMarketPct !== null && belowMarketPct <= -0.15;
+  const isOverpriced20 = belowMarketPct !== null && belowMarketPct <= -0.20;
+  const isOverpriced30 = belowMarketPct !== null && belowMarketPct <= -0.30; // NEW: Delusional pricing
+
+  // Below market thresholds
+  const isBelow5 = belowMarketPct !== null && belowMarketPct >= 0.05;
+  const isBelow10 = belowMarketPct !== null && belowMarketPct >= 0.10;
+  const isBelow20 = belowMarketPct !== null && belowMarketPct >= 0.20;
+  const isBelow25 = belowMarketPct !== null && belowMarketPct >= 0.25; // NEW: Truly rare discount
+
+  // Is this the best value in the set?
+  // FIX: Use tolerance for floating-point comparison (MLS data has precision issues)
+  const isTopValue =
+    minPricePerSqft !== null &&
+    pricePerSqft !== null &&
+    pricePerSqft > 0 &&
+    Math.abs(pricePerSqft - minPricePerSqft) < 0.01; // Floating-point tolerance
+
+
+  // Priority rules - order: STRIKE_NOW > ACT_NOW > LOWBALL > REVIEW > WALK_AWAY > SKIP
+
+  // SKIP - investor/builder listings (not for typical buyer)
+  const isSkipListing = isInvestor;
+
+  // WALK_AWAY - toxic listings (delusional pricing OR erratic seller)
+  // 20%+ overpriced = walk away (30%+ = delusional)
+  const isWalkAway =
+    !isInvestor && (
+      (isOverpriced20 && daysOnMarket > 60) ||  // 20%+ overpriced + stale = walk away
+      (isOverpriced10 && hadPriceIncrease)  // 10%+ overpriced + price increase = erratic
+    );
+
+  // LOWBALL - seller weakness signals (requires seller movement: cuts OR drops)
+  // Must have cuts/drops AND be in reasonable range (not 20%+ overpriced)
+  const isLowball =
+    !isInvestor &&
+    !hadPriceIncrease &&
+    !isWalkAway &&
+    !isOverpriced20 && // Block LOWBALL when 20%+ overpriced
+    (priceCutsCount >= 2 || hasMeaningfulDrop) && // MUST have seller movement
+    (
+      priceCutsCount >= 3 ||  // 3+ cuts = bleeding out
+      (priceCutsCount >= 2 && daysOnMarket > 90) ||  // 2 cuts + stale = weakening
+      (daysOnMarket > 120 && hasMeaningfulDrop) ||  // Long stale + drop
+      (isOverpriced15 && daysOnMarket >= 60)  // 15-20% overpriced + stale
+    );
+
+  // STRIKE_NOW - below market value (5%+ below market)
+  const isStrikeNow =
+    !isInvestor &&
+    !isWalkAway &&
+    isBelow5; // 5%+ below market
+
+  // ACT_NOW - new listing, priced right (0-5% below market, fresh)
+  const isActNow =
+    !isInvestor &&
+    !isWalkAway &&
+    !isStrikeNow &&
+    daysOnMarket < 7 && // Fresh listing
+    priceCutsCount === 0 &&
+    belowMarketPct !== null &&
+    belowMarketPct >= 0 && // At or slightly below market
+    belowMarketPct < 0.05; // But not 5%+ below (that's STRIKE_NOW)
+
+
+  // Determine priority tag (first match wins in priority order)
+  let priorityTag: PriorityTag = 'REVIEW'; // Default fallback
+  if (isSkipListing) priorityTag = 'SKIP';
+  else if (isWalkAway) priorityTag = 'WALK_AWAY';
+  else if (isStrikeNow) priorityTag = 'STRIKE_NOW';
+  else if (isActNow) priorityTag = 'ACT_NOW';
+  else if (isLowball) priorityTag = 'LOWBALL';
+
+  // Build status lines - ALWAYS 3 lines (facts, primary with %, combined signal)
+  const statusLines: string[] = [];
+
+  // Line 1: Facts (DOM + cuts)
+  const domPart = `${daysOnMarket} DOM`;
+  let cutsPart = 'No drops';
+  if (priceCutsCount > 0) {
+    cutsPart = `${priceCutsCount} cut${priceCutsCount > 1 ? 's' : ''}`;
+  }
+  statusLines.push(`${domPart} • ${cutsPart}`);
+
+  // Line 2: Primary implication with % above/below market
+  // Format percentage as whole number (e.g., "26% below market")
+  const pctStr = belowMarketPct !== null
+    ? `${Math.abs(Math.round(belowMarketPct * 100))}%`
+    : null;
+
+  // Priority order: Delusional > Walk Away tiers > STRIKE NOW tiers > ACT NOW > LOWBALL tiers > REVIEW
+  if (isOverpriced30) {
+    statusLines.push(`Delusional pricing → Walk away`);
+  } else if (isOverpriced20 && daysOnMarket > 60) {
+    statusLines.push(`${pctStr} above market → Walk away`);
+  } else if (hadPriceIncrease && isOverpriced10) {
+    statusLines.push(`↑ Price increase → Erratic seller`);
+  } else if (isBelow20) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (isBelow10) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (isBelow5) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (daysOnMarket < 7 && priceCutsCount === 0 && belowMarketPct !== null && belowMarketPct >= 0) {
+    statusLines.push(`Priced right → Act now`);
+  } else if (isOverpriced15 && daysOnMarket >= 60) {
+    statusLines.push(`${pctStr} above market → Lowball`);
+  } else if (priceCutsCount >= 3) {
+    statusLines.push(`Seller bleeding out`);
+  } else if (priceCutsCount >= 2 && daysOnMarket > 90) {
+    statusLines.push(`Seller weakening`);
+  } else if (belowMarketPct !== null && belowMarketPct >= 0 && belowMarketPct < 0.05) {
+    statusLines.push(`Typical pricing → Review`);
+  } else if (specialFlags.length > 0) {
+    statusLines.push(specialFlags.slice(0, 2).join(' • '));
+  } else {
+    statusLines.push(`Review listing`);
+  }
+
+  // Line 3: Combined signal (CONDITIONAL - only when signals align)
+  // STRIKE_NOW variants - 3-tier psychology
+  // Tier 1: Best deal (1 per search) > Tier 2: Rare discount (25%+) > Tier 3: Motivated seller (10-24% + signals)
+  if (priorityTag === 'STRIKE_NOW') {
+    if (isTopValue) {
+      // Tier 1: Lowest $/sqft in entire search - THE anchor property
+      statusLines.push('Top value in this search');
+    } else if (isBelow25) {
+      // Tier 2: 25%+ below market - truly exceptional (was 20%, now rare means rare)
+      statusLines.push('Rare discount opportunity');
+    } else if (
+      belowMarketPct !== null &&
+      belowMarketPct >= 0.10 &&
+      belowMarketPct < 0.25 &&
+      (priceCutsCount >= 1 || daysOnMarket > 60 || hasMeaningfulDrop)
+    ) {
+      // Tier 3: 10-24% below + seller weakness signals - tactical opportunity
+      statusLines.push('Below market + motivated seller');
+    }
+    // If none of these → no Line 3 (no forced signals)
+  }
+
+  // LOWBALL variants
+  if (priorityTag === 'LOWBALL') {
+    if (priceCutsCount >= 3 || (priceCutsCount >= 2 && daysOnMarket > 90)) {
+      statusLines.push('Stale + weakening seller');
+    } else if (isOverpriced15 && daysOnMarket >= 60) {
+      statusLines.push('Overpriced + stale → leverage');
+    }
+  }
+
+  // WALK_AWAY variants
+  if (priorityTag === 'WALK_AWAY') {
+    if (isOverpriced30) {
+      statusLines.push('Delusional pricing');
+    } else if (hadPriceIncrease && isOverpriced10) {
+      statusLines.push('Overpriced + irrational seller');
+    } else if (isOverpriced20 && daysOnMarket > 60 && priceCutsCount === 0) {
+      statusLines.push('Overpriced + no movement');
+    }
+  }
+
+  // ACT_NOW variant
+  if (priorityTag === 'ACT_NOW') {
+    if (daysOnMarket < 7) {
+      statusLines.push('New + priced right');
+    }
+  }
+
+  // SKIP: Flags only, NO Line 3 (no combined signals for dismissed properties)
+
+  return { priorityTag, statusLines };
 }
 
 interface AIRecommendationListing extends MarketOverviewListing {
@@ -204,7 +700,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
   // Search query with reactive search enabled - NO CACHING
   const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
-    queryKey: ['/api/agent-search', profile.id, forceEnhanced, Date.now()], // Add timestamp to force fresh queries
+    queryKey: ['/api/agent-search', profile.id, forceEnhanced], // Stable query key
     queryFn: async () => {
       const response = await fetch('/api/agent-search', {
         method: 'POST',
@@ -227,6 +723,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     gcTime: 0, // Don't keep in cache
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    retry: false, // Don't retry on failure to avoid loops
   });
 
   const handleSearch = () => {
@@ -487,8 +984,377 @@ function MarketOverviewView({
 }) {
   const [showRejected, setShowRejected] = useState(true);
 
+  // Calculate market average $/sqft for value comparison
+  const avgPricePerSqft = React.useMemo(() => {
+    const validPrices = results.listings
+      .map(p => p.pricePerSqft)
+      .filter((p): p is number => p !== undefined && p !== null && p > 0);
+
+    if (validPrices.length === 0) return null;
+    return Math.round(validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length);
+  }, [results.listings]);
+
+  // Helper to get priority badge based on property characteristics
+  // Calculate minimum price per sqft across all listings for "Top value in set" detection
+  const minPricePerSqft = React.useMemo(() => {
+    const sqftPrices = results.listings
+      .map(p => p.pricePerSqft)
+      .filter((p): p is number => p !== undefined && p > 0);
+    return sqftPrices.length > 0 ? Math.min(...sqftPrices) : null;
+  }, [results.listings]);
+
+  const getPriorityBadge = (property: MarketOverviewListing) => {
+    // Use the new deterministic market recommendation logic
+    const recommendation = getMarketRecommendation(property, avgPricePerSqft, minPricePerSqft);
+    const { priorityTag, statusLines } = recommendation;
+
+    // Map priority tags to badge styling - Action verbs with visual hierarchy
+    const badgeConfig: Record<string, { icon: string; label: string; className: string; rowClassName: string; description: string; sortOrder: number }> = {
+      'STRIKE_NOW': {
+        icon: '💎',
+        label: 'STRIKE NOW',
+        className: 'bg-green-200 text-green-900 border-green-400 font-bold',
+        rowClassName: 'border-l-4 border-green-500',
+        description: 'Below market value - act immediately',
+        sortOrder: 1,
+      },
+      'ACT_NOW': {
+        icon: '⚡',
+        label: 'ACT NOW',
+        className: 'bg-blue-200 text-blue-900 border-blue-400 font-bold',
+        rowClassName: 'border-l-4 border-blue-500',
+        description: 'New listing - priced right',
+        sortOrder: 2,
+      },
+      'LOWBALL': {
+        icon: '🎯',
+        label: 'LOWBALL',
+        className: 'bg-yellow-200 text-yellow-900 border-yellow-400 font-bold',
+        rowClassName: '',
+        description: 'Seller showing weakness - negotiate hard',
+        sortOrder: 3,
+      },
+      'REVIEW': {
+        icon: '👁️',
+        label: 'REVIEW',
+        className: 'bg-gray-100 text-gray-600 border-gray-300',
+        rowClassName: '',
+        description: 'Needs evaluation',
+        sortOrder: 4,
+      },
+      'WALK_AWAY': {
+        icon: '🚫',
+        label: 'WALK AWAY',
+        className: 'bg-gray-300 text-gray-700 border-gray-400',
+        rowClassName: 'opacity-80 bg-gray-50',
+        description: 'Overpriced with no flexibility',
+        sortOrder: 5,
+      },
+      'SKIP': {
+        icon: '⏭️',
+        label: 'SKIP',
+        className: 'bg-gray-200 text-gray-600 border-gray-300',
+        rowClassName: 'opacity-80 bg-gray-50',
+        description: 'Investor/Builder opportunity - not for typical buyer',
+        sortOrder: 6,
+      },
+    };
+
+    if (priorityTag && badgeConfig[priorityTag]) {
+      const config = badgeConfig[priorityTag];
+      return {
+        label: config.label,
+        icon: config.icon,
+        className: config.className,
+        rowClassName: config.rowClassName,
+        description: config.description,
+        sortOrder: config.sortOrder,
+        statusReason: statusLines.join('\n'),
+        statusLines: statusLines,
+      };
+    }
+
+    // Default: REVIEW (always have a tag)
+    const reviewConfig = badgeConfig['REVIEW'];
+    return {
+      label: reviewConfig.label,
+      icon: reviewConfig.icon,
+      className: reviewConfig.className,
+      rowClassName: reviewConfig.rowClassName,
+      description: reviewConfig.description,
+      sortOrder: reviewConfig.sortOrder,
+      statusReason: statusLines.length > 0 ? statusLines.join('\n') : `${property.daysOnMarket || 0} DOM`,
+      statusLines: statusLines.length > 0 ? statusLines : [`${property.daysOnMarket || 0} DOM • No drops`],
+    };
+  };
+
+  // Helper to get value indicator based on $/sqft vs market average
+  const getValueIndicator = (pricePerSqft?: number) => {
+    if (!pricePerSqft || !avgPricePerSqft) return null;
+
+    const percentDiff = ((pricePerSqft - avgPricePerSqft) / avgPricePerSqft) * 100;
+
+    if (percentDiff < -20) {
+      return { icon: '🔥', label: `${Math.abs(Math.round(percentDiff))}% below`, color: 'text-green-700' };
+    } else if (percentDiff > 20) {
+      return { icon: '⚠️', label: `${Math.round(percentDiff)}% above`, color: 'text-orange-700' };
+    }
+    return null;
+  };
+
+  // Sort properties by priority with special STRIKE_NOW sorting
+  const sortedListings = React.useMemo(() => {
+    const allListings = [...results.listings].map(listing => ({
+      ...listing,
+      badge: getPriorityBadge(listing)
+    }));
+
+    // Separate STRIKE_NOW listings for special sorting
+    const strikeNowListings = allListings
+      .filter(l => l.badge.label === 'STRIKE NOW')
+      .sort((a, b) => {
+        // 1. Top value ALWAYS first (lowest $/sqft in entire search)
+        const aIsTopValue = a.pricePerSqft !== null && a.pricePerSqft !== undefined &&
+                           minPricePerSqft !== null &&
+                           Math.abs(a.pricePerSqft - minPricePerSqft) < 0.01;
+        const bIsTopValue = b.pricePerSqft !== null && b.pricePerSqft !== undefined &&
+                           minPricePerSqft !== null &&
+                           Math.abs(b.pricePerSqft - minPricePerSqft) < 0.01;
+
+        if (aIsTopValue && !bIsTopValue) return -1;
+        if (!aIsTopValue && bIsTopValue) return 1;
+
+        // 2. Sort by % below market (higher % = better deal)
+        const aBelowPct = avgPricePerSqft && a.pricePerSqft
+          ? (avgPricePerSqft - a.pricePerSqft) / avgPricePerSqft
+          : 0;
+        const bBelowPct = avgPricePerSqft && b.pricePerSqft
+          ? (avgPricePerSqft - b.pricePerSqft) / avgPricePerSqft
+          : 0;
+        const diffPct = bBelowPct - aBelowPct;
+        if (Math.abs(diffPct) > 0.001) return diffPct > 0 ? 1 : -1;
+
+        // 3. Sort by price cuts (more cuts = more motivated seller)
+        const diffCuts = (b.priceCutsCount ?? 0) - (a.priceCutsCount ?? 0);
+        if (diffCuts !== 0) return diffCuts;
+
+        // 4. Sort by $/sqft (lower = better value)
+        const diffSqft = (a.pricePerSqft ?? 999999) - (b.pricePerSqft ?? 999999);
+        if (diffSqft !== 0) return diffSqft;
+
+        // 5. Sort by DOM (newer = more urgent)
+        return (a.daysOnMarket ?? 9999) - (b.daysOnMarket ?? 9999);
+      });
+
+    // Keep other priority groups sorted by their sortOrder
+    const otherListings = allListings
+      .filter(l => l.badge.label !== 'STRIKE NOW')
+      .sort((a, b) => a.badge.sortOrder - b.badge.sortOrder);
+
+    // Merge: STRIKE_NOW first (with special sort), then others
+    return [...strikeNowListings, ...otherListings];
+  }, [results.listings, avgPricePerSqft, minPricePerSqft]);
+
+  // Calculate insight metrics
+  const insights = React.useMemo(() => {
+    const allProperties = results.listings;
+
+    // Count priority types with new action verbs
+    let strikeNowCount = 0;
+    let actNowCount = 0;
+    let lowballCount = 0;
+    let reviewCount = 0;
+    let walkAwayCount = 0;
+    let skipCount = 0;
+    let belowMarketTotal = 0;
+    let belowMarketProperties = 0;
+
+    allProperties.forEach(property => {
+      const valueIndicator = getValueIndicator(property.pricePerSqft);
+      const priorityBadge = getPriorityBadge(property);
+
+      if (priorityBadge && priorityBadge.label) {
+        switch (priorityBadge.label) {
+          case 'STRIKE NOW': strikeNowCount++; break;
+          case 'ACT NOW': actNowCount++; break;
+          case 'LOWBALL': lowballCount++; break;
+          case 'REVIEW': reviewCount++; break;
+          case 'WALK AWAY': walkAwayCount++; break;
+          case 'SKIP': skipCount++; break;
+        }
+      }
+
+      // Calculate average savings for below-market properties
+      if (valueIndicator && valueIndicator.icon === '🔥' && avgPricePerSqft) {
+        const percentDiff = Math.abs(((property.pricePerSqft! - avgPricePerSqft) / avgPricePerSqft) * 100);
+        belowMarketTotal += percentDiff;
+        belowMarketProperties++;
+      }
+    });
+
+    // Price range
+    const prices = allProperties.map(p => p.listPrice).filter(p => p > 0);
+    const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+    const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+
+    // $/sqft range
+    const sqftPrices = allProperties.map(p => p.pricePerSqft).filter((p): p is number => p !== undefined && p > 0);
+    const minSqft = sqftPrices.length > 0 ? Math.min(...sqftPrices) : 0;
+    const maxSqft = sqftPrices.length > 0 ? Math.max(...sqftPrices) : 0;
+
+    const avgSavings = belowMarketProperties > 0 ? Math.round(belowMarketTotal / belowMarketProperties) : 0;
+
+    // Urgent = STRIKE NOW + ACT NOW (immediate action needed)
+    const urgentCount = strikeNowCount + actNowCount;
+
+    return {
+      strikeNowCount,
+      actNowCount,
+      lowballCount,
+      reviewCount,
+      walkAwayCount,
+      skipCount,
+      urgentCount,
+      avgSavings,
+      minPrice,
+      maxPrice,
+      minSqft,
+      maxSqft,
+      totalProperties: allProperties.length,
+      // Priority actions = actionable items (STRIKE_NOW + ACT_NOW + LOWBALL)
+      priorityActions: strikeNowCount + actNowCount + lowballCount,
+    };
+  }, [results.listings, avgPricePerSqft]);
+
+  // Calculate market strategy line
+  const marketStrategy = React.useMemo(() => {
+    if (results.listings.length === 0) return null;
+
+    const allDOM = results.listings.map(p => p.daysOnMarket || 0);
+    const avgDOM = allDOM.reduce((a, b) => a + b, 0) / allDOM.length;
+    const propertiesWithCuts = results.listings.filter(p => (p.priceCutsCount || 0) > 0).length;
+    const pctWithCuts = propertiesWithCuts / results.listings.length;
+
+    if (avgDOM > 60) {
+      return "Soft market — lowball anything stale";
+    }
+    if (avgDOM < 21) {
+      return "Hot market — ACT NOW or lose";
+    }
+    if (pctWithCuts > 0.5) {
+      return "Sellers weakening — push hard on price";
+    }
+    return "Mixed market — let seller behavior guide strategy";
+  }, [results.listings]);
+
   return (
     <div className="space-y-4">
+    {/* Market Strategy Line - THE KILLER INSIGHT */}
+    {marketStrategy && (
+      <div className="bg-gray-900 text-white p-4 rounded-lg">
+        <div className="text-lg font-bold">{marketStrategy}</div>
+      </div>
+    )}
+
+    {/* Insight Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Market Snapshot Card */}
+      <Card className="col-span-1 md:col-span-3">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Market Snapshot
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <div className="text-gray-600">Total Properties</div>
+              <div className="text-2xl font-bold">{insights.totalProperties}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Avg $/SqFt</div>
+              <div className="text-2xl font-bold">{avgPricePerSqft ? `$${avgPricePerSqft}` : 'N/A'}</div>
+              <div className="text-xs text-gray-500">${insights.minSqft} - ${insights.maxSqft}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Price Range</div>
+              <div className="text-lg font-bold">{formatPrice(insights.minPrice)}</div>
+              <div className="text-xs text-gray-500">to {formatPrice(insights.maxPrice)}</div>
+            </div>
+            <div>
+              <div className="text-gray-600">Priority Actions</div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {insights.strikeNowCount > 0 && (
+                  <Badge className="bg-green-200 text-green-900 border-green-400">
+                    💎 {insights.strikeNowCount}
+                  </Badge>
+                )}
+                {insights.actNowCount > 0 && (
+                  <Badge className="bg-blue-200 text-blue-900 border-blue-400">
+                    ⚡ {insights.actNowCount}
+                  </Badge>
+                )}
+                {insights.lowballCount > 0 && (
+                  <Badge className="bg-yellow-200 text-yellow-900 border-yellow-400">
+                    🎯 {insights.lowballCount}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* STRIKE NOW Card */}
+      {insights.strikeNowCount > 0 && (
+        <Card className="border-green-300 bg-green-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-green-900">
+              💎 STRIKE NOW
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-900 mb-1">{insights.strikeNowCount}</div>
+            <div className="text-sm text-green-700">below market</div>
+            <div className="text-xs text-green-600 mt-2">Avg savings: {insights.avgSavings}%</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ACT NOW Card */}
+      {insights.actNowCount > 0 && (
+        <Card className="border-blue-300 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+              ⚡ ACT NOW
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-900 mb-1">{insights.actNowCount}</div>
+            <div className="text-sm text-blue-700">new listings</div>
+            <div className="text-xs text-blue-600 mt-2">Priced right, move fast</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* LOWBALL Card */}
+      {insights.lowballCount > 0 && (
+        <Card className="border-yellow-300 bg-yellow-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-yellow-900">
+              🎯 LOWBALL
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-yellow-900 mb-1">{insights.lowballCount}</div>
+            <div className="text-sm text-yellow-700">seller weakness</div>
+            <div className="text-xs text-yellow-600 mt-2">High leverage opportunities</div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -517,7 +1383,7 @@ function MarketOverviewView({
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left p-4 font-medium">
+                <th className="text-left p-4 font-medium w-12">
                   <Checkbox
                     checked={selectedProperties.size === results.listings.slice(0, 20).length && results.listings.length > 0}
                     onCheckedChange={(checked) => {
@@ -530,17 +1396,33 @@ function MarketOverviewView({
                     }}
                   />
                 </th>
+                <th className="text-left p-4 font-medium">Priority</th>
                 <th className="text-left p-4 font-medium">Property</th>
                 <th className="text-left p-4 font-medium">Price</th>
                 <th className="text-left p-4 font-medium">$/SqFt</th>
                 <th className="text-left p-4 font-medium">Beds/Baths</th>
-                <th className="text-left p-4 font-medium">Sq Ft</th>
+                <th className="text-left p-4 font-medium">Buyer Fit</th>
                 <th className="text-left p-4 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
-              {results.listings.slice(0, 20).map((property, index) => (
-                <tr key={property.mlsNumber || `property-${index}`} className="border-b hover:bg-gray-50">
+              {sortedListings.map((property, index) => {
+                const valueIndicator = getValueIndicator(property.pricePerSqft);
+                const priorityBadge = getPriorityBadge(property);
+
+                // Check if this is the top value property (lowest $/sqft)
+                const isTopValue = property.pricePerSqft !== null &&
+                                  property.pricePerSqft !== undefined &&
+                                  minPricePerSqft !== null &&
+                                  Math.abs(property.pricePerSqft - minPricePerSqft) < 0.01;
+
+                // Enhanced styling for top value property
+                const rowClassName = isTopValue
+                  ? 'border-l-4 border-green-500 bg-green-50'
+                  : priorityBadge.rowClassName || '';
+
+                return (
+                <tr key={property.mlsNumber || `property-${index}`} className={`border-b hover:bg-gray-50 ${rowClassName}`}>
                   <td className="p-4">
                     <Checkbox
                       checked={selectedProperties.has(property.mlsNumber || `${property.address}-${property.listPrice}`)}
@@ -557,6 +1439,11 @@ function MarketOverviewView({
                     />
                   </td>
                   <td className="p-4">
+                    <Badge variant="outline" className={`text-xs ${priorityBadge.className}`}>
+                      {priorityBadge.icon} {priorityBadge.label}
+                    </Badge>
+                  </td>
+                  <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
                         <Home className="h-6 w-6 text-gray-400" />
@@ -571,12 +1458,16 @@ function MarketOverviewView({
                   </td>
                   <td className="p-4">
                     <div className="font-semibold">{formatPrice(property.listPrice)}</div>
-                    {property.pricePerSqft && (
-                      <div className="text-xs text-gray-500">${property.pricePerSqft}/sqft</div>
-                    )}
                   </td>
-                  <td className="p-4 font-medium text-gray-700">
-                    {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                  <td className="p-4">
+                    <div className="font-medium text-gray-700">
+                      {property.pricePerSqft ? `$${property.pricePerSqft}` : 'N/A'}
+                    </div>
+                    {valueIndicator && (
+                      <div className={`text-xs font-medium ${valueIndicator.color}`}>
+                        {valueIndicator.icon} {valueIndicator.label}
+                      </div>
+                    )}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-4">
@@ -588,34 +1479,72 @@ function MarketOverviewView({
                         <Bath className="h-4 w-4" />
                         {property.bathrooms}
                       </span>
+                      <span className="text-sm text-gray-500">
+                        {property.sqft ? `${property.sqft?.toLocaleString()} sf` : ''}
+                      </span>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-gray-600">
-                    {property.sqft ? `${property.sqft?.toLocaleString()}` : 'N/A'}
+                  <td className="p-4">
+                    {(() => {
+                      const fitResult = deriveFitChips(property, profile);
+                      return (
+                        <div className="flex flex-col gap-1">
+                          {/* Fit Score */}
+                          <span className={`text-xs font-medium ${
+                            fitResult.fitScore >= 80 ? 'text-green-700' :
+                            fitResult.fitScore >= 50 ? 'text-amber-700' :
+                            'text-red-700'
+                          }`}>
+                            Fit: {fitResult.fitScore}%
+                          </span>
+                          {/* Chips */}
+                          <div className="flex flex-wrap gap-1">
+                            {fitResult.chips.length > 0 ? (
+                              fitResult.chips.map((chip) => (
+                                <span
+                                  key={chip.key}
+                                  className={`text-xs px-1.5 py-0.5 rounded border ${chip.className}`}
+                                >
+                                  {chip.icon} {chip.label}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-500">No specific signals</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
-                      {property.statusIndicators && property.statusIndicators.length > 0 ? (
-                        property.statusIndicators.map((indicator, idx) => (
-                          <Badge
-                            key={idx}
-                            variant="outline"
-                            className={`text-xs ${
-                              indicator.color === 'red' ? 'bg-red-100 text-red-800 border-red-300' :
-                              indicator.color === 'yellow' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                              'bg-gray-100 text-gray-800 border-gray-300'
-                            }`}
-                          >
-                            {indicator.label}
-                          </Badge>
-                        ))
+                    <div className="text-sm space-y-0.5">
+                      {priorityBadge.statusLines ? (
+                        priorityBadge.statusLines.map((line, idx) => {
+                          // Make "Top value in this search" visually dominant
+                          const isTopValueLine = line.includes('Top value in this search');
+                          return (
+                            <div
+                              key={idx}
+                              className={
+                                isTopValueLine
+                                  ? 'text-emerald-700 font-bold text-sm flex items-center gap-1'
+                                  : idx === 0
+                                    ? 'text-gray-700 font-medium'
+                                    : 'text-gray-500 text-xs'
+                              }
+                            >
+                              {isTopValueLine ? '⭐ ' : ''}{line}
+                            </div>
+                          );
+                        })
                       ) : (
-                        <span className="text-gray-600">{property.propertyType}</span>
+                        <span className="text-gray-700">{priorityBadge.statusReason}</span>
                       )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

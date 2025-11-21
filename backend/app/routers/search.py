@@ -70,6 +70,14 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
             "daysOnMarket": x.get("days_on_market", 0),
             "statusIndicators": x.get("status_indicators", []),
             "filterReasons": x.get("filter_reasons", []),  # For rejected properties
+            # Price history fields for market recommendations
+            "originalPrice": x.get("originalPrice") or x.get("original_price"),
+            "priceCutsCount": x.get("priceCutsCount") or x.get("price_cuts_count", 0),
+            "totalPriceReduction": x.get("totalPriceReduction") or x.get("total_price_reduction", 0),
+            "lastPriceChangeDate": x.get("lastPriceChangeDate") or x.get("last_price_change_date"),
+            "priceTrendDirection": x.get("priceTrendDirection") or x.get("price_trend_direction"),
+            "lotAcres": x.get("lotAcres") or x.get("lot_acres"),
+            "specialFlags": x.get("specialFlags") or x.get("special_flags", []),
         }
         for x in (search_results.get("top_picks", []) + search_results.get("other_matches", []))
     ]

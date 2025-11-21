@@ -17,9 +17,19 @@ router = APIRouter(prefix="/api")
 
 def calculate_market_metrics(listing: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate market intelligence metrics for a listing"""
-    price = listing.get("price", 0) or 0
-    sqft = listing.get("square_feet", 0) or 0
-    dom = listing.get("days_on_market", 0) or 0
+    # Ensure numeric types - API may return strings
+    try:
+        price = int(listing.get("price", 0) or 0)
+    except (ValueError, TypeError):
+        price = 0
+    try:
+        sqft = int(listing.get("square_feet", 0) or 0)
+    except (ValueError, TypeError):
+        sqft = 0
+    try:
+        dom = int(listing.get("days_on_market", 0) or 0)
+    except (ValueError, TypeError):
+        dom = 0
 
     # Calculate price per square foot
     price_per_sqft = round(price / sqft) if sqft > 0 else None
@@ -219,6 +229,14 @@ def listings_search(payload: Dict[str, Any]):
             "price_per_sqft": market_metrics["price_per_sqft"],
             "days_on_market": market_metrics["days_on_market"],
             "status_indicators": market_metrics["status_indicators"],
+            # Price history fields for market recommendations (camelCase for frontend)
+            "originalPrice": listing.get("original_price"),
+            "priceCutsCount": listing.get("price_cuts_count", 0),
+            "totalPriceReduction": listing.get("total_price_reduction", 0),
+            "lastPriceChangeDate": listing.get("last_price_change_date"),
+            "priceTrendDirection": listing.get("price_trend_direction"),
+            "lotAcres": listing.get("lot_acres"),
+            "specialFlags": listing.get("special_flags", []),
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
