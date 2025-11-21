@@ -403,14 +403,24 @@ export const repliersListings = pgTable("repliers_listings", {
   zip_code: text("zip_code"),
   description: text("description"),
   features: text("features"), // JSON string of array
-  images: text("images"), // JSON string of array  
+  images: text("images"), // JSON string of array
   listing_date: text("listing_date"),
   status: text("status").notNull().default('active'),
   mls_number: text("mls_number"),
   lot_size: numeric("lot_size", { precision: 10, scale: 2 }),
   year_built: integer("year_built"),
   garage_spaces: integer("garage_spaces"),
-  createdAt: text("created_at").notNull().default('now()')
+  createdAt: text("created_at").notNull().default('now()'),
+
+  // Price History Fields (canonical market intelligence data)
+  priceCutsCount: integer("price_cuts_count").default(0),
+  totalPriceReduction: integer("total_price_reduction").default(0),
+  lastPriceChangeDate: timestamp("last_price_change_date", { withTimezone: true }),
+  priceTrendDirection: text("price_trend_direction"), // 'up', 'down', 'flat'
+
+  // Additional canonical fields
+  lotAcres: decimal("lot_acres", { precision: 10, scale: 2 }),
+  specialFlags: json("special_flags").$type<string[]>().default([]), // Cash Only, As-Is, Investor Special, etc.
 });
 
 // ===============================================
