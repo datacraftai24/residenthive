@@ -119,7 +119,8 @@ interface MarketRecommendation {
 // Priority order: STRIKE_NOW > ACT_NOW > LOWBALL > REVIEW > WALK_AWAY > SKIP
 function getMarketRecommendation(
   listing: MarketOverviewListing,
-  marketPricePerSqft?: number | null
+  marketPricePerSqft?: number | null,
+  minPricePerSqft?: number | null  // NEW: For "Top value in this search" detection
 ): MarketRecommendation {
   const {
     originalPrice,
@@ -153,59 +154,82 @@ function getMarketRecommendation(
   // Check for price increase (RED FLAG - erratic seller)
   const hadPriceIncrease = priceTrendDirection === 'up';
 
-  // Overpriced thresholds
+  // Overpriced thresholds - CORRECTED (30% = delusional, not 50%)
+  const isOverpriced10 = belowMarketPct !== null && belowMarketPct <= -0.10;
   const isOverpriced15 = belowMarketPct !== null && belowMarketPct <= -0.15;
   const isOverpriced20 = belowMarketPct !== null && belowMarketPct <= -0.20;
-  const isOverpriced10 = belowMarketPct !== null && belowMarketPct <= -0.10;
+  const isOverpriced30 = belowMarketPct !== null && belowMarketPct <= -0.30; // NEW: Delusional pricing
+
+  // Below market thresholds
+  const isBelow5 = belowMarketPct !== null && belowMarketPct >= 0.05;
+  const isBelow10 = belowMarketPct !== null && belowMarketPct >= 0.10;
+  const isBelow20 = belowMarketPct !== null && belowMarketPct >= 0.20;
+  const isBelow25 = belowMarketPct !== null && belowMarketPct >= 0.25; // NEW: Truly rare discount
+
+  // Is this the best value in the set?
+  // FIX: Use tolerance for floating-point comparison (MLS data has precision issues)
+  const isTopValue =
+    minPricePerSqft !== null &&
+    pricePerSqft !== null &&
+    pricePerSqft > 0 &&
+    Math.abs(pricePerSqft - minPricePerSqft) < 0.01; // Floating-point tolerance
+
 
   // Priority rules - order: STRIKE_NOW > ACT_NOW > LOWBALL > REVIEW > WALK_AWAY > SKIP
 
   // SKIP - investor/builder listings (not for typical buyer)
   const isSkipListing = isInvestor;
 
-  // WALK_AWAY - toxic listings (overpriced + no flexibility OR overpriced + price increase)
+  // WALK_AWAY - toxic listings (delusional pricing OR erratic seller)
+  // 20%+ overpriced = walk away (30%+ = delusional)
   const isWalkAway =
     !isInvestor && (
-      (isOverpriced20 && daysOnMarket > 60 && !hasMeaningfulDrop) ||
-      (isOverpriced10 && hadPriceIncrease)
+      (isOverpriced20 && daysOnMarket > 60) ||  // 20%+ overpriced + stale = walk away
+      (isOverpriced10 && hadPriceIncrease)  // 10%+ overpriced + price increase = erratic
     );
 
-  // LOWBALL - seller weakness signals (must not have price increase)
+  // LOWBALL - seller weakness signals (requires seller movement: cuts OR drops)
+  // Must have cuts/drops AND be in reasonable range (not 20%+ overpriced)
   const isLowball =
     !isInvestor &&
     !hadPriceIncrease &&
-    !isWalkAway && (
-      priceCutsCount >= 3 ||  // Bleeding out
-      (priceCutsCount >= 2 && daysOnMarket > 90) ||  // Weakening + stale
-      (daysOnMarket > 120 && hasMeaningfulDrop) ||  // Long stale with give
-      (isOverpriced15 && daysOnMarket >= 60)  // Overpriced + stale = lowball
+    !isWalkAway &&
+    !isOverpriced20 && // Block LOWBALL when 20%+ overpriced
+    (priceCutsCount >= 2 || hasMeaningfulDrop) && // MUST have seller movement
+    (
+      priceCutsCount >= 3 ||  // 3+ cuts = bleeding out
+      (priceCutsCount >= 2 && daysOnMarket > 90) ||  // 2 cuts + stale = weakening
+      (daysOnMarket > 120 && hasMeaningfulDrop) ||  // Long stale + drop
+      (isOverpriced15 && daysOnMarket >= 60)  // 15-20% overpriced + stale
     );
 
-  // STRIKE_NOW - below market value (10%+), wins over ACT_NOW
+  // STRIKE_NOW - below market value (5%+ below market)
   const isStrikeNow =
     !isInvestor &&
     !isWalkAway &&
-    belowMarketPct !== null &&
-    belowMarketPct >= 0.10;
+    isBelow5; // 5%+ below market
 
-  // ACT_NOW - new listing, priced right (not overpriced)
+  // ACT_NOW - new listing, priced right (0-5% below market, fresh)
   const isActNow =
     !isInvestor &&
     !isWalkAway &&
     !isStrikeNow &&
-    daysOnMarket < 14 &&
+    daysOnMarket < 7 && // Fresh listing
     priceCutsCount === 0 &&
-    !isOverpriced15;
+    belowMarketPct !== null &&
+    belowMarketPct >= 0 && // At or slightly below market
+    belowMarketPct < 0.05; // But not 5%+ below (that's STRIKE_NOW)
+
 
   // Determine priority tag (first match wins in priority order)
-  let priorityTag: PriorityTag = 'REVIEW'; // Always have a tag
+  let priorityTag: PriorityTag = 'REVIEW'; // Default fallback
   if (isSkipListing) priorityTag = 'SKIP';
   else if (isWalkAway) priorityTag = 'WALK_AWAY';
   else if (isStrikeNow) priorityTag = 'STRIKE_NOW';
   else if (isActNow) priorityTag = 'ACT_NOW';
   else if (isLowball) priorityTag = 'LOWBALL';
 
-  // Build status lines with punchy implications (3-5 words max)
+  // Build status lines - ALWAYS 3 lines (facts, primary with %, combined signal)
   const statusLines: string[] = [];
 
   // Line 1: Facts (DOM + cuts)
@@ -216,31 +240,91 @@ function getMarketRecommendation(
   }
   statusLines.push(`${domPart} • ${cutsPart}`);
 
-  // Line 2: Primary implication (3-5 words, punchy)
-  if (hadPriceIncrease) {
-    statusLines.push('↑ Price increase → Erratic seller');
-  } else if (priceCutsCount >= 3) {
-    statusLines.push('Seller bleeding out');
-  } else if (priceCutsCount >= 2 && daysOnMarket > 90) {
-    statusLines.push('High leverage');
+  // Line 2: Primary implication with % above/below market
+  // Format percentage as whole number (e.g., "26% below market")
+  const pctStr = belowMarketPct !== null
+    ? `${Math.abs(Math.round(belowMarketPct * 100))}%`
+    : null;
+
+  // Priority order: Delusional > Walk Away tiers > STRIKE NOW tiers > ACT NOW > LOWBALL tiers > REVIEW
+  if (isOverpriced30) {
+    statusLines.push(`Delusional pricing → Walk away`);
   } else if (isOverpriced20 && daysOnMarket > 60) {
-    statusLines.push('Overpriced → Walk away');
+    statusLines.push(`${pctStr} above market → Walk away`);
+  } else if (hadPriceIncrease && isOverpriced10) {
+    statusLines.push(`↑ Price increase → Erratic seller`);
+  } else if (isBelow20) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (isBelow10) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (isBelow5) {
+    statusLines.push(`${pctStr} below market → Strike now`);
+  } else if (daysOnMarket < 7 && priceCutsCount === 0 && belowMarketPct !== null && belowMarketPct >= 0) {
+    statusLines.push(`Priced right → Act now`);
   } else if (isOverpriced15 && daysOnMarket >= 60) {
-    statusLines.push('Overpriced + stale → Lowball');
-  } else if (belowMarketPct !== null && belowMarketPct >= 0.10) {
-    statusLines.push('Below market → Strike now');
-  } else if (daysOnMarket < 14 && priceCutsCount === 0) {
-    statusLines.push('Firm seller');
-  } else if (daysOnMarket > 90 && hasMeaningfulDrop) {
-    statusLines.push('Stale + weak → Lowball');
+    statusLines.push(`${pctStr} above market → Lowball`);
+  } else if (priceCutsCount >= 3) {
+    statusLines.push(`Seller bleeding out`);
+  } else if (priceCutsCount >= 2 && daysOnMarket > 90) {
+    statusLines.push(`Seller weakening`);
+  } else if (belowMarketPct !== null && belowMarketPct >= 0 && belowMarketPct < 0.05) {
+    statusLines.push(`Typical pricing → Review`);
   } else if (specialFlags.length > 0) {
     statusLines.push(specialFlags.slice(0, 2).join(' • '));
+  } else {
+    statusLines.push(`Review listing`);
   }
 
-  // Line 3: Combined signal (only when both value + seller signals align)
-  if (isStrikeNow && (priceCutsCount >= 2 || (daysOnMarket > 90 && hasMeaningfulDrop))) {
-    statusLines.push('Below market + motivated seller');
+  // Line 3: Combined signal (CONDITIONAL - only when signals align)
+  // STRIKE_NOW variants - 3-tier psychology
+  // Tier 1: Best deal (1 per search) > Tier 2: Rare discount (25%+) > Tier 3: Motivated seller (10-24% + signals)
+  if (priorityTag === 'STRIKE_NOW') {
+    if (isTopValue) {
+      // Tier 1: Lowest $/sqft in entire search - THE anchor property
+      statusLines.push('Top value in this search');
+    } else if (isBelow25) {
+      // Tier 2: 25%+ below market - truly exceptional (was 20%, now rare means rare)
+      statusLines.push('Rare discount opportunity');
+    } else if (
+      belowMarketPct !== null &&
+      belowMarketPct >= 0.10 &&
+      belowMarketPct < 0.25 &&
+      (priceCutsCount >= 1 || daysOnMarket > 60 || hasMeaningfulDrop)
+    ) {
+      // Tier 3: 10-24% below + seller weakness signals - tactical opportunity
+      statusLines.push('Below market + motivated seller');
+    }
+    // If none of these → no Line 3 (no forced signals)
   }
+
+  // LOWBALL variants
+  if (priorityTag === 'LOWBALL') {
+    if (priceCutsCount >= 3 || (priceCutsCount >= 2 && daysOnMarket > 90)) {
+      statusLines.push('Stale + weakening seller');
+    } else if (isOverpriced15 && daysOnMarket >= 60) {
+      statusLines.push('Overpriced + stale → leverage');
+    }
+  }
+
+  // WALK_AWAY variants
+  if (priorityTag === 'WALK_AWAY') {
+    if (isOverpriced30) {
+      statusLines.push('Delusional pricing');
+    } else if (hadPriceIncrease && isOverpriced10) {
+      statusLines.push('Overpriced + irrational seller');
+    } else if (isOverpriced20 && daysOnMarket > 60 && priceCutsCount === 0) {
+      statusLines.push('Overpriced + no movement');
+    }
+  }
+
+  // ACT_NOW variant
+  if (priorityTag === 'ACT_NOW') {
+    if (daysOnMarket < 7) {
+      statusLines.push('New + priced right');
+    }
+  }
+
+  // SKIP: Flags only, NO Line 3 (no combined signals for dismissed properties)
 
   return { priorityTag, statusLines };
 }
@@ -646,9 +730,17 @@ function MarketOverviewView({
   }, [results.listings]);
 
   // Helper to get priority badge based on property characteristics
+  // Calculate minimum price per sqft across all listings for "Top value in set" detection
+  const minPricePerSqft = React.useMemo(() => {
+    const sqftPrices = results.listings
+      .map(p => p.pricePerSqft)
+      .filter((p): p is number => p !== undefined && p > 0);
+    return sqftPrices.length > 0 ? Math.min(...sqftPrices) : null;
+  }, [results.listings]);
+
   const getPriorityBadge = (property: MarketOverviewListing) => {
     // Use the new deterministic market recommendation logic
-    const recommendation = getMarketRecommendation(property, avgPricePerSqft);
+    const recommendation = getMarketRecommendation(property, avgPricePerSqft, minPricePerSqft);
     const { priorityTag, statusLines } = recommendation;
 
     // Map priority tags to badge styling - Action verbs with visual hierarchy
@@ -745,14 +837,58 @@ function MarketOverviewView({
     return null;
   };
 
-  // Sort properties by priority
+  // Sort properties by priority with special STRIKE_NOW sorting
   const sortedListings = React.useMemo(() => {
-    return [...results.listings].sort((a, b) => {
-      const aBadge = getPriorityBadge(a);
-      const bBadge = getPriorityBadge(b);
-      return aBadge.sortOrder - bBadge.sortOrder;
-    });
-  }, [results.listings]);
+    const allListings = [...results.listings].map(listing => ({
+      ...listing,
+      badge: getPriorityBadge(listing)
+    }));
+
+    // Separate STRIKE_NOW listings for special sorting
+    const strikeNowListings = allListings
+      .filter(l => l.badge.label === 'STRIKE NOW')
+      .sort((a, b) => {
+        // 1. Top value ALWAYS first (lowest $/sqft in entire search)
+        const aIsTopValue = a.pricePerSqft !== null && a.pricePerSqft !== undefined &&
+                           minPricePerSqft !== null &&
+                           Math.abs(a.pricePerSqft - minPricePerSqft) < 0.01;
+        const bIsTopValue = b.pricePerSqft !== null && b.pricePerSqft !== undefined &&
+                           minPricePerSqft !== null &&
+                           Math.abs(b.pricePerSqft - minPricePerSqft) < 0.01;
+
+        if (aIsTopValue && !bIsTopValue) return -1;
+        if (!aIsTopValue && bIsTopValue) return 1;
+
+        // 2. Sort by % below market (higher % = better deal)
+        const aBelowPct = avgPricePerSqft && a.pricePerSqft
+          ? (avgPricePerSqft - a.pricePerSqft) / avgPricePerSqft
+          : 0;
+        const bBelowPct = avgPricePerSqft && b.pricePerSqft
+          ? (avgPricePerSqft - b.pricePerSqft) / avgPricePerSqft
+          : 0;
+        const diffPct = bBelowPct - aBelowPct;
+        if (Math.abs(diffPct) > 0.001) return diffPct > 0 ? 1 : -1;
+
+        // 3. Sort by price cuts (more cuts = more motivated seller)
+        const diffCuts = (b.priceCutsCount ?? 0) - (a.priceCutsCount ?? 0);
+        if (diffCuts !== 0) return diffCuts;
+
+        // 4. Sort by $/sqft (lower = better value)
+        const diffSqft = (a.pricePerSqft ?? 999999) - (b.pricePerSqft ?? 999999);
+        if (diffSqft !== 0) return diffSqft;
+
+        // 5. Sort by DOM (newer = more urgent)
+        return (a.daysOnMarket ?? 9999) - (b.daysOnMarket ?? 9999);
+      });
+
+    // Keep other priority groups sorted by their sortOrder
+    const otherListings = allListings
+      .filter(l => l.badge.label !== 'STRIKE NOW')
+      .sort((a, b) => a.badge.sortOrder - b.badge.sortOrder);
+
+    // Merge: STRIKE_NOW first (with special sort), then others
+    return [...strikeNowListings, ...otherListings];
+  }, [results.listings, avgPricePerSqft, minPricePerSqft]);
 
   // Calculate insight metrics
   const insights = React.useMemo(() => {
@@ -1008,8 +1144,20 @@ function MarketOverviewView({
               {sortedListings.map((property, index) => {
                 const valueIndicator = getValueIndicator(property.pricePerSqft);
                 const priorityBadge = getPriorityBadge(property);
+
+                // Check if this is the top value property (lowest $/sqft)
+                const isTopValue = property.pricePerSqft !== null &&
+                                  property.pricePerSqft !== undefined &&
+                                  minPricePerSqft !== null &&
+                                  Math.abs(property.pricePerSqft - minPricePerSqft) < 0.01;
+
+                // Enhanced styling for top value property
+                const rowClassName = isTopValue
+                  ? 'border-l-4 border-green-500 bg-green-50'
+                  : priorityBadge.rowClassName || '';
+
                 return (
-                <tr key={property.mlsNumber || `property-${index}`} className={`border-b hover:bg-gray-50 ${priorityBadge.rowClassName || ''}`}>
+                <tr key={property.mlsNumber || `property-${index}`} className={`border-b hover:bg-gray-50 ${rowClassName}`}>
                   <td className="p-4">
                     <Checkbox
                       checked={selectedProperties.has(property.mlsNumber || `${property.address}-${property.listPrice}`)}
@@ -1093,11 +1241,24 @@ function MarketOverviewView({
                   <td className="p-4">
                     <div className="text-sm space-y-0.5">
                       {priorityBadge.statusLines ? (
-                        priorityBadge.statusLines.map((line, idx) => (
-                          <div key={idx} className={idx === 0 ? 'text-gray-700 font-medium' : 'text-gray-500 text-xs'}>
-                            {line}
-                          </div>
-                        ))
+                        priorityBadge.statusLines.map((line, idx) => {
+                          // Make "Top value in this search" visually dominant
+                          const isTopValueLine = line.includes('Top value in this search');
+                          return (
+                            <div
+                              key={idx}
+                              className={
+                                isTopValueLine
+                                  ? 'text-emerald-700 font-bold text-sm flex items-center gap-1'
+                                  : idx === 0
+                                    ? 'text-gray-700 font-medium'
+                                    : 'text-gray-500 text-xs'
+                              }
+                            >
+                              {isTopValueLine ? '⭐ ' : ''}{line}
+                            </div>
+                          );
+                        })
                       ) : (
                         <span className="text-gray-700">{priorityBadge.statusReason}</span>
                       )}
