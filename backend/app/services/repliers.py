@@ -108,15 +108,24 @@ class RepliersClient:
             q["style"] = api_value
         # Location - Repliers API uses 'city' parameter for city filtering
         # NOTE: The API doesn't support state/stateOrProvince parameters
-        # If location contains both city and state (e.g., "Worcester, MA"), extract just the city
+        # Extract just the city name from various formats
         if profile.get("location"):
             loc = str(profile["location"]).strip()
-            # If comma-separated, extract just the city part (before the comma)
+            city_name = loc
+
+            # Format 1: Comma-separated (e.g., "Worcester, MA" or "Boston, Massachusetts")
             if "," in loc:
                 city_name = loc.split(",")[0].strip()
-                q["city"] = city_name
-            else:
-                q["city"] = loc
+            # Format 2: Space + 2-letter state code (e.g., "Boston MA")
+            elif " " in loc:
+                parts = loc.split()
+                # Check if last part is a 2-letter state code
+                if len(parts) >= 2 and len(parts[-1]) == 2 and parts[-1].isalpha():
+                    city_name = " ".join(parts[:-1]).strip()
+                # Otherwise use the full string (might be multi-word city like "New York")
+            # Format 3: Single word city (e.g., "Boston") - use as-is
+
+            q["city"] = city_name
         # Note: preferredAreas is NOT used for Repliers search - only location field matters
         return q
 
