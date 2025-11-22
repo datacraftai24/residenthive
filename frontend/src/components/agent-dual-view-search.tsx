@@ -433,9 +433,10 @@ function getMarketRecommendation(
 
   // Is this the best value in the set?
   // FIX: Use tolerance for floating-point comparison (MLS data has precision issues)
+  // FIX: Check for both null AND undefined (pricePerSqft can be undefined from API)
   const isTopValue =
-    minPricePerSqft !== null &&
-    pricePerSqft !== null &&
+    minPricePerSqft != null &&
+    pricePerSqft != null &&
     pricePerSqft > 0 &&
     Math.abs(pricePerSqft - minPricePerSqft) < 0.01; // Floating-point tolerance
 
@@ -995,13 +996,25 @@ function MarketOverviewView({
   }, [results.listings]);
 
   // Helper to get priority badge based on property characteristics
-  // Calculate minimum price per sqft across all listings for "Top value in set" detection
+  // Calculate minimum price per sqft among DISCOUNT CANDIDATES only
+  // (Economic filter: 5%+ below market, not investor - separate from UI's STRIKE_NOW definition)
   const minPricePerSqft = React.useMemo(() => {
-    const sqftPrices = results.listings
+    const discountCandidates = results.listings.filter(p => {
+      const pps = p.pricePerSqft;
+      if (!pps || pps <= 0 || !avgPricePerSqft) return false;
+      const belowMarketPct = (avgPricePerSqft - pps) / avgPricePerSqft;
+      // Exclude investor listings from "top value" consideration
+      const isInvestor = (p.specialFlags || []).some(f =>
+        ['Investor Special', 'As-Is', 'Cash Only'].includes(f)
+      );
+      return belowMarketPct >= 0.05 && !isInvestor;
+    });
+
+    const prices = discountCandidates
       .map(p => p.pricePerSqft)
       .filter((p): p is number => p !== undefined && p > 0);
-    return sqftPrices.length > 0 ? Math.min(...sqftPrices) : null;
-  }, [results.listings]);
+    return prices.length > 0 ? Math.min(...prices) : null;
+  }, [results.listings, avgPricePerSqft]);
 
   const getPriorityBadge = (property: MarketOverviewListing) => {
     // Use the new deterministic market recommendation logic
