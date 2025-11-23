@@ -21,13 +21,21 @@ class ListingPersister:
             listing: Normalized listing data
 
         Returns:
-            Dict with quality fields: list_date, original_price, last_status_date, days_on_market
+            Dict with quality fields: list_date, original_price, last_status_date, days_on_market,
+            plus canonical price history fields
         """
         quality_fields = {
             "list_date": None,
             "original_price": None,
             "last_status_date": None,
-            "days_on_market": None
+            "days_on_market": None,
+            # Canonical price history fields
+            "price_cuts_count": 0,
+            "total_price_reduction": 0,
+            "last_price_change_date": None,
+            "price_trend_direction": None,
+            "lot_acres": None,
+            "special_flags": []
         }
 
         # Extract listDate and parse it
@@ -59,6 +67,76 @@ class ListingPersister:
                 quality_fields["last_status_date"] = datetime.fromisoformat(last_status_date.replace('Z', '+00:00'))
             except Exception:
                 pass
+
+        # ============================================================================
+        # CANONICAL PRICE HISTORY FIELDS - Stable facts for market intelligence
+        # ============================================================================
+
+        # Price cuts count from listPriceLog
+        price_log = item.get("listPriceLog") or []
+        if isinstance(price_log, list):
+            quality_fields["price_cuts_count"] = len(price_log)
+
+        # Total price reduction (original - current)
+        list_price = item.get("listPrice") or item.get("price") or 0
+        if quality_fields["original_price"] and list_price:
+            try:
+                reduction = int(quality_fields["original_price"]) - int(list_price)
+                quality_fields["total_price_reduction"] = max(0, reduction)  # Never negative
+            except (ValueError, TypeError):
+                pass
+
+        # Last price change date from timestamps
+        timestamps = item.get("timestamps", {}) or {}
+        last_price_changed = timestamps.get("lastPriceChanged")
+        if last_price_changed:
+            try:
+                quality_fields["last_price_change_date"] = datetime.fromisoformat(
+                    last_price_changed.replace('Z', '+00:00')
+                )
+            except Exception:
+                pass
+
+        # Price trend direction
+        if quality_fields["original_price"] and list_price:
+            try:
+                orig = int(quality_fields["original_price"])
+                curr = int(list_price)
+                if curr < orig:
+                    quality_fields["price_trend_direction"] = "down"
+                elif curr > orig:
+                    quality_fields["price_trend_direction"] = "up"
+                else:
+                    quality_fields["price_trend_direction"] = "flat"
+            except (ValueError, TypeError):
+                pass
+
+        # Lot acres
+        lot_obj = item.get("lot", {}) or {}
+        lot_acres = lot_obj.get("acres")
+        if lot_acres:
+            try:
+                quality_fields["lot_acres"] = float(lot_acres)
+            except (ValueError, TypeError):
+                pass
+
+        # Special flags from description parsing
+        description = (item.get("details", {}) or {}).get("description") or item.get("description") or ""
+        desc_lower = description.lower()
+        special_flags = []
+
+        if "cash only" in desc_lower:
+            special_flags.append("Cash Only")
+        if "as-is" in desc_lower or "as is" in desc_lower:
+            special_flags.append("As-Is")
+        if "investor" in desc_lower or "investment" in desc_lower:
+            special_flags.append("Investor Special")
+        if "tear down" in desc_lower or "teardown" in desc_lower:
+            special_flags.append("Tear Down")
+        if any(phrase in desc_lower for phrase in ["complete renovation", "total renovation", "gut reno"]):
+            special_flags.append("Complete Renovation")
+
+        quality_fields["special_flags"] = special_flags
 
         return quality_fields
 
@@ -123,10 +201,13 @@ class ListingPersister:
                                 lot_size, year_built, garage_spaces,
                                 agent_id, profile_id,
                                 raw_json, list_date, original_price, last_status_date, days_on_market,
+                                price_cuts_count, total_price_reduction, last_price_change_date,
+                                price_trend_direction, lot_acres, special_flags,
                                 created_at, updated_at
                             ) VALUES (
                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                 %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s,
                                 NOW(), NOW()
                             )
                             ON CONFLICT (id) DO UPDATE SET
@@ -140,6 +221,12 @@ class ListingPersister:
                                 original_price = EXCLUDED.original_price,
                                 last_status_date = EXCLUDED.last_status_date,
                                 days_on_market = EXCLUDED.days_on_market,
+                                price_cuts_count = EXCLUDED.price_cuts_count,
+                                total_price_reduction = EXCLUDED.total_price_reduction,
+                                last_price_change_date = EXCLUDED.last_price_change_date,
+                                price_trend_direction = EXCLUDED.price_trend_direction,
+                                lot_acres = EXCLUDED.lot_acres,
+                                special_flags = EXCLUDED.special_flags,
                                 updated_at = NOW()
                         """, (
                             listing_id,
@@ -167,7 +254,13 @@ class ListingPersister:
                             quality_fields["list_date"],
                             quality_fields["original_price"],
                             quality_fields["last_status_date"],
-                            quality_fields["days_on_market"]
+                            quality_fields["days_on_market"],
+                            quality_fields["price_cuts_count"],
+                            quality_fields["total_price_reduction"],
+                            quality_fields["last_price_change_date"],
+                            quality_fields["price_trend_direction"],
+                            quality_fields["lot_acres"],
+                            json.dumps(quality_fields["special_flags"])
                         ))
                         counts["listings_persisted"] += 1
 
