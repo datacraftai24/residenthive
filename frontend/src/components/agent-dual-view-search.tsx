@@ -370,6 +370,21 @@ interface MarketOverviewListing {
   priceTrendDirection?: 'down' | 'up' | 'flat' | null;
   lotAcres?: number | null;
   specialFlags?: string[];
+  // NEW: Backend-computed buyer ranking fields
+  fitScore?: number;
+  fitChips?: Array<{
+    type: 'hard' | 'soft' | 'positive';
+    icon: string;
+    label: string;
+    key: string;
+  }>;
+  priorityTag?: PriorityTag;
+  belowMarketPct?: number | null;
+  statusLines?: string[];
+  marketStrengthScore?: number;
+  finalScore?: number | null;
+  rank?: number | null;
+  isTop20?: boolean;
 }
 
 // Market recommendation types - Action verbs for agents
@@ -1017,9 +1032,9 @@ function MarketOverviewView({
   }, [results.listings, avgPricePerSqft]);
 
   const getPriorityBadge = (property: MarketOverviewListing) => {
-    // Use the new deterministic market recommendation logic
-    const recommendation = getMarketRecommendation(property, avgPricePerSqft, minPricePerSqft);
-    const { priorityTag, statusLines } = recommendation;
+    // Use backend-computed priority data if available, otherwise compute locally
+    const priorityTag = property.priorityTag ?? getMarketRecommendation(property, avgPricePerSqft, minPricePerSqft).priorityTag;
+    const statusLines = property.statusLines ?? getMarketRecommendation(property, avgPricePerSqft, minPricePerSqft).statusLines;
 
     // Map priority tags to badge styling - Action verbs with visual hierarchy
     const badgeConfig: Record<string, { icon: string; label: string; className: string; rowClassName: string; description: string; sortOrder: number }> = {
@@ -1499,7 +1514,21 @@ function MarketOverviewView({
                   </td>
                   <td className="p-4">
                     {(() => {
-                      const fitResult = deriveFitChips(property, profile);
+                      // Use backend-computed fit data if available, otherwise compute locally
+                      const fitResult = property.fitScore !== undefined && property.fitChips
+                        ? {
+                            fitScore: property.fitScore,
+                            chips: property.fitChips.map(chip => ({
+                              ...chip,
+                              className: chip.type === 'hard' ? 'bg-red-100 text-red-800 border-red-300' :
+                                         chip.type === 'soft' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                         'bg-green-100 text-green-800 border-green-300',
+                              icon: chip.type === 'hard' ? '❌' : chip.type === 'soft' ? '⚠' : '✓',
+                            })),
+                            hardCount: property.fitChips.filter(c => c.type === 'hard').length,
+                            softCount: property.fitChips.filter(c => c.type === 'soft').length,
+                          }
+                        : deriveFitChips(property, profile);
                       return (
                         <div className="flex flex-col gap-1">
                           {/* Fit Score */}

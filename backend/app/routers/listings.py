@@ -9,6 +9,7 @@ from ..services.property_scorer import PropertyScorer
 from ..services.property_analyzer import PropertyAnalyzer
 from ..services.listing_quality import ListingQualityAnalyzer
 from ..services.listing_persister import ListingPersister
+from ..services.buyer_ranking import rank_listings, calculate_avg_price_per_sqft
 from ..db import get_conn, fetchone_dict
 
 
@@ -199,23 +200,75 @@ def listings_search(payload: Dict[str, Any]):
             "label": "Top Pick" if item["score"] >= 80 else "Match",
         })
 
-    # Split into top picks and other matches
+    # Create lightweight listings for Market Overview (ALL scored properties, not just top 20)
+    # NEW: Use buyer_ranking service for fit scores, priority tags, and top 20 ranking
+
+    # Prepare listings for ranking (add price_per_sqft from market metrics)
+    listings_for_ranking = []
+    for item in scored_listings:
+        listing = item["listing"]
+        market_metrics = calculate_market_metrics(listing)
+
+        # Merge listing with calculated metrics for ranking
+        listing_with_metrics = {
+            **listing,
+            "pricePerSqft": market_metrics["price_per_sqft"],
+            "price_per_sqft": market_metrics["price_per_sqft"],
+            "days_on_market": market_metrics["days_on_market"],
+        }
+        listings_for_ranking.append(listing_with_metrics)
+
+    # Calculate market average $/sqft for ranking
+    avg_price_per_sqft = calculate_avg_price_per_sqft(listings_for_ranking)
+
+    # Run buyer ranking to get fit scores, priority tags, and top 20
+    ranked_listings = rank_listings(listings_for_ranking, profile, avg_price_per_sqft, top_n=20)
+
+    print(f"[LISTINGS SEARCH] Ranked {len(ranked_listings)} listings, avg $/sqft: {avg_price_per_sqft}")
+
+    # Create lookup from listing ID to ranked data for enriching top_picks
+    ranked_lookup = {}
+    for ranked in ranked_listings:
+        listing_id = ranked.get("id") or ranked.get("mls_number")
+        if listing_id:
+            ranked_lookup[listing_id] = ranked
+
+    # Enrich analyzed_listings with ranking data
+    for item in analyzed_listings:
+        listing = item["listing"]
+        listing_id = listing.get("id") or listing.get("mls_number")
+        ranked = ranked_lookup.get(listing_id, {})
+
+        # Add ranking fields to each analyzed listing
+        item["fitScore"] = ranked.get("fit_score")
+        item["fitChips"] = ranked.get("fit_chips", [])
+        item["priorityTag"] = ranked.get("priority_tag")
+        item["belowMarketPct"] = ranked.get("below_market_pct")
+        item["statusLines"] = ranked.get("status_lines", [])
+        item["marketStrengthScore"] = ranked.get("market_strength_score")
+        item["finalScore"] = ranked.get("final_score")
+        item["rank"] = ranked.get("rank")
+        item["isTop20"] = ranked.get("is_top20", False)
+        item["pricePerSqft"] = ranked.get("pricePerSqft") or ranked.get("price_per_sqft")
+
+    # Split into top picks and other matches (now with ranking data)
     top_picks = [x for x in analyzed_listings if x["score"] >= 80]
     other_matches = [x for x in analyzed_listings if x["score"] < 80]
 
-    # Create lightweight listings for Market Overview (ALL scored properties, not just top 20)
+    # Map ranked listings back to expected format
     all_scored_for_overview = []
-    for item in scored_listings:
-        listing = item["listing"]
-        score_data = item["score_data"]
-
-        # Calculate market intelligence metrics
-        market_metrics = calculate_market_metrics(listing)
+    for i, ranked in enumerate(ranked_listings):
+        # Find original score_data from scored_listings
+        score_data = scored_listings[i]["score_data"] if i < len(scored_listings) else {}
 
         all_scored_for_overview.append({
-            "listing": listing,
-            "match_score": item["score"] / 100.0,
-            "score": item["score"],
+            "listing": {k: v for k, v in ranked.items() if k not in [
+                'fit_score', 'fit_chips', 'hard_count', 'soft_count',
+                'priority_tag', 'below_market_pct', 'status_lines',
+                'market_strength_score', 'final_score', 'rank', 'is_top20'
+            ]},
+            "match_score": scored_listings[i]["score"] / 100.0 if i < len(scored_listings) else 0,
+            "score": scored_listings[i]["score"] if i < len(scored_listings) else 0,
             "headline": "",  # No AI analysis for properties outside top 20
             "agent_insight": "",
             "matched_features": score_data.get("matched_features", []),
@@ -224,19 +277,29 @@ def listings_search(payload: Dict[str, Any]):
             "considerations": [],
             "match_reasoning": {},
             "score_breakdown": score_data.get("breakdown", {}),
-            "label": "Top Pick" if item["score"] >= 80 else "Match",
+            "label": "Top Pick" if (scored_listings[i]["score"] if i < len(scored_listings) else 0) >= 80 else "Match",
             # Market intelligence metrics for Market Overview
-            "price_per_sqft": market_metrics["price_per_sqft"],
-            "days_on_market": market_metrics["days_on_market"],
-            "status_indicators": market_metrics["status_indicators"],
+            "price_per_sqft": ranked.get("pricePerSqft") or ranked.get("price_per_sqft"),
+            "days_on_market": ranked.get("days_on_market", 0),
+            "status_indicators": [],
             # Price history fields for market recommendations (camelCase for frontend)
-            "originalPrice": listing.get("original_price"),
-            "priceCutsCount": listing.get("price_cuts_count", 0),
-            "totalPriceReduction": listing.get("total_price_reduction", 0),
-            "lastPriceChangeDate": listing.get("last_price_change_date"),
-            "priceTrendDirection": listing.get("price_trend_direction"),
-            "lotAcres": listing.get("lot_acres"),
-            "specialFlags": listing.get("special_flags", []),
+            "originalPrice": ranked.get("original_price"),
+            "priceCutsCount": ranked.get("price_cuts_count", 0),
+            "totalPriceReduction": ranked.get("total_price_reduction", 0),
+            "lastPriceChangeDate": ranked.get("last_price_change_date"),
+            "priceTrendDirection": ranked.get("price_trend_direction"),
+            "lotAcres": ranked.get("lot_acres"),
+            "specialFlags": ranked.get("special_flags", []),
+            # NEW: Buyer ranking fields
+            "fitScore": ranked.get("fit_score"),
+            "fitChips": ranked.get("fit_chips", []),
+            "priorityTag": ranked.get("priority_tag"),
+            "belowMarketPct": ranked.get("below_market_pct"),
+            "statusLines": ranked.get("status_lines", []),
+            "marketStrengthScore": ranked.get("market_strength_score"),
+            "finalScore": ranked.get("final_score"),
+            "rank": ranked.get("rank"),
+            "isTop20": ranked.get("is_top20", False),
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")

@@ -78,6 +78,16 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
             "priceTrendDirection": x.get("priceTrendDirection") or x.get("price_trend_direction"),
             "lotAcres": x.get("lotAcres") or x.get("lot_acres"),
             "specialFlags": x.get("specialFlags") or x.get("special_flags", []),
+            # NEW: Buyer ranking fields from backend
+            "fitScore": x.get("fitScore"),
+            "fitChips": x.get("fitChips", []),
+            "priorityTag": x.get("priorityTag"),
+            "belowMarketPct": x.get("belowMarketPct"),
+            "statusLines": x.get("statusLines", []),
+            "marketStrengthScore": x.get("marketStrengthScore"),
+            "finalScore": x.get("finalScore"),
+            "rank": x.get("rank"),
+            "isTop20": x.get("isTop20", False),
         }
         for x in (search_results.get("top_picks", []) + search_results.get("other_matches", []))
     ]
