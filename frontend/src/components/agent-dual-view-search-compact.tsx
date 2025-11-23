@@ -51,10 +51,10 @@
         </div>
       )}
 
-      {/* Match Score Badge Overlay */}
+      {/* Fit Score Badge Overlay */}
       <div className="absolute top-3 left-3">
-        <Badge className={`${getScoreColor(property.matchScore)} border font-semibold`}>
-          {property.matchScore}% Match
+        <Badge className={`${getScoreColor(property.fitScore ?? property.matchScore ?? 0)} border font-semibold`}>
+          {property.fitScore ?? property.matchScore ?? 0}% Fit
         </Badge>
       </div>
 

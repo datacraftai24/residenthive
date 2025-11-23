@@ -66,8 +66,8 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
                 "overallScore": x.get("score", 0),
             },
             # Market intelligence metrics for Market Overview
-            "pricePerSqft": x.get("price_per_sqft"),
-            "daysOnMarket": x.get("days_on_market", 0),
+            "pricePerSqft": x.get("pricePerSqft") or x.get("price_per_sqft") or x["listing"].get("pricePerSqft") or x["listing"].get("price_per_sqft"),
+            "daysOnMarket": x.get("days_on_market") or x["listing"].get("days_on_market", 0),
             "statusIndicators": x.get("status_indicators", []),
             "filterReasons": x.get("filter_reasons", []),  # For rejected properties
             # Price history fields for market recommendations

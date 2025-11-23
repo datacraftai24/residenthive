@@ -360,7 +360,7 @@ interface MarketOverviewListing {
   pricePerSqft?: number;
   statusIndicators?: StatusIndicator[];
   filterReasons?: string[];  // Clear, objective filter reasons
-  matchScore?: number;
+  matchScore?: number;  // Deprecated - use fitScore instead
   matchReasons?: string[];  // What criteria this property matches
   // Price history fields for market recommendations
   originalPrice?: number | null;
@@ -611,7 +611,7 @@ function getMarketRecommendation(
 }
 
 interface AIRecommendationListing extends MarketOverviewListing {
-  matchScore: number;
+  matchScore?: number;  // Deprecated - use fitScore instead
   matchLabel: string;
   matchReasons: string[];
   dealbreakers: string[];
@@ -1837,10 +1837,10 @@ function AIRecommendationsView({
                 />
               </div>
 
-              {/* Match Score Badge */}
+              {/* Fit Score Badge */}
               <div className="absolute top-4 left-14">
-                <Badge className={`${getScoreColor(property.matchScore)} border font-semibold text-sm px-3 py-1`}>
-                  {property.matchScore}% Match
+                <Badge className={`${getScoreColor(property.fitScore ?? property.matchScore ?? 0)} border font-semibold text-sm px-3 py-1`}>
+                  {property.fitScore ?? property.matchScore ?? 0}% Fit
                 </Badge>
               </div>
             </div>
