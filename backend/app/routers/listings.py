@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from ..services.repliers import RepliersClient, RepliersError
 from ..services.scoring_config import ScoringConfig
 from ..services.property_scorer import PropertyScorer
-from ..services.property_analyzer import PropertyAnalyzer
+from ..services.property_analyzer import PropertyAnalyzer, analyze_property_with_ai_v2
 from ..services.listing_quality import ListingQualityAnalyzer
 from ..services.listing_persister import ListingPersister
 from ..services.buyer_ranking import rank_listings, calculate_avg_price_per_sqft
@@ -171,26 +171,33 @@ def listings_search(payload: Dict[str, Any]):
             print(f"[LISTINGS SEARCH] Quality analysis error: {e}")
             quality_results[listing_id] = None
 
-    # Stage 4: AI analysis ONLY on Top 20 (in parallel mini-batches of 4)
-    analyzer = PropertyAnalyzer()
-
-    # Prepare items for AI analysis with quality data attached
-    items_for_ai = [{"listing": r, "quality_data": quality_results.get(r.get("id") or r.get("mls_number"))} for r in top_20_ranked]
-
-    ai_analyses = analyzer.analyze_batch(
-        items=items_for_ai,
-        profile=profile,
-        batch_size=4,
-        use_cache=True
-    )
-
-    # Create lookup from listing ID to AI analysis
+    # Stage 4: AI analysis ONLY on Top 20 using Layer 1 v2 (text + profile deep match)
+    # Text-only, no photos/vision
     ai_lookup = {}
-    for ranked, ai_analysis in zip(top_20_ranked, ai_analyses):
+    for ranked in top_20_ranked:
         listing_id = ranked.get("id") or ranked.get("mls_number")
+
+        # Build ranking context for AI
+        ranking_context = {
+            "fit_score": ranked.get("fit_score"),
+            "fit_chips": ranked.get("fit_chips", []),
+            "priority_tag": ranked.get("priority_tag"),
+            "below_market_pct": ranked.get("below_market_pct"),
+            "status_lines": ranked.get("status_lines", []),
+            "market_strength_score": ranked.get("market_strength_score"),
+            "final_score": ranked.get("final_score"),
+            "rank": ranked.get("rank"),
+        }
+
+        # Call new v2 AI analysis
+        ai_analysis = analyze_property_with_ai_v2(
+            profile=profile,
+            listing=ranked,
+            ranking_context=ranking_context
+        )
         ai_lookup[listing_id] = ai_analysis
 
-    # Build analyzed_listings (Top 20 with AI) - NO old score fields
+    # Build analyzed_listings (Top 20 with AI v2 schema)
     analyzed_listings = []
     for ranked in top_20_ranked:
         listing_id = ranked.get("id") or ranked.get("mls_number")
@@ -203,19 +210,12 @@ def listings_search(payload: Dict[str, Any]):
                 'priority_tag', 'below_market_pct', 'status_lines',
                 'market_strength_score', 'final_score', 'rank', 'is_top20'
             ]},
-            # AI analysis fields
-            "headline": ai_analysis.get("headline", ""),
-            "agent_insight": ai_analysis.get("agent_insight", ""),
-            "why_picked": ai_analysis.get("why_picked", ""),
-            "must_have_checklist": ai_analysis.get("must_have_checklist", []),
-            "hidden_gems": ai_analysis.get("hidden_gems", []),
-            "red_flags": ai_analysis.get("red_flags", []),
-            "why_it_works": ai_analysis.get("why_it_works", {}),
-            "considerations": ai_analysis.get("considerations", []),
-            # Quality fields
+            # NEW: AI v2 analysis (5-field schema)
+            "ai_analysis": ai_analysis,
+            # Quality fields (kept for reference)
             "quality_score": quality_data.get("quality_score") if quality_data else None,
             "quality_summary": quality_data.get("summary") if quality_data else None,
-            # NEW: Buyer ranking fields (the only scores that matter)
+            # Buyer ranking fields
             "fitScore": ranked.get("fit_score"),
             "fitChips": ranked.get("fit_chips", []),
             "priorityTag": ranked.get("priority_tag"),
@@ -238,7 +238,7 @@ def listings_search(payload: Dict[str, Any]):
     all_scored_for_overview = []
     for ranked in ranked_listings:
         listing_id = ranked.get("id") or ranked.get("mls_number")
-        ai_analysis = ai_lookup.get(listing_id, {})  # Will be empty for non-top-20
+        ai_analysis = ai_lookup.get(listing_id)  # None for non-top-20
 
         all_scored_for_overview.append({
             "listing": {k: v for k, v in ranked.items() if k not in [
@@ -246,9 +246,8 @@ def listings_search(payload: Dict[str, Any]):
                 'priority_tag', 'below_market_pct', 'status_lines',
                 'market_strength_score', 'final_score', 'rank', 'is_top20'
             ]},
-            # AI fields (only populated for top 20)
-            "headline": ai_analysis.get("headline", ""),
-            "agent_insight": ai_analysis.get("agent_insight", ""),
+            # AI v2 analysis (only populated for top 20, None otherwise)
+            "ai_analysis": ai_analysis,
             # Market intelligence metrics
             "pricePerSqft": ranked.get("pricePerSqft") or ranked.get("price_per_sqft"),
             "days_on_market": ranked.get("days_on_market", 0),

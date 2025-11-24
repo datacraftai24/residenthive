@@ -610,31 +610,32 @@ function getMarketRecommendation(
   return { priorityTag, statusLines };
 }
 
+// AI v2 analysis schema - Layer 1 Text + Profile Deep Match
+interface AIAnalysisV2 {
+  headline: string;
+  summary_for_buyer: string;
+  whats_matching: Array<{
+    requirement: string;
+    evidence: string;
+    source: 'explicit' | 'inferred';
+  }>;
+  whats_missing: Array<{
+    requirement: string;
+    assessment: string;
+    workaround: string | null;
+  }>;
+  red_flags: Array<{
+    concern: string;
+    quote: string;
+    risk_level: 'low' | 'medium' | 'high';
+    follow_up: string;
+  }>;
+}
+
 interface AIRecommendationListing extends MarketOverviewListing {
-  matchScore?: number;  // Deprecated - use fitScore instead
   matchLabel: string;
-  matchReasons: string[];
-  dealbreakers: string[];
-  reason?: string; // Add this for backward compatibility
-  aiInsights?: {
-    visualAnalysis?: string;
-    styleMatch?: string;
-    qualityScore?: number;
-    personalizedAnalysis?: {
-      summary: string;
-      hiddenGems: string[];
-      missingInfo: string[];
-      agentTasks: string[];
-    };
-    agentSummary?: string;
-  };
-  scoreBreakdown: {
-    featureMatch: number;
-    budgetMatch: number;
-    bedroomMatch: number;
-    locationMatch: number;
-    overallScore: number;
-  };
+  // NEW: AI v2 analysis (null for non-Top-20)
+  aiAnalysis?: AIAnalysisV2 | null;
 }
 
 interface SearchAdjustment {
@@ -1895,60 +1896,113 @@ function AIRecommendationsView({
                 </div>
               </div>
 
-              {/* 3 CORE SECTIONS: What's Matching, What's Missing, Red Flags */}
-              <div className="space-y-4">
-                {/* Section 1: ✅ What's Matching */}
-                {property.matchReasons.length > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <h4 className="font-semibold text-green-900">What's Matching</h4>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {property.matchReasons.map((reason, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs bg-white text-green-700 border-green-300">
-                          ✓ {reason}
-                        </Badge>
-                      ))}
-                    </div>
+              {/* AI Analysis V2: Headline + Summary + 3 Sections */}
+              {property.aiAnalysis && (
+                <div className="space-y-4">
+                  {/* Headline */}
+                  <div className="text-lg font-bold text-gray-900">
+                    {property.aiAnalysis.headline}
                   </div>
-                )}
 
-                {/* Section 2: ⚠️ What's Missing */}
-                {property.aiInsights?.personalizedAnalysis?.missingInfo &&
-                 property.aiInsights.personalizedAnalysis.missingInfo.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
-                      <h4 className="font-semibold text-amber-900">What's Missing</h4>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {property.aiInsights.personalizedAnalysis.missingInfo.map((info, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs bg-white text-amber-700 border-amber-300">
-                          ⚠️ {info}
-                        </Badge>
-                      ))}
-                    </div>
+                  {/* Summary for Buyer */}
+                  <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    {property.aiAnalysis.summary_for_buyer}
                   </div>
-                )}
 
-                {/* Section 3: 🚩 Red Flags */}
-                {property.dealbreakers.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
-                      <h4 className="font-semibold text-red-900">Red Flags</h4>
+                  {/* Section 1: What's Matching */}
+                  {property.aiAnalysis.whats_matching?.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <h4 className="font-semibold text-green-900">What's Matching</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {(property.aiAnalysis.whats_matching || []).slice(0, 5).map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${item.source === 'explicit' ? 'bg-green-200 text-green-800' : 'bg-green-100 text-green-700'}`}>
+                              {item.source === 'explicit' ? '✓' : '~'}
+                            </span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-green-900">{item.requirement}</span>
+                              <p className="text-xs text-green-700 italic">"{item.evidence}"</p>
+                            </div>
+                          </div>
+                        ))}
+                        {(property.aiAnalysis.whats_matching?.length || 0) > 5 && (
+                          <div className="text-xs text-green-600">+{(property.aiAnalysis.whats_matching?.length || 0) - 5} more matches</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {property.dealbreakers.map((concern, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs bg-white text-red-700 border-red-300">
-                          🚩 {concern}
-                        </Badge>
-                      ))}
+                  )}
+
+                  {/* Section 2: What's Missing */}
+                  {property.aiAnalysis.whats_missing?.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertCircle className="h-5 w-5 text-amber-600" />
+                        <h4 className="font-semibold text-amber-900">What's Missing</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {(property.aiAnalysis.whats_missing || []).slice(0, 5).map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">?</span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-amber-900">{item.requirement}</span>
+                              <p className="text-xs text-amber-700">{item.assessment}</p>
+                              {item.workaround && (
+                                <p className="text-xs text-amber-600 italic">Workaround: {item.workaround}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {(property.aiAnalysis.whats_missing?.length || 0) > 5 && (
+                          <div className="text-xs text-amber-600">+{(property.aiAnalysis.whats_missing?.length || 0) - 5} more items</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+
+                  {/* Section 3: Red Flags */}
+                  {property.aiAnalysis.red_flags?.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                        <h4 className="font-semibold text-red-900">Red Flags</h4>
+                      </div>
+                      <div className="space-y-3">
+                        {(property.aiAnalysis.red_flags || []).slice(0, 5).map((flag, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                              flag.risk_level === 'high' ? 'bg-red-300 text-red-900' :
+                              flag.risk_level === 'medium' ? 'bg-red-200 text-red-800' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {flag.risk_level.toUpperCase()}
+                            </span>
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-red-900">{flag.concern}</span>
+                              {flag.quote && flag.quote !== 'N/A' && (
+                                <p className="text-xs text-red-700 italic">"{flag.quote}"</p>
+                              )}
+                              <p className="text-xs text-red-600">Ask: {flag.follow_up}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {(property.aiAnalysis.red_flags?.length || 0) > 5 && (
+                          <div className="text-xs text-red-600">+{(property.aiAnalysis.red_flags?.length || 0) - 5} more flags</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fallback if no AI analysis */}
+              {!property.aiAnalysis && (
+                <div className="text-sm text-gray-500 italic">
+                  AI analysis not available for this property.
+                </div>
+              )}
 
               {/* Property Description */}
               {property.description && (

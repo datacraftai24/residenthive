@@ -470,3 +470,482 @@ Return ONLY valid JSON:
             },
             "considerations": ["Full analysis unavailable - please review details carefully"]
         }
+
+
+# =============================================================================
+# Layer 1: Text + Profile Deep Match (v2)
+# =============================================================================
+
+def _build_buyer_context(profile: Dict[str, Any]) -> str:
+    """
+    Build a rich buyer context block from the full profile.
+    Uses ALL available profile fields for maximum personalization.
+    """
+    # Core identity
+    name = profile.get("name", "the buyer")
+    ai_summary = profile.get("aiSummary", "")
+    emotional_tone = profile.get("emotionalTone", "")
+
+    # Decision drivers (WHY they're buying)
+    decision_drivers = profile.get("decisionDrivers", [])
+    if isinstance(decision_drivers, str):
+        decision_drivers = [decision_drivers] if decision_drivers else []
+
+    # Constraints (hard limits)
+    constraints = profile.get("constraints", [])
+    if isinstance(constraints, str):
+        constraints = [constraints] if constraints else []
+
+    # Requirements hierarchy
+    must_haves = profile.get("mustHaveFeatures", [])
+    if isinstance(must_haves, str):
+        must_haves = [must_haves] if must_haves else []
+
+    nice_to_haves = profile.get("niceToHaves", [])
+    if isinstance(nice_to_haves, str):
+        nice_to_haves = [nice_to_haves] if nice_to_haves else []
+
+    dealbreakers = profile.get("dealbreakers", [])
+    if isinstance(dealbreakers, str):
+        dealbreakers = [dealbreakers] if dealbreakers else []
+
+    lifestyle_drivers = profile.get("lifestyleDrivers", [])
+    if isinstance(lifestyle_drivers, str):
+        lifestyle_drivers = [lifestyle_drivers] if lifestyle_drivers else []
+
+    # Budget
+    budget_min = profile.get("budgetMin", 0)
+    budget_max = profile.get("budgetMax", 0)
+
+    # Flexibility scores (0-100)
+    budget_flex = profile.get("budgetFlexibility", 50)
+    location_flex = profile.get("locationFlexibility", 50)
+    timing_flex = profile.get("timingFlexibility", 50)
+
+    # Build context string
+    context_parts = []
+
+    context_parts.append(f"BUYER: {name}")
+
+    if ai_summary:
+        context_parts.append(f"\nWHO THEY ARE:\n{ai_summary}")
+
+    if emotional_tone:
+        context_parts.append(f"\nEMOTIONAL STATE: {emotional_tone}")
+
+    if decision_drivers:
+        context_parts.append(f"\nWHY THEY'RE BUYING (shape your headline/summary around these):")
+        for driver in decision_drivers:
+            context_parts.append(f"  - {driver}")
+
+    context_parts.append(f"\nBUDGET: ${budget_min:,} - ${budget_max:,}")
+    context_parts.append(f"  Flexibility: {budget_flex}/100 (higher = more willing to stretch)")
+
+    if constraints:
+        context_parts.append(f"\nHARD CONSTRAINTS (non-negotiable):")
+        for c in constraints:
+            context_parts.append(f"  - {c}")
+
+    if must_haves:
+        context_parts.append(f"\nMUST-HAVE FEATURES (check each against MLS):")
+        for mh in must_haves:
+            context_parts.append(f"  - {mh}")
+
+    if nice_to_haves:
+        context_parts.append(f"\nNICE-TO-HAVES (lower priority than must-haves):")
+        for nth in nice_to_haves:
+            context_parts.append(f"  - {nth}")
+
+    if dealbreakers:
+        context_parts.append(f"\nDEALBREAKERS (if present, flag as red_flag):")
+        for db in dealbreakers:
+            context_parts.append(f"  - {db}")
+
+    if lifestyle_drivers:
+        context_parts.append(f"\nLIFESTYLE PRIORITIES:")
+        for ld in lifestyle_drivers:
+            context_parts.append(f"  - {ld}")
+
+    context_parts.append(f"\nFLEXIBILITY SCORES (0-100):")
+    context_parts.append(f"  - Budget: {budget_flex}/100")
+    context_parts.append(f"  - Location: {location_flex}/100")
+    context_parts.append(f"  - Timing: {timing_flex}/100")
+
+    return "\n".join(context_parts)
+
+
+def _build_analysis_prompt_v2(
+    profile: Dict[str, Any],
+    listing: Dict[str, Any],
+    ranking_context: Dict[str, Any]
+) -> str:
+    """
+    Build the new lean prompt for Layer 1 text + profile deep match.
+    Instructs LLM to quote MLS text as evidence.
+    """
+    buyer_context = _build_buyer_context(profile)
+    buyer_name = profile.get("name", "the buyer")
+
+    # Extract listing data
+    address = listing.get("address", "Address not available")
+    city = listing.get("city", "")
+    state = listing.get("state", "")
+    price = listing.get("price", 0)
+    bedrooms = listing.get("bedrooms", "N/A")
+    bathrooms = listing.get("bathrooms", "N/A")
+    sqft = listing.get("square_feet", "N/A")
+    property_type = listing.get("property_type", "N/A")
+    year_built = listing.get("year_built", "N/A")
+    days_on_market = listing.get("days_on_market", "N/A")
+    description = listing.get("description", "")
+
+    # Get details dict (Repliers nests structured fields in details object)
+    details = listing.get("details", {}) or {}
+    if not details:
+        raw = listing.get("_raw", {}) or {}
+        details = raw.get("details", {}) or {}
+
+    # Extract structured MLS fields (handle 0 values correctly - don't use `or` for numerics)
+    # Garage - Repliers uses numGarageSpaces in details
+    garage_spaces = listing.get("garageSpaces")
+    if garage_spaces is None:
+        garage_spaces = listing.get("garage_spaces")
+    if garage_spaces is None:
+        garage_spaces = details.get("numGarageSpaces")
+
+    # Parking - Repliers uses numParkingSpaces in details
+    parking_spaces = listing.get("parkingSpaces")
+    if parking_spaces is None:
+        parking_spaces = listing.get("parking_spaces")
+    if parking_spaces is None:
+        parking_spaces = details.get("numParkingSpaces")
+
+    # Flooring - Repliers sends comma-separated string in flooringType
+    flooring_raw = (
+        listing.get("flooring")
+        or listing.get("flooring_type")
+        or details.get("flooringType")
+        or ""
+    )
+    if isinstance(flooring_raw, str):
+        flooring = [f.strip() for f in flooring_raw.split(",") if f.strip()]
+    elif isinstance(flooring_raw, list):
+        flooring = flooring_raw
+    else:
+        flooring = []
+
+    # Heating - check details
+    heating = (
+        listing.get("heatingType")
+        or listing.get("heating_type")
+        or details.get("heating")
+        or details.get("heatingType")
+    )
+
+    # Cooling - Repliers uses airConditioning in details
+    cooling = (
+        listing.get("coolingType")
+        or listing.get("cooling_type")
+        or details.get("airConditioning")
+    )
+
+    # Basement - Repliers uses basement1, basement2 in details
+    basement = (
+        listing.get("basementType")
+        or listing.get("basement_type")
+        or details.get("basement1")
+    )
+    basement2 = details.get("basement2")
+
+    # Basement finished
+    basement_finished = listing.get("basementFinished")
+    if basement_finished is None:
+        basement_finished = listing.get("basement_finished")
+
+    # Finished area - Repliers may use livingAreaMeasurement
+    finished_area = (
+        listing.get("finishedArea")
+        or listing.get("finished_area")
+        or details.get("livingAreaMeasurement")
+    )
+
+    # Exterior features - check details
+    exterior_features = (
+        listing.get("exteriorFeatures")
+        or listing.get("exterior_features")
+        or details.get("exteriorFeatures")
+        or []
+    )
+    if isinstance(exterior_features, str):
+        exterior_features = [f.strip() for f in exterior_features.split(",") if f.strip()]
+
+    # Interior features - check details
+    interior_features = (
+        listing.get("interiorFeatures")
+        or listing.get("interior_features")
+        or details.get("interiorFeatures")
+        or []
+    )
+    if isinstance(interior_features, str):
+        interior_features = [f.strip() for f in interior_features.split(",") if f.strip()]
+
+    # Appliances - check details
+    appliances = listing.get("appliances") or details.get("appliances") or []
+    if isinstance(appliances, str):
+        appliances = [a.strip() for a in appliances.split(",") if a.strip()]
+
+    # Build structured MLS fields block
+    basement_display = basement or 'Not specified'
+    if basement2:
+        basement_display = f"{basement}, {basement2}" if basement else basement2
+
+    structured_block = f"""
+STRUCTURED MLS FIELDS (use these alongside description – do NOT ignore):
+- Garage Spaces: {garage_spaces if garage_spaces is not None else 'Not specified'}
+- Parking Spaces: {parking_spaces if parking_spaces is not None else 'Not specified'}
+- Flooring: {', '.join(flooring) if flooring else 'Not specified'}
+- Heating: {heating or 'Not specified'}
+- Cooling: {cooling or 'Not specified'}
+- Basement: {basement_display}
+- Basement Finished: {basement_finished if basement_finished is not None else 'Not specified'}
+- Finished Area: {finished_area if finished_area else 'Not specified'}
+- Exterior Features: {', '.join(str(f) for f in exterior_features[:5]) if exterior_features else 'None listed'}
+- Interior Features: {', '.join(str(f) for f in interior_features[:5]) if interior_features else 'None listed'}
+- Appliances: {', '.join(str(a) for a in appliances[:5]) if appliances else 'None listed'}
+""".strip()
+
+    # Handle empty/missing description
+    if not description or description.strip() == "":
+        description_block = """MLS DESCRIPTION:
+No description available for this listing.
+
+IMPORTANT: Since no MLS description is provided, you MUST NOT invent or assume any property features.
+- Treat ALL must-have features as "missing" with assessment "Not mentioned in listing"
+- Do not populate whats_matching with inferred features
+- Add a red_flag: {"concern": "No listing description", "quote": "N/A", "risk_level": "medium", "follow_up": "Request full property details from listing agent"}
+"""
+    else:
+        description_block = f"""MLS DESCRIPTION:
+\"\"\"{description}\"\"\"
+"""
+
+    # Build ranking context
+    fit_score = ranking_context.get("fit_score", 0)
+    priority_tag = ranking_context.get("priority_tag", "REVIEW")
+    below_market_pct = ranking_context.get("below_market_pct")
+    market_strength = ranking_context.get("market_strength_score", 0)
+    final_score = ranking_context.get("final_score", 0)
+    rank = ranking_context.get("rank", "N/A")
+    fit_chips = ranking_context.get("fit_chips", [])
+    status_lines = ranking_context.get("status_lines", [])
+
+    # Format fit chips
+    chips_text = ""
+    if fit_chips:
+        chips_text = "\nFit Chips: " + ", ".join([
+            f"{c.get('icon', '')} {c.get('label', '')}" for c in fit_chips
+        ])
+
+    # Format status lines
+    status_text = ""
+    if status_lines:
+        status_text = "\nMarket Status: " + " | ".join(status_lines)
+
+    below_market_text = ""
+    if below_market_pct is not None:
+        below_market_text = f"\nBelow Market: {below_market_pct:.1%}"
+
+    prompt = f"""You are an expert real estate analyst performing due diligence on a property for a specific buyer.
+Your job is to deeply analyze the MLS listing against the buyer's requirements.
+
+{buyer_context}
+
+---
+PROPERTY:
+Address: {address}, {city}, {state}
+Price: ${price:,}
+Beds: {bedrooms} | Baths: {bathrooms} | SqFt: {sqft}
+Type: {property_type}
+Year Built: {year_built}
+Days on Market: {days_on_market}
+
+{description_block}
+
+{structured_block}
+
+---
+EXISTING RANKING (for context, do not recalculate):
+Fit Score: {fit_score}/100
+Priority Tag: {priority_tag}
+Market Strength: {market_strength}{below_market_text}
+Final Score: {final_score}
+Rank: #{rank}{chips_text}{status_text}
+
+---
+YOUR TASK:
+
+You must output exactly the JSON schema provided (headline, summary_for_buyer, whats_matching, whats_missing, red_flags).
+
+Analyze this property for {buyer_name}. You must:
+
+1. CHECK EACH BUYER REQUIREMENT against BOTH:
+   a) the STRUCTURED MLS FIELDS block above
+   b) the MLS DESCRIPTION text
+
+   - If clearly present in structured fields → source = "explicit" and include a short quote/paraphrase
+   - If clearly present only in description → source = "explicit" and include exact MLS phrase as evidence
+   - If not clearly stated anywhere but reasonably deduced → source = "inferred" and explain why
+   - If it does NOT appear in structured fields AND NOT in description → put it in whats_missing
+
+2. If structured fields and description CONTRADICT each other (e.g., basementFinished=True but description says "unfinished basement"), treat this as a red_flag with risk_level="medium" and a follow_up telling the agent what to verify.
+
+3. FLAG VAGUE/HEDGING LANGUAGE as red_flags
+   - Phrases like: "some TLC", "needs updating", "handyman special", "cozy", "as-is", "great potential", "investor special"
+   - Include the exact quote, assess risk level, suggest follow-up question
+
+4. WRITE HONESTLY
+   - summary_for_buyer MUST include at least one caveat if there are whats_missing items or red_flags
+   - Do NOT guess or hallucinate. If unsure → whats_missing with assessment="not mentioned, needs confirmation"
+   - Use the buyer's decision_drivers to shape headline and summary tone
+
+Return ONLY this JSON (no other text):
+{{
+  "headline": "5-8 word hook specific to this buyer's priorities",
+
+  "summary_for_buyer": "2-3 sentences. Sentence 1: What you found. Sentence 2: Why it matters for THIS buyer. Sentence 3: One honest caveat if any gaps exist.",
+
+  "whats_matching": [
+    {{
+      "requirement": "the buyer requirement being matched",
+      "evidence": "exact MLS quote or short paraphrase proving it",
+      "source": "explicit or inferred"
+    }}
+  ],
+
+  "whats_missing": [
+    {{
+      "requirement": "the buyer requirement that's missing/unclear",
+      "assessment": "why it's missing or unclear",
+      "workaround": "realistic alternative or null"
+    }}
+  ],
+
+  "red_flags": [
+    {{
+      "concern": "what might be wrong",
+      "quote": "exact MLS phrase if available",
+      "risk_level": "low or medium or high",
+      "follow_up": "question or action for the agent"
+    }}
+  ]
+}}
+
+LIMITS (most important items first):
+- whats_matching: max 10 items
+- whats_missing: max 10 items
+- red_flags: max 8 items
+
+All 5 top-level keys must be present. Arrays may be empty but never omitted.
+"""
+
+    return prompt
+
+
+def analyze_property_with_ai_v2(
+    profile: Dict[str, Any],
+    listing: Dict[str, Any],
+    ranking_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Layer 1: Text + Profile Deep Match analysis.
+
+    Single public function for AI analysis of Top 20 listings.
+    Text-only (no photos/vision).
+
+    Args:
+        profile: Full buyer profile with all fields
+        listing: Normalized listing data with MLS description
+        ranking_context: {fit_score, fit_chips, priority_tag, below_market_pct,
+                         status_lines, market_strength_score, final_score, rank}
+
+    Returns:
+        {
+            "headline": str,
+            "summary_for_buyer": str,
+            "whats_matching": [...],
+            "whats_missing": [...],
+            "red_flags": [...]
+        }
+    """
+    # Fallback response for any error
+    fallback = {
+        "headline": "Analysis unavailable",
+        "summary_for_buyer": "We could not generate AI analysis for this property.",
+        "whats_matching": [],
+        "whats_missing": [],
+        "red_flags": []
+    }
+
+    try:
+        # Initialize OpenAI client
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("[AI V2] OPENAI_API_KEY not set")
+            return fallback
+
+        client = OpenAI(api_key=api_key)
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+        # Build prompt
+        prompt = _build_analysis_prompt_v2(profile, listing, ranking_context)
+
+        # Call OpenAI
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert real estate analyst. Return JSON only, no surrounding text. Quote MLS text as evidence. Never invent features."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        content = response.choices[0].message.content
+        analysis = json.loads(content)
+
+        # Validate: all 5 top-level keys must be present
+        required_keys = ["headline", "summary_for_buyer", "whats_matching", "whats_missing", "red_flags"]
+        for key in required_keys:
+            if key not in analysis:
+                print(f"[AI V2] Missing required key: {key}")
+                return fallback
+
+        # Validate: array fields must be arrays
+        array_keys = ["whats_matching", "whats_missing", "red_flags"]
+        for key in array_keys:
+            if not isinstance(analysis[key], list):
+                print(f"[AI V2] {key} is not an array")
+                return fallback
+
+        # Truncate arrays to limits (don't trust model to respect limits)
+        analysis["whats_matching"] = analysis["whats_matching"][:10]
+        analysis["whats_missing"] = analysis["whats_missing"][:10]
+        analysis["red_flags"] = analysis["red_flags"][:8]
+
+        listing_id = listing.get("id") or listing.get("mls_number") or "unknown"
+        print(f"[AI V2] Success for listing {listing_id}: {len(analysis['whats_matching'])} matching, {len(analysis['whats_missing'])} missing, {len(analysis['red_flags'])} flags")
+
+        return analysis
+
+    except json.JSONDecodeError as e:
+        print(f"[AI V2] JSON parse error: {e}")
+        return fallback
+    except Exception as e:
+        print(f"[AI V2] Error: {e}")
+        return fallback

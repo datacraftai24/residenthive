@@ -14,7 +14,11 @@ class AgentSearchRequest(BaseModel):
 
 
 def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Convert listing search results to agent dashboard format"""
+    """Convert listing search results to agent dashboard format.
+
+    Uses new AI v2 schema with ai_analysis field containing:
+    - headline, summary_for_buyer, whats_matching, whats_missing, red_flags
+    """
     return [
         {
             "mlsNumber": x["listing"].get("mls_number") or x["listing"].get("id"),
@@ -34,40 +38,11 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
             "yearBuilt": x["listing"].get("year_built"),
             "lotSize": x["listing"].get("lot_size"),
             "daysOnMarket": x["listing"].get("days_on_market"),
-            "matchScore": int((x.get("match_score", 0) or 0) * 100),
             "matchLabel": x.get("label", "Match"),
-            "matchReasons": x.get("matched_features", []),
-            "dealbreakers": x.get("red_flags", []),  # Map red_flags to dealbreakers for UI
-            "aiInsights": {
-                "agentSummary": x.get("agent_insight", ""),
-                "headline": x.get("headline", ""),
-                "whyItWorks": x.get("why_it_works", {}),
-                "considerations": x.get("considerations", []),
-                "matchReasoning": x.get("match_reasoning", {}),
-                # Add personalizedAnalysis for the 3-section UI
-                "personalizedAnalysis": {
-                    "summary": x.get("agent_insight", "") or x.get("why_picked", ""),
-                    "hiddenGems": x.get("hidden_gems", []),
-                    # Filter must_have_checklist to only show missing items
-                    "missingInfo": [
-                        f"{item['feature']}" + (f" - {item['notes']}" if item.get('notes') else "")
-                        for item in x.get("must_have_checklist", [])
-                        if item.get("status") == "missing"
-                    ],
-                    "agentTasks": []  # Could be populated from considerations if needed
-                }
-            },
-            "scoreBreakdown": {
-                "featureMatch": x.get("score_breakdown", {}).get("must_have_features", {}).get("score", 0),
-                "budgetMatch": x.get("score_breakdown", {}).get("budget_match", {}).get("score", 0),
-                "bedroomMatch": x.get("score_breakdown", {}).get("bedroom_match", {}).get("score", 0),
-                "bathroomMatch": x.get("score_breakdown", {}).get("bathroom_match", {}).get("score", 0),
-                "locationMatch": x.get("score_breakdown", {}).get("location_match", {}).get("score", 0),
-                "overallScore": x.get("score", 0),
-            },
+            # NEW: AI v2 analysis object (None for non-Top-20)
+            "aiAnalysis": x.get("ai_analysis"),
             # Market intelligence metrics for Market Overview
             "pricePerSqft": x.get("pricePerSqft") or x.get("price_per_sqft") or x["listing"].get("pricePerSqft") or x["listing"].get("price_per_sqft"),
-            "daysOnMarket": x.get("days_on_market") or x["listing"].get("days_on_market", 0),
             "statusIndicators": x.get("status_indicators", []),
             "filterReasons": x.get("filter_reasons", []),  # For rejected properties
             # Price history fields for market recommendations
@@ -78,7 +53,7 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
             "priceTrendDirection": x.get("priceTrendDirection") or x.get("price_trend_direction"),
             "lotAcres": x.get("lotAcres") or x.get("lot_acres"),
             "specialFlags": x.get("specialFlags") or x.get("special_flags", []),
-            # NEW: Buyer ranking fields from backend
+            # Buyer ranking fields
             "fitScore": x.get("fitScore"),
             "fitChips": x.get("fitChips", []),
             "priorityTag": x.get("priorityTag"),
@@ -122,7 +97,7 @@ def agent_search(req: AgentSearchRequest):
         "totalFound": len(ai_listings),  # Only analyzed properties
         "listings": ai_listings,  # Top 20 with AI for Recommendations
         "executionTime": 0,
-        "aiAnalysis": {"topMatches": len([x for x in ai_listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
+        "aiAnalysis": {"topMatches": len([x for x in ai_listings if (x.get('fitScore') or 0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
     }
     response = {
         "searchType": "agent_dual_view" if not req.useReactive else "agent_dual_view_reactive",
@@ -150,6 +125,6 @@ def agent_search_enhanced_only(req: AgentSearchRequest):
         "totalFound": len(ai_listings),
         "listings": ai_listings,
         "executionTime": 0,
-        "aiAnalysis": {"topMatches": len([x for x in ai_listings if x.get('matchScore',0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
+        "aiAnalysis": {"topMatches": len([x for x in ai_listings if (x.get('fitScore') or 0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
     }
     return {"searchType": "agent_dual_view", "view2": view2, "totalExecutionTime": 0, "timestamp": datetime.utcnow().isoformat()}
