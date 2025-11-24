@@ -67,7 +67,11 @@ class RepliersClient:
         if profile.get("maxBedrooms") is not None:
             q["maxBedrooms"] = int(profile["maxBedrooms"])
         # Bathrooms - Repliers uses minBaths/maxBaths (not minBathrooms/maxBathrooms)
+        # Default: if bathrooms not specified, use (bedrooms - 2) with minimum of 1
         baths = profile.get("bathrooms")
+        if baths is None and profile.get("bedrooms") is not None:
+            bedrooms_val = int(profile["bedrooms"])
+            baths = max(1, bedrooms_val - 2)
         if baths is not None:
             if isinstance(baths, str):
                 try:
