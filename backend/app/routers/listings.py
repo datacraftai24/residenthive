@@ -6,9 +6,10 @@ from fastapi.responses import Response
 from ..services.repliers import RepliersClient, RepliersError
 from ..services.scoring_config import ScoringConfig
 from ..services.property_scorer import PropertyScorer
-from ..services.property_analyzer import PropertyAnalyzer
+from ..services.property_analyzer import PropertyAnalyzer, analyze_property_with_ai_v2
 from ..services.listing_quality import ListingQualityAnalyzer
 from ..services.listing_persister import ListingPersister
+from ..services.buyer_ranking import rank_listings, calculate_avg_price_per_sqft
 from ..db import get_conn, fetchone_dict
 
 
@@ -113,13 +114,13 @@ def listings_search(payload: Dict[str, Any]):
 
     print(f"[LISTINGS SEARCH] Got {len(listings)} listings from Repliers for profile {profile_id}")
 
-    # Load scoring rules (default + any agent customizations)
+    # Load scoring rules for dealbreaker filtering only
     agent_id = profile.get("agentId")
     scoring_rules = ScoringConfig.get_rules(agent_id)
     scorer = PropertyScorer(scoring_rules)
 
-    # Stage 1: Score ALL listings (fast, no AI)
-    scored_listings = []
+    # Stage 1: Filter dealbreakers and prepare listings with market metrics
+    valid_listings = []
     rejected_listings = []
 
     for listing in listings:
@@ -133,110 +134,143 @@ def listings_search(payload: Dict[str, Any]):
             })
             continue
 
-        # Score the listing
-        score_data = scorer.score_listing(listing, profile)
-
-        scored_listings.append({
-            "listing": listing,
-            "score": score_data["total"],
-            "score_data": score_data,
-        })
-
-    print(f"[LISTINGS SEARCH] Scored {len(scored_listings)} listings, rejected {len(rejected_listings)} dealbreakers")
-
-    # Stage 2: Sort and pick top 20
-    scored_listings.sort(key=lambda x: x["score"], reverse=True)
-    top_20 = scored_listings[:20]
-
-    print(f"[LISTINGS SEARCH] Selected top {len(top_20)} for quality analysis and AI")
-
-    # Stage 2.5: Quality analysis on top 20 (fast, Python-only)
-    quality_analyzer = ListingQualityAnalyzer()
-
-    for item in top_20:
-        try:
-            quality_data = quality_analyzer.analyze_listing(item["listing"])
-            item["quality_data"] = quality_data
-        except Exception as e:
-            print(f"[LISTINGS SEARCH] Quality analysis error: {e}")
-            item["quality_data"] = None
-
-    # Stage 3: AI analysis ONLY on top 20 (in parallel mini-batches of 4)
-    analyzer = PropertyAnalyzer()
-
-    # Run batch analysis with 4 concurrent API calls
-    # Now includes quality_data for each item
-    ai_analyses = analyzer.analyze_batch(
-        items=top_20,
-        profile=profile,
-        batch_size=4,  # Process 4 properties in parallel
-        use_cache=True
-    )
-
-    # Merge AI analysis with score data and quality metrics
-    analyzed_listings = []
-    for item, ai_analysis in zip(top_20, ai_analyses):
-        listing = item["listing"]
-        score_data = item["score_data"]
-        quality_data = item.get("quality_data")
-
-        analyzed_listings.append({
-            "listing": listing,
-            "match_score": item["score"] / 100.0,  # Normalize to 0-1
-            "score": item["score"],
-            "headline": ai_analysis.get("headline", ""),
-            "agent_insight": ai_analysis.get("agent_insight", ""),
-            "why_picked": ai_analysis.get("why_picked", ""),
-            "must_have_checklist": ai_analysis.get("must_have_checklist", []),
-            "hidden_gems": ai_analysis.get("hidden_gems", []),
-            "red_flags": ai_analysis.get("red_flags", []),
-            "matched_features": score_data.get("matched_features", []),
-            "why_it_works": ai_analysis.get("why_it_works", {}),
-            "considerations": ai_analysis.get("considerations", []),
-            "score_breakdown": score_data.get("breakdown", {}),
-            "quality_score": quality_data.get("quality_score") if quality_data else None,
-            "quality_summary": quality_data.get("summary") if quality_data else None,
-            "label": "Top Pick" if item["score"] >= 80 else "Match",
-        })
-
-    # Split into top picks and other matches
-    top_picks = [x for x in analyzed_listings if x["score"] >= 80]
-    other_matches = [x for x in analyzed_listings if x["score"] < 80]
-
-    # Create lightweight listings for Market Overview (ALL scored properties, not just top 20)
-    all_scored_for_overview = []
-    for item in scored_listings:
-        listing = item["listing"]
-        score_data = item["score_data"]
-
-        # Calculate market intelligence metrics
+        # Add market metrics to listing
         market_metrics = calculate_market_metrics(listing)
-
-        all_scored_for_overview.append({
-            "listing": listing,
-            "match_score": item["score"] / 100.0,
-            "score": item["score"],
-            "headline": "",  # No AI analysis for properties outside top 20
-            "agent_insight": "",
-            "matched_features": score_data.get("matched_features", []),
-            "dealbreaker_flags": [],
-            "why_it_works": {},
-            "considerations": [],
-            "match_reasoning": {},
-            "score_breakdown": score_data.get("breakdown", {}),
-            "label": "Top Pick" if item["score"] >= 80 else "Match",
-            # Market intelligence metrics for Market Overview
+        listing_with_metrics = {
+            **listing,
+            "pricePerSqft": market_metrics["price_per_sqft"],
             "price_per_sqft": market_metrics["price_per_sqft"],
             "days_on_market": market_metrics["days_on_market"],
-            "status_indicators": market_metrics["status_indicators"],
-            # Price history fields for market recommendations (camelCase for frontend)
-            "originalPrice": listing.get("original_price"),
-            "priceCutsCount": listing.get("price_cuts_count", 0),
-            "totalPriceReduction": listing.get("total_price_reduction", 0),
-            "lastPriceChangeDate": listing.get("last_price_change_date"),
-            "priceTrendDirection": listing.get("price_trend_direction"),
-            "lotAcres": listing.get("lot_acres"),
-            "specialFlags": listing.get("special_flags", []),
+        }
+        valid_listings.append(listing_with_metrics)
+
+    print(f"[LISTINGS SEARCH] Valid: {len(valid_listings)} listings, rejected {len(rejected_listings)} dealbreakers")
+
+    # Stage 2: Run buyer ranking on ALL valid listings to determine Top 20
+    # This computes fit_score, priority_tag, final_score, and is_top20
+    avg_price_per_sqft = calculate_avg_price_per_sqft(valid_listings)
+    ranked_listings = rank_listings(valid_listings, profile, avg_price_per_sqft, top_n=20)
+
+    # Select Top 20 based on is_top20 flag (determined by final_score)
+    top_20_ranked = [r for r in ranked_listings if r.get("is_top20")]
+
+    # Sanity logging
+    top20_count = len(top_20_ranked)
+    print(f"[LISTINGS SEARCH] Ranked {len(ranked_listings)} listings, selected {top20_count} for AI analysis")
+
+    # Stage 3: Quality analysis on Top 20 (fast, Python-only)
+    quality_analyzer = ListingQualityAnalyzer()
+    quality_results = {}
+
+    for ranked in top_20_ranked:
+        listing_id = ranked.get("id") or ranked.get("mls_number")
+        try:
+            quality_data = quality_analyzer.analyze_listing(ranked)
+            quality_results[listing_id] = quality_data
+        except Exception as e:
+            print(f"[LISTINGS SEARCH] Quality analysis error: {e}")
+            quality_results[listing_id] = None
+
+    # Stage 4: AI analysis ONLY on Top 20 using Layer 1 v2 (text + profile deep match)
+    # Text-only, no photos/vision
+    ai_lookup = {}
+    for ranked in top_20_ranked:
+        listing_id = ranked.get("id") or ranked.get("mls_number")
+
+        # Build ranking context for AI
+        ranking_context = {
+            "fit_score": ranked.get("fit_score"),
+            "fit_chips": ranked.get("fit_chips", []),
+            "priority_tag": ranked.get("priority_tag"),
+            "below_market_pct": ranked.get("below_market_pct"),
+            "status_lines": ranked.get("status_lines", []),
+            "market_strength_score": ranked.get("market_strength_score"),
+            "final_score": ranked.get("final_score"),
+            "rank": ranked.get("rank"),
+        }
+
+        # Call new v2 AI analysis
+        ai_analysis = analyze_property_with_ai_v2(
+            profile=profile,
+            listing=ranked,
+            ranking_context=ranking_context
+        )
+        ai_lookup[listing_id] = ai_analysis
+
+    # Build analyzed_listings (Top 20 with AI v2 schema)
+    analyzed_listings = []
+    for ranked in top_20_ranked:
+        listing_id = ranked.get("id") or ranked.get("mls_number")
+        ai_analysis = ai_lookup.get(listing_id, {})
+        quality_data = quality_results.get(listing_id)
+
+        analyzed_listings.append({
+            "listing": {k: v for k, v in ranked.items() if k not in [
+                'fit_score', 'fit_chips', 'hard_count', 'soft_count',
+                'priority_tag', 'below_market_pct', 'status_lines',
+                'market_strength_score', 'final_score', 'rank', 'is_top20'
+            ]},
+            # NEW: AI v2 analysis (5-field schema)
+            "ai_analysis": ai_analysis,
+            # Quality fields (kept for reference)
+            "quality_score": quality_data.get("quality_score") if quality_data else None,
+            "quality_summary": quality_data.get("summary") if quality_data else None,
+            # Buyer ranking fields
+            "fitScore": ranked.get("fit_score"),
+            "fitChips": ranked.get("fit_chips", []),
+            "priorityTag": ranked.get("priority_tag"),
+            "belowMarketPct": ranked.get("below_market_pct"),
+            "statusLines": ranked.get("status_lines", []),
+            "marketStrengthScore": ranked.get("market_strength_score"),
+            "finalScore": ranked.get("final_score"),
+            "rank": ranked.get("rank"),
+            "isTop20": True,
+            "pricePerSqft": ranked.get("pricePerSqft") or ranked.get("price_per_sqft"),
+            # Label based on fit score
+            "label": "Top Pick" if (ranked.get("fit_score") or 0) >= 80 else "Match",
+        })
+
+    # Split analyzed into top_picks and other_matches based on fitScore
+    top_picks = [x for x in analyzed_listings if (x.get("fitScore") or 0) >= 80]
+    other_matches = [x for x in analyzed_listings if (x.get("fitScore") or 0) < 80]
+
+    # Build all_scored_for_overview (ALL ranked listings for Market Overview)
+    all_scored_for_overview = []
+    for ranked in ranked_listings:
+        listing_id = ranked.get("id") or ranked.get("mls_number")
+        ai_analysis = ai_lookup.get(listing_id)  # None for non-top-20
+
+        all_scored_for_overview.append({
+            "listing": {k: v for k, v in ranked.items() if k not in [
+                'fit_score', 'fit_chips', 'hard_count', 'soft_count',
+                'priority_tag', 'below_market_pct', 'status_lines',
+                'market_strength_score', 'final_score', 'rank', 'is_top20'
+            ]},
+            # AI v2 analysis (only populated for top 20, None otherwise)
+            "ai_analysis": ai_analysis,
+            # Market intelligence metrics
+            "pricePerSqft": ranked.get("pricePerSqft") or ranked.get("price_per_sqft"),
+            "days_on_market": ranked.get("days_on_market", 0),
+            "status_indicators": [],
+            # Price history fields
+            "originalPrice": ranked.get("original_price"),
+            "priceCutsCount": ranked.get("price_cuts_count", 0),
+            "totalPriceReduction": ranked.get("total_price_reduction", 0),
+            "lastPriceChangeDate": ranked.get("last_price_change_date"),
+            "priceTrendDirection": ranked.get("price_trend_direction"),
+            "lotAcres": ranked.get("lot_acres"),
+            "specialFlags": ranked.get("special_flags", []),
+            # Buyer ranking fields (the only scores)
+            "fitScore": ranked.get("fit_score"),
+            "fitChips": ranked.get("fit_chips", []),
+            "priorityTag": ranked.get("priority_tag"),
+            "belowMarketPct": ranked.get("below_market_pct"),
+            "statusLines": ranked.get("status_lines", []),
+            "marketStrengthScore": ranked.get("market_strength_score"),
+            "finalScore": ranked.get("final_score"),
+            "rank": ranked.get("rank"),
+            "isTop20": ranked.get("is_top20", False),
+            "label": "Top Pick" if (ranked.get("fit_score") or 0) >= 80 else "Match",
         })
 
     print(f"[LISTINGS SEARCH] Returning {len(top_picks)} top picks, {len(other_matches)} other matches, {len(all_scored_for_overview)} total scored")
@@ -276,31 +310,36 @@ def listings_search(payload: Dict[str, Any]):
         listing = item["listing"]
         rejected_for_overview.append({
             "listing": listing,
-            "filter_reasons": item["filter_reasons"],  # Clear, objective reasons
-            "match_score": 0,  # Rejected properties have 0 score
-            "score": 0,
+            "filter_reasons": item["filter_reasons"],
             "headline": "",
             "agent_insight": "",
-            "matched_features": [],
-            "red_flags": item["filter_reasons"],  # Show filter reasons as flags
-            "score_breakdown": {},
+            "red_flags": item["filter_reasons"],
+            # Rejected = no fit, no ranking
+            "fitScore": 0,
+            "fitChips": [],
+            "priorityTag": "SKIP",
+            "statusLines": item["filter_reasons"],
+            "finalScore": 0,
+            "rank": None,
+            "isTop20": False,
             "label": "Filtered Out",
         })
 
     return {
         "top_picks": top_picks,
         "other_matches": other_matches,
-        "all_scored_matches": all_scored_for_overview,  # NEW: All scored properties for Market Overview
-        "rejected_matches": rejected_for_overview,  # NEW: Rejected properties with reasons
+        "all_scored_matches": all_scored_for_overview,
+        "rejected_matches": rejected_for_overview,
         "chat_blocks": [],
         "search_summary": {
             "total_found": len(listings),
-            "total_scored": len(scored_listings),
+            "total_ranked": len(ranked_listings),
             "rejected_count": len(rejected_listings),
             "analyzed_count": len(analyzed_listings),
             "top_picks_count": len(top_picks),
             "other_matches_count": len(other_matches),
-            "all_scored_count": len(all_scored_for_overview),  # Track total for Market Overview
+            "all_scored_count": len(all_scored_for_overview),
+            "avg_price_per_sqft": avg_price_per_sqft,
             "search_criteria": profile,
             "location_mismatch": not location_match if requested_location else False,
             "warning": f"No properties found in {requested_location}. Showing properties from available regions." if not location_match and requested_location and listings else None,

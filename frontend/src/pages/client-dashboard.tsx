@@ -106,9 +106,11 @@ export default function ClientDashboard() {
       
       // Transform agent search response to match expected format
       // Agent search returns view1/view2, we need top_picks/other_matches
+      // Use fitScore (new ranking system) with fallback to matchScore for backward compatibility
+      const getScore = (l: any) => l.fitScore ?? l.matchScore ?? 0;
       const transformedData = {
         top_picks: agentData.view2?.listings
-          ?.filter((l: any) => l.matchScore >= 80)
+          ?.filter((l: any) => getScore(l) >= 80)
           .slice(0, 5)
           .map((listing: any) => ({
             listing: {
@@ -127,14 +129,14 @@ export default function ClientDashboard() {
               images: listing.images,
               status: listing.status
             },
-            match_score: listing.matchScore / 100,
+            match_score: getScore(listing) / 100,
             label: listing.matchLabel,
             matched_features: listing.matchReasons || [],
             dealbreaker_flags: listing.dealbreakers || [],
             reason: listing.aiInsights?.agentSummary || listing.matchLabel
           })) || [],
         other_matches: agentData.view2?.listings
-          ?.filter((l: any) => l.matchScore < 80)
+          ?.filter((l: any) => getScore(l) < 80)
           .map((listing: any) => ({
             listing: {
               id: listing.mlsNumber,
@@ -152,7 +154,7 @@ export default function ClientDashboard() {
               images: listing.images,
               status: listing.status
             },
-            match_score: listing.matchScore / 100,
+            match_score: getScore(listing) / 100,
             label: listing.matchLabel,
             matched_features: listing.matchReasons || [],
             dealbreaker_flags: listing.dealbreakers || [],
@@ -160,8 +162,8 @@ export default function ClientDashboard() {
           })) || [],
         search_summary: {
           total_found: agentData.view1?.totalFound || 0,
-          top_picks_count: agentData.view2?.listings?.filter((l: any) => l.matchScore >= 80).length || 0,
-          other_matches_count: agentData.view2?.listings?.filter((l: any) => l.matchScore < 80).length || 0,
+          top_picks_count: agentData.view2?.listings?.filter((l: any) => getScore(l) >= 80).length || 0,
+          other_matches_count: agentData.view2?.listings?.filter((l: any) => getScore(l) < 80).length || 0,
           search_criteria: agentData.view1?.searchCriteria || {}
         }
       };
