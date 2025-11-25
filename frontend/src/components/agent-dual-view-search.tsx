@@ -677,6 +677,35 @@ interface AgentSearchResponse {
   view2?: SearchView2Results;
   totalExecutionTime: number;
   timestamp: string;
+  searchId?: string;  // NEW: For photo analysis endpoint
+}
+
+// Photo Analysis Response Types
+interface PhotoMatch {
+  requirement: string;
+  status: 'present' | 'absent' | 'unclear';
+  evidence: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+interface PhotoRedFlag {
+  concern: string;
+  evidence: string;
+  severity: 'low' | 'medium' | 'high';
+  follow_up: string;
+}
+
+interface PhotoAnalysisResult {
+  photo_headline: string;
+  photo_summary: string;
+  photo_matches: PhotoMatch[];
+  photo_red_flags: PhotoRedFlag[];
+}
+
+interface PhotoAnalysisResponse {
+  searchId: string;
+  photo_analysis: Record<string, PhotoAnalysisResult>;
+  error?: string;
 }
 
 export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
@@ -741,6 +770,24 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     retry: false, // Don't retry on failure to avoid loops
+  });
+
+  // Photo Analysis query - fetches after search completes and we have a searchId
+  const { data: photoAnalysis, isLoading: isLoadingPhotos, refetch: refetchPhotos } = useQuery<PhotoAnalysisResponse>({
+    queryKey: ['/api/agent-search/photos', searchResults?.searchId],
+    queryFn: async () => {
+      if (!searchResults?.searchId) {
+        throw new Error('No searchId available');
+      }
+      const response = await fetch(`/api/agent-search/photos?searchId=${searchResults.searchId}`);
+      if (!response.ok) {
+        throw new Error('Photo analysis failed');
+      }
+      return response.json();
+    },
+    enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   const handleSearch = () => {
@@ -967,7 +1014,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
           {/* View 2: AI Recommendations */}
           {activeView === 'view2' && (
-            <AIRecommendationsView 
+            <AIRecommendationsView
               results={searchResults.initialSearch?.view2 || searchResults.view2!}
               formatPrice={formatPrice}
               getScoreColor={getScoreColor}
@@ -975,6 +1022,8 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
               selectedProperties={selectedProperties}
               setSelectedProperties={setSelectedProperties}
               onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
+              photoAnalysis={photoAnalysis?.photo_analysis}
+              isLoadingPhotos={isLoadingPhotos}
             />
           )}
         </div>
@@ -1688,7 +1737,9 @@ function AIRecommendationsView({
   profile,
   selectedProperties,
   setSelectedProperties,
-  onSaveProperties
+  onSaveProperties,
+  photoAnalysis,
+  isLoadingPhotos
 }: {
   results: SearchView2Results;
   formatPrice: (price: number) => string;
@@ -1697,6 +1748,8 @@ function AIRecommendationsView({
   selectedProperties: Set<string>;
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
+  photoAnalysis?: Record<string, PhotoAnalysisResult>;
+  isLoadingPhotos?: boolean;
 }) {
   // State to track selected image index for each property
   const [selectedImageIndex, setSelectedImageIndex] = useState<Record<string, number>>({});
@@ -1996,6 +2049,115 @@ function AIRecommendationsView({
                   )}
                 </div>
               )}
+
+              {/* Photo Checks Section - Vision AI Analysis */}
+              {(() => {
+                const propertyPhotoAnalysis = photoAnalysis?.[property.mlsNumber];
+
+                // Show loading state for Top 5 properties
+                if (isLoadingPhotos && index < 5) {
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="h-5 w-5 text-purple-600 animate-pulse" />
+                        <h4 className="font-semibold text-purple-900">Photo Checks (AI)</h4>
+                        <span className="text-xs text-purple-600">Analyzing photos...</span>
+                      </div>
+                      <div className="h-20 flex items-center justify-center">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Show photo analysis if available
+                if (propertyPhotoAnalysis) {
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="h-5 w-5 text-purple-600" />
+                        <h4 className="font-semibold text-purple-900">Photo Checks (AI)</h4>
+                      </div>
+
+                      {/* Photo Headline */}
+                      <div className="text-sm font-medium text-purple-900 mb-2">
+                        {propertyPhotoAnalysis.photo_headline}
+                      </div>
+
+                      {/* Photo Summary */}
+                      <div className="text-xs text-purple-700 mb-3 italic">
+                        {propertyPhotoAnalysis.photo_summary}
+                      </div>
+
+                      {/* Photo Matches */}
+                      {propertyPhotoAnalysis.photo_matches?.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          <div className="text-xs font-medium text-purple-800">Visual Requirements Check:</div>
+                          {propertyPhotoAnalysis.photo_matches.map((match, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                match.status === 'present' ? 'bg-green-200 text-green-800' :
+                                match.status === 'absent' ? 'bg-red-200 text-red-800' :
+                                'bg-gray-200 text-gray-700'
+                              }`}>
+                                {match.status === 'present' ? '✓' : match.status === 'absent' ? '✗' : '?'}
+                              </span>
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-purple-900">{match.requirement}</span>
+                                <p className="text-xs text-purple-600">{match.evidence}</p>
+                              </div>
+                              <span className={`text-xs px-1 py-0.5 rounded ${
+                                match.confidence === 'high' ? 'bg-purple-200 text-purple-800' :
+                                match.confidence === 'medium' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {match.confidence}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Photo Red Flags */}
+                      {propertyPhotoAnalysis.photo_red_flags?.length > 0 && (
+                        <div className="space-y-2 border-t border-purple-200 pt-3">
+                          <div className="text-xs font-medium text-red-700">Visual Concerns:</div>
+                          {propertyPhotoAnalysis.photo_red_flags.map((flag, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                flag.severity === 'high' ? 'bg-red-300 text-red-900' :
+                                flag.severity === 'medium' ? 'bg-red-200 text-red-800' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {flag.severity.toUpperCase()}
+                              </span>
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-red-800">{flag.concern}</span>
+                                <p className="text-xs text-red-600">{flag.evidence}</p>
+                                <p className="text-xs text-red-500 italic">Ask: {flag.follow_up}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // For Top 5 properties without photo analysis yet, show placeholder
+                if (index < 5 && !isLoadingPhotos && !propertyPhotoAnalysis) {
+                  return (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-500">Photo analysis will load when available</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
 
               {/* Fallback if no AI analysis */}
               {!property.aiAnalysis && (
