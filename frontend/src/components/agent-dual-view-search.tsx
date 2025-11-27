@@ -6,7 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { SavePropertyButton } from './save-property-button';
+import { ClientSummaryLight } from './ClientSummaryLight';
+import { ClientSummaryDeep } from './ClientSummaryDeep';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -783,11 +796,22 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
       if (!response.ok) {
         throw new Error('Photo analysis failed');
       }
-      return response.json();
+      const data = await response.json();
+      console.log('[PHOTO ANALYSIS] Query result:', {
+        searchId: searchResults.searchId,
+        propertiesWithPhotos: Object.keys(data.photo_analysis || {}).length,
+        timestamp: new Date().toISOString()
+      });
+      return data;
     },
     enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
+    // Poll every 10 seconds until we have photo data, then stop
+    refetchInterval: (data) => {
+      const hasPhotoData = data && data.photo_analysis && Object.keys(data.photo_analysis).length > 0;
+      return hasPhotoData ? false : 10000; // Poll every 10s if no data, stop if we have data
+    },
   });
 
   const handleSearch = () => {
@@ -1754,6 +1778,48 @@ function AIRecommendationsView({
   // State to track selected image index for each property
   const [selectedImageIndex, setSelectedImageIndex] = useState<Record<string, number>>({});
 
+  // Top-K sorting logic: Mark top 5 properties by fitScore as "top picks"
+  const TOP_K = 5;
+  const listingsWithTopPicks = React.useMemo(() => {
+    const sorted = [...results.listings]
+      .filter(l => l.aiAnalysis) // Only properties with AI analysis
+      .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
+
+    return results.listings.map((property, index) => {
+      const sortedIndex = sorted.findIndex(p => p.mlsNumber === property.mlsNumber);
+      const isTopByRank = sortedIndex < TOP_K && sortedIndex >= 0;
+      const isScoreOk = (property.fitScore ?? 0) >= 70;
+
+      return {
+        ...property,
+        isTopPick: isTopByRank && isScoreOk
+      };
+    });
+  }, [results.listings]);
+
+  // Sort listings for display: top picks first, then by fitScore DESC
+  const orderedListings = React.useMemo(() => {
+    const sorted = [...listingsWithTopPicks].sort((a, b) => {
+      // Top picks first
+      if (a.isTopPick !== b.isTopPick) {
+        return a.isTopPick ? -1 : 1;
+      }
+      // Within each group, sort by fitScore DESC
+      return (b.fitScore ?? 0) - (a.fitScore ?? 0);
+    });
+
+    // Debug: Log top 5 order
+    console.log('[AI TAB] Top 5 Order:', sorted.slice(0, 5).map((p, i) => ({
+      rank: i + 1,
+      address: p.address,
+      fitScore: p.fitScore,
+      isTopPick: p.isTopPick,
+      mlsNumber: p.mlsNumber
+    })));
+
+    return sorted;
+  }, [listingsWithTopPicks]);
+
   // Handler to change the displayed image
   const handleImageClick = (propertyId: string, imageIndex: number) => {
     setSelectedImageIndex(prev => ({
@@ -1782,10 +1848,10 @@ function AIRecommendationsView({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Checkbox
-                checked={selectedProperties.size === results.listings.slice(0, 10).length && results.listings.length > 0}
+                checked={selectedProperties.size === orderedListings.slice(0, 10).length && orderedListings.length > 0}
                 onCheckedChange={(checked) => {
                   if (checked) {
-                    const allIds = new Set(results.listings.slice(0, 10).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
+                    const allIds = new Set(orderedListings.slice(0, 10).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
                     setSelectedProperties(allIds);
                   } else {
                     setSelectedProperties(new Set());
@@ -1811,25 +1877,35 @@ function AIRecommendationsView({
 
       {/* Property Recommendations */}
       <div className="grid grid-cols-1 gap-6">
-        {results.listings.slice(0, 10).map((property, index) => (
+        {orderedListings.slice(0, 10).map((property, index) => (
           <Card key={property.mlsNumber || `ai-property-${index}`} className="overflow-hidden hover:shadow-lg transition-shadow">
             {/* Property Images Section */}
             <div className="relative">
-              <div className="aspect-[4/3] bg-gray-100">
+              <div className="aspect-[2/1] bg-gray-100">
                 {property.images && property.images.length > 0 ? (
                   <div className="relative h-full">
-                    {/* Main Image - Clickable to cycle through images */}
-                    <img
-                      src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
-                      alt={`${property.address} - ${property.city}, ${property.state}`}
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => handleMainImageClick(property.mlsNumber, property.images.length)}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
-                      }}
-                    />
+                    {/* Main Image - Click to expand */}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <img
+                          src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
+                          alt={`${property.address} - ${property.city}, ${property.state}`}
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
+                          }}
+                        />
+                      </DialogTrigger>
+                      <DialogContent className="max-w-7xl w-full p-0">
+                        <img
+                          src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
+                          alt={`${property.address} - ${property.city}, ${property.state}`}
+                          className="w-full h-auto"
+                        />
+                      </DialogContent>
+                    </Dialog>
 
                     {/* Image Counter */}
                     <div className="absolute top-4 right-4">
@@ -1949,20 +2025,55 @@ function AIRecommendationsView({
                 </div>
               </div>
 
-              {/* AI Analysis V2: Headline + Summary + 3 Sections */}
+              {/* Client Summary - Buyer-Facing Dashboard */}
               {property.aiAnalysis && (
                 <div className="space-y-4">
-                  {/* Headline */}
-                  <div className="text-lg font-bold text-gray-900">
-                    {property.aiAnalysis.headline}
-                  </div>
+                  {property.isTopPick ? (
+                    <ClientSummaryDeep
+                      analysis={{
+                        fit_score: property.fitScore ?? property.matchScore ?? null,
+                        whats_matching: property.aiAnalysis.whats_matching,
+                        whats_missing: property.aiAnalysis.whats_missing,
+                        red_flags: property.aiAnalysis.red_flags,
+                        photo_matches: photoAnalysis?.[property.mlsNumber]?.photo_matches,
+                        photo_red_flags: photoAnalysis?.[property.mlsNumber]?.photo_red_flags,
+                        agent_take_ai: photoAnalysis?.[property.mlsNumber]?.agent_take_ai ?? property.aiAnalysis.agent_take_ai,
+                        agent_take_final: property.aiAnalysis.agent_take_final,
+                        vision_complete: photoAnalysis?.[property.mlsNumber]?.vision_complete ?? property.aiAnalysis.vision_complete ?? false,
+                      }}
+                      buyerProfile={profile}
+                      listing={property}
+                      isLoadingPhotos={isLoadingPhotos && index < 5}
+                    />
+                  ) : (
+                    <ClientSummaryLight
+                      analysis={{
+                        fit_score: property.fitScore ?? property.matchScore ?? null,
+                        whats_matching: property.aiAnalysis.whats_matching,
+                        whats_missing: property.aiAnalysis.whats_missing,
+                        red_flags: property.aiAnalysis.red_flags,
+                        photo_red_flags: photoAnalysis?.[property.mlsNumber]?.photo_red_flags,
+                      }}
+                      isLoadingPhotos={isLoadingPhotos && index < 5}
+                    />
+                  )}
 
-                  {/* Summary for Buyer */}
-                  <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    {property.aiAnalysis.summary_for_buyer}
-                  </div>
+                  {/* Collapsible Detailed Analysis */}
+                  <Accordion type="single" collapsible className="border rounded-lg">
+                    <AccordionItem value="details" className="border-none">
+                      <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 text-sm text-gray-600">
+                        View detailed AI analysis →
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4 space-y-4">
+                        {/* Original Headline + Summary */}
+                        <div className="text-lg font-bold text-gray-900">
+                          {property.aiAnalysis.headline}
+                        </div>
+                        <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          {property.aiAnalysis.summary_for_buyer}
+                        </div>
 
-                  {/* Section 1: What's Matching */}
+                        {/* Section 1: What's Matching */}
                   {property.aiAnalysis.whats_matching?.length > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-3">
@@ -2047,11 +2158,9 @@ function AIRecommendationsView({
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Photo Checks Section - Vision AI Analysis */}
-              {(() => {
+                  {/* Photo Checks Section - Vision AI Analysis */}
+                  {(() => {
                 const propertyPhotoAnalysis = photoAnalysis?.[property.mlsNumber];
 
                 // Show loading state for Top 5 properties
@@ -2158,6 +2267,11 @@ function AIRecommendationsView({
 
                 return null;
               })()}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+              )}
 
               {/* Fallback if no AI analysis */}
               {!property.aiAnalysis && (

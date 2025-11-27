@@ -851,6 +851,94 @@ All 5 top-level keys must be present. Arrays may be empty but never omitted.
     return prompt
 
 
+def _generate_agent_take(
+    client: OpenAI,
+    model: str,
+    profile: Dict[str, Any],
+    listing: Dict[str, Any],
+    ranking_context: Dict[str, Any],
+    analysis: Dict[str, Any]
+) -> str:
+    """
+    Generate "My Take" - AI agent's trade-off analysis and recommendation.
+
+    Args:
+        client: OpenAI client
+        model: Model name (use gpt-4o-mini for cost efficiency)
+        profile: Buyer profile with aiSummary
+        listing: Property data
+        ranking_context: Scoring context
+        analysis: The main AI analysis result (for extracting top matches/concerns)
+
+    Returns:
+        One sentence recommendation (under 40 words)
+    """
+    buyer_summary = profile.get("aiSummary", "")
+    address = listing.get("address", "")
+    fit_score = ranking_context.get("fit_score", 0)
+
+    # Extract top 3 matches
+    matches = analysis.get("whats_matching", [])[:3]
+    top_matches = ", ".join([m.get("requirement", "") for m in matches]) if matches else "matches your criteria"
+
+    # Extract top 3 concerns
+    missing = analysis.get("whats_missing", [])[:2]
+    red_flags = analysis.get("red_flags", [])[:2]
+    concerns = missing + red_flags
+    top_concerns = ", ".join([
+        c.get("concern", "") or c.get("requirement", "")
+        for c in concerns[:3]
+    ]) if concerns else "no major concerns"
+
+    prompt = f"""You are a real estate agent writing a recommendation to your client.
+
+BUYER: {buyer_summary}
+PROPERTY: {address}, Fit Score {fit_score}/100
+
+TOP 3 MATCHES: {top_matches}
+TOP 3 CONCERNS: {top_concerns}
+
+Write ONE sentence (under 40 words) starting with "If..." that acknowledges the key pros, the key trade-offs, and gives a recommendation.
+
+Rules:
+- Do NOT mention fit score
+- Do NOT mention being an AI
+- Do NOT use "pros/cons" literally
+- End with exactly one of:
+  * "this is a strong candidate to see in person."
+  * "this is worth seeing if you stay flexible."
+  * "this is probably one to pass on."
+
+Example: "If extra space, a done kitchen, and real parking are high on your list and you're comfortable budgeting for some updates over time, this is a strong candidate to see in person."
+
+Return ONLY the sentence.
+"""
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a real estate agent. Write natural, conversational recommendations."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.7,
+        max_tokens=100
+    )
+
+    agent_take = response.choices[0].message.content.strip()
+
+    # Remove quotes if present
+    if agent_take.startswith('"') and agent_take.endswith('"'):
+        agent_take = agent_take[1:-1]
+
+    return agent_take
+
+
 def analyze_property_with_ai_v2(
     profile: Dict[str, Any],
     listing: Dict[str, Any],
@@ -940,6 +1028,12 @@ def analyze_property_with_ai_v2(
 
         listing_id = listing.get("id") or listing.get("mls_number") or "unknown"
         print(f"[AI V2] Success for listing {listing_id}: {len(analysis['whats_matching'])} matching, {len(analysis['whats_missing'])} missing, {len(analysis['red_flags'])} flags")
+
+        # NOTE: "My Take" generation moved to photo analysis task
+        # This ensures it has access to both text AND photo analysis results
+        # Set vision_complete=false since photos haven't been analyzed yet
+        analysis["vision_complete"] = False
+        analysis["agent_take_ai"] = None
 
         return analysis
 

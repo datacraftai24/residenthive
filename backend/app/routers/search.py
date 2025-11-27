@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import os
 
 from ..services.search_context_store import (
     generate_search_id,
@@ -9,6 +10,7 @@ from ..services.search_context_store import (
     get_search_context
 )
 from ..services.photo_analyzer import analyze_property_photos
+from ..services.property_analyzer import _generate_agent_take
 
 
 router = APIRouter(prefix="/api")
@@ -229,10 +231,42 @@ def agent_search_photos(searchId: str = Query(..., description="Search ID from a
         }
 
         # Call photo analyzer
-        result = analyze_property_photos(profile, listing, ranking_context)
-        photo_analysis[mls_number] = result
+        photo_result = analyze_property_photos(profile, listing, ranking_context)
 
-        print(f"[PHOTO ANALYSIS] Completed for {mls_number}: headline='{result.get('photo_headline', '')[:50]}...'")
+        # Merge photo results with existing text analysis to generate complete "My Take"
+        # Get text analysis from listing's ai_analysis field
+        text_analysis = listing.get("ai_analysis") or {}
+
+        # Merge text + photo matches and concerns
+        merged_analysis = {
+            "whats_matching": text_analysis.get("whats_matching", []),
+            "whats_missing": text_analysis.get("whats_missing", []),
+            "red_flags": text_analysis.get("red_flags", []),
+            "photo_matches": photo_result.get("photo_matches", []),
+            "photo_red_flags": photo_result.get("photo_red_flags", []),
+        }
+
+        # Generate "My Take" with complete text + photo context
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+
+            agent_take = _generate_agent_take(
+                client, model, profile, listing, ranking_context, merged_analysis
+            )
+            photo_result["agent_take_ai"] = agent_take
+            photo_result["vision_complete"] = True
+            print(f"[PHOTO ANALYSIS] Generated My Take for {mls_number}: '{agent_take[:50]}...'")
+        except Exception as e:
+            print(f"[PHOTO ANALYSIS] Error generating My Take for {mls_number}: {e}")
+            # Still set vision_complete but with text-only My Take if it exists
+            photo_result["agent_take_ai"] = text_analysis.get("agent_take_ai")
+            photo_result["vision_complete"] = False
+
+        photo_analysis[mls_number] = photo_result
+
+        print(f"[PHOTO ANALYSIS] Completed for {mls_number}: headline='{photo_result.get('photo_headline', '')[:50]}...'")
 
     return {
         "searchId": searchId,
