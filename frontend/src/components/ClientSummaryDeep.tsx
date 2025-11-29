@@ -403,7 +403,6 @@ export function ClientSummaryDeep({
 
   const mergedMatches = getMergedMatches();
   const concerns = getConcerns();
-  const overallFit = getOverallFit();
 
   return (
     <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
@@ -469,71 +468,47 @@ export function ClientSummaryDeep({
           </div>
         )}
 
-        {/* Section 3: Overall Fit + My Take */}
+        {/* Section 3: My Take - AI-generated agent perspective */}
         <div className="pt-4 border-t border-purple-200">
-          <h3 className="text-lg font-bold text-purple-900 mb-3 flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            Overall Fit
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Badge
-                className={`text-lg px-4 py-1.5 ${
-                  overallFit.level === 'Excellent'
-                    ? 'bg-green-600'
-                    : overallFit.level === 'Good'
-                    ? 'bg-yellow-500'
-                    : overallFit.level === 'Fair'
-                    ? 'bg-orange-500'
-                    : 'bg-red-600'
-                } text-white`}
-              >
-                {overallFit.emoji} {overallFit.level} Match
-              </Badge>
-              <p className="text-sm text-purple-700">{overallFit.summary}</p>
-            </div>
+          {(() => {
+            const myTake = analysis.agent_take_final || analysis.agent_take_ai;
+            const visionComplete = analysis.vision_complete;
 
-            {/* My Take - AI-generated agent perspective with progressive states */}
-            {(() => {
-              const myTake = analysis.agent_take_final || analysis.agent_take_ai;
-              const visionComplete = analysis.vision_complete;
+            if (myTake && visionComplete) {
+              // Full My Take with photo analysis complete
+              return (
+                <div className="pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
+                  <p className="text-sm text-purple-900">
+                    <strong className="text-purple-800">My take:</strong>{' '}
+                    <span className="italic">{myTake}</span>
+                  </p>
+                </div>
+              );
+            } else if (myTake && !visionComplete) {
+              // Text-only My Take, photo analysis pending
+              return (
+                <div className="pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
+                  <p className="text-sm text-purple-900">
+                    <strong className="text-purple-800">My take:</strong>{' '}
+                    <span className="italic">{myTake}</span>
+                    <span className="text-purple-600 text-xs ml-2">(Photo review in progress)</span>
+                  </p>
+                </div>
+              );
+            } else if (!myTake) {
+              // Loading state - no My Take yet
+              return (
+                <div className="pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
+                  <p className="text-sm text-purple-700 italic">
+                    <strong className="text-purple-800">My take:</strong>{' '}
+                    Finalizing analysis for this property...
+                  </p>
+                </div>
+              );
+            }
 
-              if (myTake && visionComplete) {
-                // Full My Take with photo analysis complete
-                return (
-                  <div className="mt-3 pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
-                    <p className="text-sm text-purple-900">
-                      <strong className="text-purple-800">My take:</strong>{' '}
-                      <span className="italic">{myTake}</span>
-                    </p>
-                  </div>
-                );
-              } else if (myTake && !visionComplete) {
-                // Text-only My Take, photo analysis pending
-                return (
-                  <div className="mt-3 pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
-                    <p className="text-sm text-purple-900">
-                      <strong className="text-purple-800">My take:</strong>{' '}
-                      <span className="italic">{myTake}</span>
-                      <span className="text-purple-600 text-xs ml-2">(Photo review in progress)</span>
-                    </p>
-                  </div>
-                );
-              } else if (!myTake) {
-                // Loading state - no My Take yet
-                return (
-                  <div className="mt-3 pl-4 border-l-4 border-purple-300 bg-white/50 rounded p-3">
-                    <p className="text-sm text-purple-700 italic">
-                      <strong className="text-purple-800">My take:</strong>{' '}
-                      Finalizing analysis for this property...
-                    </p>
-                  </div>
-                );
-              }
-
-              return null;
-            })()}
-          </div>
+            return null;
+          })()}
         </div>
 
         {/* Photo Analysis Loading State */}

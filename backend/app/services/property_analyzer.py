@@ -1029,11 +1029,24 @@ def analyze_property_with_ai_v2(
         listing_id = listing.get("id") or listing.get("mls_number") or "unknown"
         print(f"[AI V2] Success for listing {listing_id}: {len(analysis['whats_matching'])} matching, {len(analysis['whats_missing'])} missing, {len(analysis['red_flags'])} flags")
 
-        # NOTE: "My Take" generation moved to photo analysis task
-        # This ensures it has access to both text AND photo analysis results
-        # Set vision_complete=false since photos haven't been analyzed yet
-        analysis["vision_complete"] = False
-        analysis["agent_take_ai"] = None
+        # Generate text-only "My Take" (will be enhanced later with photo analysis)
+        try:
+            text_only_take = _generate_agent_take(
+                client, model, profile, listing, ranking_context,
+                {
+                    "whats_matching": analysis["whats_matching"],
+                    "whats_missing": analysis["whats_missing"],
+                    "red_flags": analysis["red_flags"],
+                    "photo_matches": [],
+                    "photo_red_flags": []
+                }
+            )
+            analysis["agent_take_ai"] = text_only_take
+            analysis["vision_complete"] = False
+        except Exception as e:
+            print(f"[AI V2] Failed to generate My Take for {listing_id}: {e}")
+            analysis["agent_take_ai"] = None
+            analysis["vision_complete"] = False
 
         return analysis
 

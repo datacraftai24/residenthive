@@ -36,6 +36,10 @@ def store_search_context(
     _cache[search_id] = {
         "profile": profile,
         "ranked_listings": ranked_listings,
+        "analysis_status": {
+            "text_complete": True,  # Set to true since text analysis is done when storing
+            "vision_complete_for_top5": False  # Will be set later by photo analysis
+        },
         "timestamp": datetime.now()
     }
 
@@ -48,7 +52,7 @@ def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:
     Retrieve search context by searchId.
 
     Returns:
-        Dict with 'profile' and 'ranked_listings', or None if not found/expired
+        Dict with 'profile', 'ranked_listings', and 'analysis_status', or None if not found/expired
     """
     context = _cache.get(search_id)
 
@@ -63,8 +67,66 @@ def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:
 
     return {
         "profile": context["profile"],
-        "ranked_listings": context["ranked_listings"]
+        "ranked_listings": context["ranked_listings"],
+        "analysis_status": context.get("analysis_status", {
+            "text_complete": False,
+            "vision_complete_for_top5": False
+        })
     }
+
+
+def mark_vision_complete(search_id: str) -> bool:
+    """
+    Mark photo/vision analysis as complete for top 5 listings.
+
+    Returns:
+        True if search_id found and updated, False otherwise
+    """
+    context = _cache.get(search_id)
+    if not context:
+        return False
+
+    if "analysis_status" not in context:
+        context["analysis_status"] = {
+            "text_complete": True,
+            "vision_complete_for_top5": False
+        }
+
+    context["analysis_status"]["vision_complete_for_top5"] = True
+    return True
+
+
+def store_photo_analysis_results(search_id: str, photo_analysis: Dict[str, Any]) -> bool:
+    """
+    Store photo analysis results in cache to prevent re-running expensive vision calls.
+
+    Args:
+        search_id: Unique identifier for this search
+        photo_analysis: Dict of {mlsNumber: photo_result} from photo analyzer
+
+    Returns:
+        True if search_id found and updated, False otherwise
+    """
+    context = _cache.get(search_id)
+    if not context:
+        return False
+
+    context["photo_analysis"] = photo_analysis
+    return True
+
+
+def get_photo_analysis_results(search_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve cached photo analysis results.
+
+    Returns:
+        Dict of {mlsNumber: photo_result} if cached, None otherwise
+    """
+    context = _cache.get(search_id)
+    if not context:
+        return None
+
+    return context.get("photo_analysis")
 
 
 def _cleanup_expired() -> None:
