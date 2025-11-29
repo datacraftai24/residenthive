@@ -6,7 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { SavePropertyButton } from './save-property-button';
+import { ClientSummaryLight } from './ClientSummaryLight';
+import { ClientSummaryDeep } from './ClientSummaryDeep';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -677,13 +690,45 @@ interface AgentSearchResponse {
   view2?: SearchView2Results;
   totalExecutionTime: number;
   timestamp: string;
+  searchId?: string;  // NEW: For photo analysis endpoint
+}
+
+// Photo Analysis Response Types
+interface PhotoMatch {
+  requirement: string;
+  status: 'present' | 'absent' | 'unclear';
+  evidence: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+interface PhotoRedFlag {
+  concern: string;
+  evidence: string;
+  severity: 'low' | 'medium' | 'high';
+  follow_up: string;
+}
+
+interface PhotoAnalysisResult {
+  photo_headline: string;
+  photo_summary: string;
+  photo_matches: PhotoMatch[];
+  photo_red_flags: PhotoRedFlag[];
+}
+
+interface PhotoAnalysisResponse {
+  searchId: string;
+  photo_analysis: Record<string, PhotoAnalysisResult>;
+  error?: string;
 }
 
 export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
-  const [activeView, setActiveView] = useState<'view1' | 'view2'>('view1');
+  const [activeView, setActiveView] = useState<'view1' | 'view2' | 'view3'>('view1');
   const [forceEnhanced, setForceEnhanced] = useState(false);
   const [selectedProperties, setSelectedProperties] = useState<Set<string>>(new Set());
+  const [analysisStatus, setAnalysisStatus] = useState<{ text_complete: boolean; vision_complete_for_top5: boolean } | null>(null);
+  const [buyerReportShareId, setBuyerReportShareId] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -743,11 +788,114 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     retry: false, // Don't retry on failure to avoid loops
   });
 
+  // Photo Analysis query - fetches after search completes and we have a searchId
+  const { data: photoAnalysis, isLoading: isLoadingPhotos, refetch: refetchPhotos } = useQuery<PhotoAnalysisResponse>({
+    queryKey: ['/api/agent-search/photos', searchResults?.searchId],
+    queryFn: async () => {
+      if (!searchResults?.searchId) {
+        throw new Error('No searchId available');
+      }
+      const response = await fetch(`/api/agent-search/photos?searchId=${searchResults.searchId}`);
+      if (!response.ok) {
+        throw new Error('Photo analysis failed');
+      }
+      const data = await response.json();
+      console.log('[PHOTO ANALYSIS] Query result:', {
+        searchId: searchResults.searchId,
+        propertiesWithPhotos: Object.keys(data.photo_analysis || {}).length,
+        timestamp: new Date().toISOString()
+      });
+      console.log('[PHOTO ANALYSIS] MLS numbers in photo_analysis:', Object.keys(data.photo_analysis || {}));
+      return data;
+    },
+    enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
+    // Poll every 10 seconds until we have photo data, then stop
+    refetchInterval: (data) => {
+      const hasPhotoData = data && data.photo_analysis && Object.keys(data.photo_analysis).length > 0;
+      return hasPhotoData ? false : 10000; // Poll every 10s if no data, stop if we have data
+    },
+  });
+
+  // Capture analysis status when search completes
+  React.useEffect(() => {
+    if (searchResults && (searchResults as any).analysisStatus) {
+      const status = (searchResults as any).analysisStatus;
+      setAnalysisStatus(status);
+      console.log('[ANALYSIS STATUS]', status);
+    }
+  }, [searchResults]);
+
+  // Update analysis status when photo analysis completes
+  React.useEffect(() => {
+    if (photoAnalysis?.photo_analysis && Object.keys(photoAnalysis.photo_analysis).length > 0) {
+      setAnalysisStatus(prev => ({
+        text_complete: prev?.text_complete ?? true,
+        vision_complete_for_top5: true
+      }));
+      console.log('[ANALYSIS STATUS] Updated after photo analysis:', {
+        text_complete: true,
+        vision_complete_for_top5: true,
+        propertiesAnalyzed: Object.keys(photoAnalysis.photo_analysis).length
+      });
+    }
+  }, [photoAnalysis]);
+
+  const handleGenerateReport = async () => {
+    console.log('[GENERATE REPORT] Button clicked!');
+    console.log('[GENERATE REPORT] searchId:', searchResults?.searchId);
+    console.log('[GENERATE REPORT] profileId:', profile.id);
+
+    if (!searchResults?.searchId) {
+      console.log('[GENERATE REPORT] No searchId, returning early');
+      return;
+    }
+
+    setIsGeneratingReport(true);
+    console.log('[GENERATE REPORT] Starting API request...');
+
+    try {
+      const res = await apiRequest('POST', '/api/buyer-reports', {
+        searchId: searchResults.searchId,
+        profileId: profile.id
+      });
+
+      console.log('[GENERATE REPORT] Raw response:', res);
+      const response = await res.json();
+      console.log('[GENERATE REPORT] Parsed JSON:', response);
+
+      if (response.shareId) {
+        console.log('[GENERATE REPORT] ShareId found, setting state:', response.shareId);
+        setBuyerReportShareId(response.shareId);
+        toast({
+          title: 'Buyer report generated!',
+          description: 'Report created with AI synthesis. You can now share the link.'
+        });
+        setActiveView('view3'); // Switch to view 3 to show share link
+        console.log('[GENERATE REPORT] Switched to view3');
+      } else {
+        console.log('[GENERATE REPORT] No shareId in response!');
+      }
+    } catch (error: any) {
+      console.error('[GENERATE REPORT] Error:', error);
+      toast({
+        title: 'Failed to generate report',
+        description: error.message || 'Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGeneratingReport(false);
+      console.log('[GENERATE REPORT] Finished, spinner stopped');
+    }
+  };
+
   const handleSearch = () => {
     // Clear cache to ensure fresh results
     queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
     setHasSearched(true);
     setForceEnhanced(false); // Reset force enhanced
+    setBuyerReportShareId(null); // Clear any existing report
     refetch();
   };
 
@@ -876,8 +1024,8 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
               >
                 <List className="h-4 w-4" />
                 Market Overview ({
-                  searchResults.enhancedSearch?.triggered 
-                    ? searchResults.enhancedSearch.view1.totalFound 
+                  searchResults.enhancedSearch?.triggered
+                    ? searchResults.enhancedSearch.view1.totalFound
                     : (searchResults.initialSearch?.view1.totalFound || searchResults.view1?.totalFound || 0)
                 })
               </Button>
@@ -891,8 +1039,16 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                   searchResults.initialSearch?.view2.totalFound || searchResults.view2?.totalFound || 0
                 })
               </Button>
+              <Button
+                variant={activeView === 'view3' ? 'default' : 'outline'}
+                onClick={() => setActiveView('view3')}
+                className="flex items-center gap-2"
+              >
+                <Share2 className="h-4 w-4" />
+                Buyer Report
+              </Button>
             </div>
-            
+
             <div className="text-sm text-gray-600">
               Search completed in {searchResults.totalExecutionTime}ms
             </div>
@@ -967,15 +1123,122 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
 
           {/* View 2: AI Recommendations */}
           {activeView === 'view2' && (
-            <AIRecommendationsView 
-              results={searchResults.initialSearch?.view2 || searchResults.view2!}
-              formatPrice={formatPrice}
-              getScoreColor={getScoreColor}
-              profile={profile}
-              selectedProperties={selectedProperties}
-              setSelectedProperties={setSelectedProperties}
-              onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
-            />
+            <>
+              {/* Photo Analysis Status Banner */}
+              {!analysisStatus?.vision_complete_for_top5 && (
+                <Alert className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Analyzing photos for top 5 matches... This enhances AI insights with visual details. Usually takes 1-2 minutes.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <AIRecommendationsView
+                results={searchResults.initialSearch?.view2 || searchResults.view2!}
+                formatPrice={formatPrice}
+                getScoreColor={getScoreColor}
+                profile={profile}
+                selectedProperties={selectedProperties}
+                setSelectedProperties={setSelectedProperties}
+                onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
+                photoAnalysis={photoAnalysis?.photo_analysis}
+                isLoadingPhotos={isLoadingPhotos}
+                buyerReportShareId={buyerReportShareId}
+              />
+            </>
+          )}
+
+          {/* View 3: Buyer Report */}
+          {activeView === 'view3' && (
+            <div className="space-y-6">
+              {/* Analysis Status Banner */}
+              {!analysisStatus?.vision_complete_for_top5 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Analyzing photos for top matches... This usually takes 1-2 minutes. The Generate Report button will be enabled when analysis is complete.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Generate Report Section */}
+              {!buyerReportShareId && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Generate Buyer Report</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Create a shareable report with AI-generated synthesis of the top 5 properties. The report includes an intro, ranked picks with explanations, and next steps.
+                    </p>
+                    <Button
+                      onClick={handleGenerateReport}
+                      disabled={!analysisStatus?.vision_complete_for_top5 || isGeneratingReport}
+                      className="w-full"
+                    >
+                      {isGeneratingReport ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          Generating Report...
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Generate Buyer Report
+                        </>
+                      )}
+                    </Button>
+                    {!analysisStatus?.vision_complete_for_top5 && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Waiting for photo analysis to complete...
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Share Link Section (shown after report is generated) */}
+              {buyerReportShareId && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Buyer Report Generated</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Your shareable report is ready with AI-generated synthesis. Share the link below with your buyer.
+                    </p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Share Link</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={`${window.location.origin}/buyer-report/${buyerReportShareId}`}
+                            readOnly
+                            className="flex-1 px-3 py-2 border rounded-md bg-gray-50 text-sm"
+                          />
+                          <Button
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/buyer-report/${buyerReportShareId}`);
+                              toast({ title: 'Link copied!' });
+                            }}
+                            size="sm"
+                          >
+                            Copy Link
+                          </Button>
+                        </div>
+                      </div>
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          The report includes cross-property synthesis with intro, ranked picks, and next steps.
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -1688,7 +1951,10 @@ function AIRecommendationsView({
   profile,
   selectedProperties,
   setSelectedProperties,
-  onSaveProperties
+  onSaveProperties,
+  photoAnalysis,
+  isLoadingPhotos,
+  buyerReportShareId
 }: {
   results: SearchView2Results;
   formatPrice: (price: number) => string;
@@ -1697,9 +1963,59 @@ function AIRecommendationsView({
   selectedProperties: Set<string>;
   setSelectedProperties: (selected: Set<string>) => void;
   onSaveProperties: (propertyIds: string[]) => void;
+  photoAnalysis?: Record<string, PhotoAnalysisResult>;
+  isLoadingPhotos?: boolean;
+  buyerReportShareId?: string | null;
 }) {
   // State to track selected image index for each property
   const [selectedImageIndex, setSelectedImageIndex] = useState<Record<string, number>>({});
+
+  // Top-K sorting logic: Mark top 5 properties by fitScore as "top picks"
+  const TOP_K = 5;
+  const listingsWithTopPicks = React.useMemo(() => {
+    const sorted = [...results.listings]
+      .filter(l => l.aiAnalysis) // Only properties with AI analysis
+      .sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0)); // Use finalScore to match backend
+
+    return results.listings.map((property, index) => {
+      const sortedIndex = sorted.findIndex(p => p.mlsNumber === property.mlsNumber);
+      const isTopByRank = sortedIndex < TOP_K && sortedIndex >= 0;
+      const isScoreOk = (property.fitScore ?? 0) >= 70;
+
+      return {
+        ...property,
+        isTopPick: isTopByRank && isScoreOk
+      };
+    });
+  }, [results.listings]);
+
+  // Sort listings for display: top picks first, then by finalScore DESC
+  const orderedListings = React.useMemo(() => {
+    const sorted = [...listingsWithTopPicks].sort((a, b) => {
+      // Top picks first
+      if (a.isTopPick !== b.isTopPick) {
+        return a.isTopPick ? -1 : 1;
+      }
+      // Within each group, sort by finalScore DESC (matches backend)
+      return (b.finalScore ?? 0) - (a.finalScore ?? 0);
+    });
+
+    // Debug: Log MLS numbers
+    console.log('[AI TAB] Listing MLS numbers (Top 5):', sorted.slice(0, 5).map(p => p.mlsNumber));
+    console.log('[AI TAB] Photo analysis keys:', photoAnalysis ? Object.keys(photoAnalysis) : 'none');
+
+    // Debug: Log top 5 order
+    console.log('[AI TAB] Top 5 Order:', sorted.slice(0, 5).map((p, i) => ({
+      rank: i + 1,
+      address: p.address,
+      fitScore: p.fitScore,
+      finalScore: p.finalScore, // Added to verify sorting
+      isTopPick: p.isTopPick,
+      mlsNumber: p.mlsNumber
+    })));
+
+    return sorted;
+  }, [listingsWithTopPicks, photoAnalysis]);
 
   // Handler to change the displayed image
   const handleImageClick = (propertyId: string, imageIndex: number) => {
@@ -1729,10 +2045,10 @@ function AIRecommendationsView({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Checkbox
-                checked={selectedProperties.size === results.listings.slice(0, 10).length && results.listings.length > 0}
+                checked={selectedProperties.size === orderedListings.slice(0, 10).length && orderedListings.length > 0}
                 onCheckedChange={(checked) => {
                   if (checked) {
-                    const allIds = new Set(results.listings.slice(0, 10).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
+                    const allIds = new Set(orderedListings.slice(0, 10).map(p => p.mlsNumber || `${p.address}-${p.listPrice}`));
                     setSelectedProperties(allIds);
                   } else {
                     setSelectedProperties(new Set());
@@ -1758,25 +2074,35 @@ function AIRecommendationsView({
 
       {/* Property Recommendations */}
       <div className="grid grid-cols-1 gap-6">
-        {results.listings.slice(0, 10).map((property, index) => (
+        {orderedListings.slice(0, 10).map((property, index) => (
           <Card key={property.mlsNumber || `ai-property-${index}`} className="overflow-hidden hover:shadow-lg transition-shadow">
             {/* Property Images Section */}
             <div className="relative">
-              <div className="aspect-[4/3] bg-gray-100">
+              <div className="aspect-[2/1] bg-gray-100">
                 {property.images && property.images.length > 0 ? (
                   <div className="relative h-full">
-                    {/* Main Image - Clickable to cycle through images */}
-                    <img
-                      src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
-                      alt={`${property.address} - ${property.city}, ${property.state}`}
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => handleMainImageClick(property.mlsNumber, property.images.length)}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.onerror = null;
-                        target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
-                      }}
-                    />
+                    {/* Main Image - Click to expand */}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <img
+                          src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
+                          alt={`${property.address} - ${property.city}, ${property.state}`}
+                          className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
+                          }}
+                        />
+                      </DialogTrigger>
+                      <DialogContent className="max-w-7xl w-full p-0">
+                        <img
+                          src={property.images[selectedImageIndex[property.mlsNumber] || 0]}
+                          alt={`${property.address} - ${property.city}, ${property.state}`}
+                          className="w-full h-auto"
+                        />
+                      </DialogContent>
+                    </Dialog>
 
                     {/* Image Counter */}
                     <div className="absolute top-4 right-4">
@@ -1896,21 +2222,60 @@ function AIRecommendationsView({
                 </div>
               </div>
 
-              {/* AI Analysis V2: Headline + Summary + 3 Sections */}
-              {property.aiAnalysis && (
+              {/* Client Summary - Buyer-Facing Dashboard */}
+              {(property.aiAnalysis || photoAnalysis?.[property.mlsNumber]) && (
                 <div className="space-y-4">
-                  {/* Headline */}
-                  <div className="text-lg font-bold text-gray-900">
-                    {property.aiAnalysis.headline}
-                  </div>
+                  {property.isTopPick ? (
+                    <ClientSummaryDeep
+                      analysis={{
+                        fit_score: property.fitScore ?? property.matchScore ?? null,
+                        whats_matching: property.aiAnalysis?.whats_matching || [],
+                        whats_missing: property.aiAnalysis?.whats_missing || [],
+                        red_flags: property.aiAnalysis?.red_flags || [],
+                        photo_matches: photoAnalysis?.[property.mlsNumber]?.photo_matches,
+                        photo_red_flags: photoAnalysis?.[property.mlsNumber]?.photo_red_flags,
+                        agent_take_ai: photoAnalysis?.[property.mlsNumber]?.agent_take_ai ?? property.aiAnalysis?.agent_take_ai,
+                        agent_take_final: property.aiAnalysis?.agent_take_final,
+                        vision_complete: photoAnalysis?.[property.mlsNumber]?.vision_complete ?? property.aiAnalysis?.vision_complete ?? false,
+                      }}
+                      buyerProfile={profile}
+                      listing={property}
+                      isLoadingPhotos={isLoadingPhotos && index < 5}
+                    />
+                  ) : (
+                    <ClientSummaryLight
+                      analysis={{
+                        fit_score: property.fitScore ?? property.matchScore ?? null,
+                        whats_matching: property.aiAnalysis?.whats_matching || [],
+                        whats_missing: property.aiAnalysis?.whats_missing || [],
+                        red_flags: property.aiAnalysis?.red_flags || [],
+                        photo_red_flags: photoAnalysis?.[property.mlsNumber]?.photo_red_flags,
+                      }}
+                      isLoadingPhotos={isLoadingPhotos && index < 5}
+                    />
+                  )}
 
-                  {/* Summary for Buyer */}
-                  <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    {property.aiAnalysis.summary_for_buyer}
-                  </div>
+                  {/* Collapsible Detailed Analysis */}
+                  <Accordion type="single" collapsible className="border rounded-lg">
+                    <AccordionItem value="details" className="border-none">
+                      <AccordionTrigger className="px-4 py-3 hover:bg-gray-50 text-sm text-gray-600">
+                        View detailed AI analysis →
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4 space-y-4">
+                        {/* Original Headline + Summary */}
+                        {property.aiAnalysis?.headline && (
+                          <div className="text-lg font-bold text-gray-900">
+                            {property.aiAnalysis.headline}
+                          </div>
+                        )}
+                        {property.aiAnalysis?.summary_for_buyer && (
+                          <div className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            {property.aiAnalysis.summary_for_buyer}
+                          </div>
+                        )}
 
-                  {/* Section 1: What's Matching */}
-                  {property.aiAnalysis.whats_matching?.length > 0 && (
+                        {/* Section 1: What's Matching */}
+                  {property.aiAnalysis?.whats_matching?.length > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <CheckCircle className="h-5 w-5 text-green-600" />
@@ -1994,6 +2359,118 @@ function AIRecommendationsView({
                       </div>
                     </div>
                   )}
+
+                  {/* Photo Checks Section - Vision AI Analysis */}
+                  {(() => {
+                const propertyPhotoAnalysis = photoAnalysis?.[property.mlsNumber];
+
+                // Show loading state for Top 5 properties
+                if (isLoadingPhotos && index < 5) {
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="h-5 w-5 text-purple-600 animate-pulse" />
+                        <h4 className="font-semibold text-purple-900">Photo Checks (AI)</h4>
+                        <span className="text-xs text-purple-600">Analyzing photos...</span>
+                      </div>
+                      <div className="h-20 flex items-center justify-center">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Show photo analysis if available
+                if (propertyPhotoAnalysis) {
+                  return (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="h-5 w-5 text-purple-600" />
+                        <h4 className="font-semibold text-purple-900">Photo Checks (AI)</h4>
+                      </div>
+
+                      {/* Photo Headline */}
+                      <div className="text-sm font-medium text-purple-900 mb-2">
+                        {propertyPhotoAnalysis.photo_headline}
+                      </div>
+
+                      {/* Photo Summary */}
+                      <div className="text-xs text-purple-700 mb-3 italic">
+                        {propertyPhotoAnalysis.photo_summary}
+                      </div>
+
+                      {/* Photo Matches */}
+                      {propertyPhotoAnalysis.photo_matches?.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          <div className="text-xs font-medium text-purple-800">Visual Requirements Check:</div>
+                          {propertyPhotoAnalysis.photo_matches.map((match, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                match.status === 'present' ? 'bg-green-200 text-green-800' :
+                                match.status === 'absent' ? 'bg-red-200 text-red-800' :
+                                'bg-gray-200 text-gray-700'
+                              }`}>
+                                {match.status === 'present' ? '✓' : match.status === 'absent' ? '✗' : '?'}
+                              </span>
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-purple-900">{match.requirement}</span>
+                                <p className="text-xs text-purple-600">{match.evidence}</p>
+                              </div>
+                              <span className={`text-xs px-1 py-0.5 rounded ${
+                                match.confidence === 'high' ? 'bg-purple-200 text-purple-800' :
+                                match.confidence === 'medium' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {match.confidence}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Photo Red Flags */}
+                      {propertyPhotoAnalysis.photo_red_flags?.length > 0 && (
+                        <div className="space-y-2 border-t border-purple-200 pt-3">
+                          <div className="text-xs font-medium text-red-700">Visual Concerns:</div>
+                          {propertyPhotoAnalysis.photo_red_flags.map((flag, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                flag.severity === 'high' ? 'bg-red-300 text-red-900' :
+                                flag.severity === 'medium' ? 'bg-red-200 text-red-800' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {flag.severity.toUpperCase()}
+                              </span>
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-red-800">{flag.concern}</span>
+                                <p className="text-xs text-red-600">{flag.evidence}</p>
+                                <p className="text-xs text-red-500 italic">Ask: {flag.follow_up}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // For Top 5 properties without photo analysis yet, show placeholder
+                if (index < 5 && !isLoadingPhotos && !propertyPhotoAnalysis) {
+                  return (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-500">Photo analysis will load when available</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </div>
               )}
 

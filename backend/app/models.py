@@ -18,7 +18,9 @@ class BuyerProfileBase(BaseModel):
     homeType: str
     bedrooms: int
     maxBedrooms: Optional[int] = None
+    minBedrooms: Optional[int] = None
     bathrooms: str
+    minBathrooms: Optional[float] = None
 
     investorType: Optional[str] = None
     investmentCapital: Optional[int] = None
@@ -75,7 +77,9 @@ class BuyerProfileUpdate(BaseModel):
     homeType: Optional[str] = None
     bedrooms: Optional[int] = None
     maxBedrooms: Optional[int] = None
+    minBedrooms: Optional[int] = None
     bathrooms: Optional[str] = None
+    minBathrooms: Optional[float] = None
     investorType: Optional[str] = None
     investmentCapital: Optional[int] = None
     targetMonthlyReturn: Optional[int] = None

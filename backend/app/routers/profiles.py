@@ -28,7 +28,9 @@ ALLOWED_COLUMNS = {
     "homeType",
     "bedrooms",
     "maxBedrooms",
+    "minBedrooms",
     "bathrooms",
+    "minBathrooms",
     "investorType",
     "investmentCapital",
     "targetMonthlyReturn",
@@ -89,6 +91,8 @@ def _row_to_profile(row: dict) -> dict:
         "budgetMax": row.get("budget_max"),
         "homeType": row.get("home_type"),
         "maxBedrooms": row.get("max_bedrooms"),
+        "minBedrooms": row.get("min_bedrooms"),
+        "minBathrooms": float(row.get("min_bathrooms")) if row.get("min_bathrooms") is not None else None,
         "targetMonthlyReturn": row.get("target_monthly_return"),
         "targetCapRate": float(row.get("target_cap_rate")) if row.get("target_cap_rate") is not None else None,
         "mustHaveFeatures": _coerce_json_list(row.get("must_have_features")),
@@ -179,6 +183,8 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "budget_max" if k == "budgetMax" else
             "home_type" if k == "homeType" else
             "max_bedrooms" if k == "maxBedrooms" else
+            "min_bedrooms" if k == "minBedrooms" else
+            "min_bathrooms" if k == "minBathrooms" else
             "investor_type" if k == "investorType" else
             "investment_capital" if k == "investmentCapital" else
             "target_monthly_return" if k == "targetMonthlyReturn" else
@@ -254,6 +260,8 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "budget_max" if k == "budgetMax" else
             "home_type" if k == "homeType" else
             "max_bedrooms" if k == "maxBedrooms" else
+            "min_bedrooms" if k == "minBedrooms" else
+            "min_bathrooms" if k == "minBathrooms" else
             "investor_type" if k == "investorType" else
             "investment_capital" if k == "investmentCapital" else
             "target_monthly_return" if k == "targetMonthlyReturn" else

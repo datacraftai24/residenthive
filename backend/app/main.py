@@ -16,6 +16,7 @@ from .routers import analytics as analytics_router
 from .routers import search as search_router
 from .routers import listings as listings_router
 from .routers import properties as properties_router
+from .routers import buyer_reports as buyer_reports_router
 from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
 
@@ -89,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router.router)
     app.include_router(listings_router.router)
     app.include_router(properties_router.router)
+    app.include_router(buyer_reports_router.router)
 
     # Global exception handler
     @app.exception_handler(Exception)

@@ -1,7 +1,22 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import os
+import uuid
+
+from ..services.search_context_store import (
+    generate_search_id,
+    store_search_context,
+    get_search_context,
+    mark_vision_complete,
+    store_photo_analysis_results,
+    get_photo_analysis_results
+)
+from ..services.photo_analyzer import analyze_property_photos
+from ..services.property_analyzer import _generate_agent_take
+from ..db import get_conn, fetchone_dict
+from ..auth import get_current_agent_id
 
 
 router = APIRouter(prefix="/api")
@@ -69,9 +84,9 @@ def _map_to_agent_listing(search_results: Dict[str, Any]) -> List[Dict[str, Any]
 
 
 @router.post("/agent-search")
-def agent_search(req: AgentSearchRequest):
+def agent_search(req: AgentSearchRequest, agent_id: int = Depends(get_current_agent_id)):
     # Reuse /api/listings/search to obtain normalized and scored listings
-    from .listings import listings_search
+    from .listings import listings_search, _load_profile
     base = listings_search({"profileId": req.profileId, "profile": {}})
 
     # Market Overview: Show ALL scored properties (not just top 20)
@@ -82,6 +97,31 @@ def agent_search(req: AgentSearchRequest):
 
     # AI Recommendations: Show only top 20 with AI analysis
     ai_listings = _map_to_agent_listing(base)
+
+    # Generate searchId and store context for photo analysis
+    search_id = generate_search_id()
+
+    # Load full profile for visionChecklist access
+    profile = _load_profile(req.profileId)
+
+    # Build ranked_listings for photo analyzer (with ranking context attached)
+    # These are the Top 20 listings with all scoring fields
+    ranked_listings_for_photos = []
+    for item in (base.get("top_picks", []) + base.get("other_matches", [])):
+        listing = item.get("listing", {})
+        ranked_listings_for_photos.append({
+            **listing,
+            "fit_score": item.get("fitScore"),
+            "priority_tag": item.get("priorityTag"),
+            "final_score": item.get("finalScore"),
+            "rank": item.get("rank"),
+            "is_top20": item.get("isTop20", False),
+        })
+
+    # Store search context for later photo analysis AND buyer report
+    store_search_context(search_id, profile, ai_listings)  # Store mapped listings with aiAnalysis
+    top20_count = sum(1 for l in ai_listings if l.get("isTop20"))
+    print(f"[AGENT SEARCH] Stored context for searchId={search_id}, {len(ai_listings)} listings, {top20_count} with isTop20=True")
 
     view1 = {
         "viewType": "broad",
@@ -105,6 +145,11 @@ def agent_search(req: AgentSearchRequest):
         "initialSearch": {"view1": view1, "view2": view2, "totalFound": len(all_listings), "sufficientResults": True},
         "totalExecutionTime": 0,
         "timestamp": datetime.utcnow().isoformat(),
+        "searchId": search_id,  # For photo analysis endpoint
+        "analysisStatus": {
+            "text_complete": True,
+            "vision_complete_for_top5": False
+        }
     }
     if req.useReactive and req.forceEnhanced:
         response["enhancedSearch"] = {"triggered": True, "reason": "Requested enhanced search", "view1": view1, "adjustments": [], "adjustmentSummary": "", "clientSummary": ""}
@@ -128,3 +173,131 @@ def agent_search_enhanced_only(req: AgentSearchRequest):
         "aiAnalysis": {"topMatches": len([x for x in ai_listings if (x.get('fitScore') or 0) >= 80]), "visualAnalysis": False, "scoringFactors": ["budget","beds","location"]},
     }
     return {"searchType": "agent_dual_view", "view2": view2, "totalExecutionTime": 0, "timestamp": datetime.utcnow().isoformat()}
+
+
+@router.get("/agent-search/photos")
+def agent_search_photos(searchId: str = Query(..., description="Search ID from agent-search response")):
+    """
+    Run GPT-4o Vision photo analysis on Top 5 listings.
+
+    Requires searchId from the main /agent-search response.
+    Analyzes listing photos against buyer's visionChecklist.
+
+    Returns:
+        {
+            "searchId": str,
+            "photo_analysis": {
+                "<mlsNumber>": {
+                    "photo_headline": str,
+                    "photo_summary": str,
+                    "photo_matches": [...],
+                    "photo_red_flags": [...]
+                },
+                ...
+            }
+        }
+    """
+    # Check if photo analysis results are already cached
+    cached_results = get_photo_analysis_results(searchId)
+    if cached_results is not None:
+        print(f"[PHOTO ANALYSIS] Returning cached results for searchId={searchId} ({len(cached_results)} properties)")
+        return {
+            "searchId": searchId,
+            "photo_analysis": cached_results
+        }
+
+    # Retrieve cached search context
+    context = get_search_context(searchId)
+    if not context:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Search context not found or expired for searchId={searchId}"
+        )
+
+    profile = context["profile"]
+    ranked_listings = context["ranked_listings"]
+
+    # Check if profile has visionChecklist
+    vision_checklist = profile.get("visionChecklist") or []
+    if not vision_checklist:
+        print(f"[PHOTO ANALYSIS] No visionChecklist in profile for searchId={searchId}")
+        return {
+            "searchId": searchId,
+            "photo_analysis": {},
+            "error": "Buyer profile does not have a visionChecklist defined"
+        }
+
+    # Filter to Top 5 by finalScore from isTop20=True listings
+    print(f"[PHOTO ANALYSIS DEBUG] Total ranked_listings: {len(ranked_listings)}, with isTop20: {sum(1 for r in ranked_listings if r.get('isTop20'))}")
+    top20_listings = [r for r in ranked_listings if r.get("isTop20")]
+    # Sort by finalScore descending and take top 5
+    top20_listings.sort(key=lambda x: x.get("finalScore") or 0, reverse=True)
+    top5_listings = top20_listings[:5]
+
+    print(f"[PHOTO ANALYSIS] Analyzing {len(top5_listings)} Top 5 listings for searchId={searchId}")
+
+    # Run photo analysis for each Top 5 listing
+    photo_analysis = {}
+    for listing in top5_listings:
+        mls_number = listing.get("mls_number") or listing.get("mlsNumber") or listing.get("id")
+        if not mls_number:
+            continue
+
+        # Build ranking context for photo analyzer
+        ranking_context = {
+            "fit_score": listing.get("fitScore"),
+            "priority_tag": listing.get("priorityTag"),
+            "final_score": listing.get("finalScore"),
+            "rank": listing.get("rank"),
+        }
+
+        # Call photo analyzer
+        photo_result = analyze_property_photos(profile, listing, ranking_context)
+
+        # Merge photo results with existing text analysis to generate complete "My Take"
+        # Get text analysis from listing's aiAnalysis field
+        text_analysis = listing.get("aiAnalysis") or {}
+
+        # Merge text + photo matches and concerns
+        merged_analysis = {
+            "whats_matching": text_analysis.get("whats_matching", []),
+            "whats_missing": text_analysis.get("whats_missing", []),
+            "red_flags": text_analysis.get("red_flags", []),
+            "photo_matches": photo_result.get("photo_matches", []),
+            "photo_red_flags": photo_result.get("photo_red_flags", []),
+        }
+
+        # Generate "My Take" with complete text + photo context
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+
+            agent_take = _generate_agent_take(
+                client, model, profile, listing, ranking_context, merged_analysis
+            )
+            photo_result["agent_take_ai"] = agent_take
+            photo_result["vision_complete"] = True
+            print(f"[PHOTO ANALYSIS] Generated My Take for {mls_number}: '{agent_take[:50]}...'")
+        except Exception as e:
+            print(f"[PHOTO ANALYSIS] Error generating My Take for {mls_number}: {e}")
+            # Still set vision_complete but with text-only My Take if it exists
+            photo_result["agent_take_ai"] = text_analysis.get("agent_take_ai")
+            photo_result["vision_complete"] = False
+
+        photo_analysis[mls_number] = photo_result
+
+        print(f"[PHOTO ANALYSIS] Completed for {mls_number}: headline='{photo_result.get('photo_headline', '')[:50]}...'")
+
+    # Store results in cache to prevent re-running on subsequent polls
+    store_photo_analysis_results(searchId, photo_analysis)
+    print(f"[PHOTO ANALYSIS] Cached results for searchId={searchId}")
+
+    # Mark vision analysis as complete
+    mark_vision_complete(searchId)
+    print(f"[PHOTO ANALYSIS] Marked vision complete for searchId={searchId}")
+
+    return {
+        "searchId": searchId,
+        "photo_analysis": photo_analysis
+    }
