@@ -27,9 +27,9 @@ import {
   Grid, 
   List, 
   MapPin, 
-  Bed, 
-  Bath, 
-  Square, 
+  Bed,
+  Bath,
+  Square,
   DollarSign,
   Eye,
   Share2,
@@ -721,12 +721,46 @@ interface PhotoAnalysisResponse {
   error?: string;
 }
 
+interface LocationFlag {
+  level: 'green' | 'yellow' | 'red';
+  message: string;
+}
+
+interface LocationCommute {
+  drive_peak_mins: number;
+  drive_offpeak_mins: number;
+  distance_miles: number;
+}
+
+interface LocationAmenities {
+  grocery_drive_mins?: number;
+  pharmacy_drive_mins?: number;
+  hospital_drive_mins?: number;
+}
+
+interface LocationSummary {
+  commute?: LocationCommute;
+  amenities?: LocationAmenities;
+}
+
+interface LocationAnalysisResult {
+  location_match_score: number;
+  location_flags: LocationFlag[];
+  location_summary: LocationSummary;
+}
+
+interface LocationAnalysisResponse {
+  searchId: string;
+  location_analysis: Record<string, LocationAnalysisResult>;
+  error?: string;
+}
+
 export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [activeView, setActiveView] = useState<'view1' | 'view2' | 'view3'>('view1');
   const [forceEnhanced, setForceEnhanced] = useState(false);
   const [selectedProperties, setSelectedProperties] = useState<Set<string>>(new Set());
-  const [analysisStatus, setAnalysisStatus] = useState<{ text_complete: boolean; vision_complete_for_top5: boolean } | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<{ text_complete: boolean; vision_complete_for_top5: boolean; location_complete_for_top5: boolean } | null>(null);
   const [buyerReportShareId, setBuyerReportShareId] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { toast } = useToast();
@@ -818,6 +852,36 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     },
   });
 
+  // Location Analysis query - fetches after search completes and we have a searchId
+  const { data: locationAnalysis, isLoading: isLoadingLocation } = useQuery<LocationAnalysisResponse>({
+    queryKey: ['/api/agent-search/location', searchResults?.searchId],
+    queryFn: async () => {
+      if (!searchResults?.searchId) {
+        throw new Error('No searchId available');
+      }
+      const response = await fetch(`/api/agent-search/location?searchId=${searchResults.searchId}`);
+      if (!response.ok) {
+        throw new Error('Location analysis failed');
+      }
+      const data = await response.json();
+      console.log('[LOCATION ANALYSIS] Query result:', {
+        searchId: searchResults.searchId,
+        propertiesWithLocation: Object.keys(data.location_analysis || {}).length,
+        timestamp: new Date().toISOString()
+      });
+      console.log('[LOCATION ANALYSIS] MLS numbers in location_analysis:', Object.keys(data.location_analysis || {}));
+      return data;
+    },
+    enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
+    // Poll every 10 seconds until we have location data, then stop
+    refetchInterval: (data) => {
+      const hasLocationData = data && data.location_analysis && Object.keys(data.location_analysis).length > 0;
+      return hasLocationData ? false : 10000; // Poll every 10s if no data, stop if we have data
+    },
+  });
+
   // Capture analysis status when search completes
   React.useEffect(() => {
     if (searchResults && (searchResults as any).analysisStatus) {
@@ -832,15 +896,35 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     if (photoAnalysis?.photo_analysis && Object.keys(photoAnalysis.photo_analysis).length > 0) {
       setAnalysisStatus(prev => ({
         text_complete: prev?.text_complete ?? true,
-        vision_complete_for_top5: true
+        vision_complete_for_top5: true,
+        location_complete_for_top5: prev?.location_complete_for_top5 ?? false
       }));
       console.log('[ANALYSIS STATUS] Updated after photo analysis:', {
         text_complete: true,
         vision_complete_for_top5: true,
+        location_complete_for_top5: false,
         propertiesAnalyzed: Object.keys(photoAnalysis.photo_analysis).length
       });
     }
   }, [photoAnalysis]);
+
+  // Update analysis status when location analysis completes
+  React.useEffect(() => {
+    if (locationAnalysis?.location_analysis && Object.keys(locationAnalysis.location_analysis).length > 0) {
+      setAnalysisStatus(prev => {
+        const newStatus = {
+          text_complete: prev?.text_complete ?? true,
+          vision_complete_for_top5: prev?.vision_complete_for_top5 ?? false,
+          location_complete_for_top5: true
+        };
+        console.log('[ANALYSIS STATUS] Updated after location analysis:', {
+          ...newStatus,
+          propertiesAnalyzed: Object.keys(locationAnalysis.location_analysis).length
+        });
+        return newStatus;
+      });
+    }
+  }, [locationAnalysis]);
 
   const handleGenerateReport = async () => {
     console.log('[GENERATE REPORT] Button clicked!');
@@ -1143,6 +1227,8 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                 onSaveProperties={(ids) => savePropertiesMutation.mutate(ids)}
                 photoAnalysis={photoAnalysis?.photo_analysis}
                 isLoadingPhotos={isLoadingPhotos}
+                locationAnalysis={locationAnalysis?.location_analysis}
+                isLoadingLocation={isLoadingLocation}
                 buyerReportShareId={buyerReportShareId}
               />
             </>
@@ -1954,6 +2040,8 @@ function AIRecommendationsView({
   onSaveProperties,
   photoAnalysis,
   isLoadingPhotos,
+  locationAnalysis,
+  isLoadingLocation,
   buyerReportShareId
 }: {
   results: SearchView2Results;
@@ -1965,6 +2053,8 @@ function AIRecommendationsView({
   onSaveProperties: (propertyIds: string[]) => void;
   photoAnalysis?: Record<string, PhotoAnalysisResult>;
   isLoadingPhotos?: boolean;
+  locationAnalysis?: Record<string, LocationAnalysisResult>;
+  isLoadingLocation?: boolean;
   buyerReportShareId?: string | null;
 }) {
   // State to track selected image index for each property
@@ -1990,8 +2080,38 @@ function AIRecommendationsView({
   }, [results.listings]);
 
   // Sort listings for display: top picks first, then by finalScore DESC
+  // Also merge photo and location analysis data into listings
   const orderedListings = React.useMemo(() => {
-    const sorted = [...listingsWithTopPicks].sort((a, b) => {
+    // First, merge photo and location analysis into listings
+    const listingsWithAnalysis = listingsWithTopPicks.map(listing => {
+      const mlsNumber = listing.mlsNumber;
+      const mergedListing = { ...listing };
+
+      // Merge photo analysis if available
+      if (photoAnalysis && mlsNumber in photoAnalysis) {
+        const photoData = photoAnalysis[mlsNumber];
+        mergedListing.aiAnalysis = {
+          ...mergedListing.aiAnalysis,
+          ...photoData
+        };
+      }
+
+      // Merge location analysis if available
+      if (locationAnalysis && mlsNumber in locationAnalysis) {
+        const locationData = locationAnalysis[mlsNumber];
+        mergedListing.aiAnalysis = {
+          ...mergedListing.aiAnalysis,
+          location_match_score: locationData.location_match_score,
+          location_flags: locationData.location_flags,
+          location_summary: locationData.location_summary
+        };
+      }
+
+      return mergedListing;
+    });
+
+    // Then sort the merged listings
+    const sorted = [...listingsWithAnalysis].sort((a, b) => {
       // Top picks first
       if (a.isTopPick !== b.isTopPick) {
         return a.isTopPick ? -1 : 1;
@@ -2003,6 +2123,7 @@ function AIRecommendationsView({
     // Debug: Log MLS numbers
     console.log('[AI TAB] Listing MLS numbers (Top 5):', sorted.slice(0, 5).map(p => p.mlsNumber));
     console.log('[AI TAB] Photo analysis keys:', photoAnalysis ? Object.keys(photoAnalysis) : 'none');
+    console.log('[AI TAB] Location analysis keys:', locationAnalysis ? Object.keys(locationAnalysis) : 'none');
 
     // Debug: Log top 5 order
     console.log('[AI TAB] Top 5 Order:', sorted.slice(0, 5).map((p, i) => ({
@@ -2011,11 +2132,13 @@ function AIRecommendationsView({
       fitScore: p.fitScore,
       finalScore: p.finalScore, // Added to verify sorting
       isTopPick: p.isTopPick,
-      mlsNumber: p.mlsNumber
+      mlsNumber: p.mlsNumber,
+      hasPhotoAnalysis: p.aiAnalysis?.photo_headline ? true : false,
+      hasLocationAnalysis: p.aiAnalysis?.location_match_score !== undefined
     })));
 
     return sorted;
-  }, [listingsWithTopPicks, photoAnalysis]);
+  }, [listingsWithTopPicks, photoAnalysis, locationAnalysis]);
 
   // Handler to change the displayed image
   const handleImageClick = (propertyId: string, imageIndex: number) => {
@@ -2468,6 +2591,117 @@ function AIRecommendationsView({
 
                 return null;
               })()}
+
+              {/* Location Intelligence Section */}
+              {(() => {
+                // Show loading state for Top 5 properties
+                if (isLoadingLocation && index < 5) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <MapPin className="h-5 w-5 text-blue-600 animate-pulse" />
+                        <h4 className="font-semibold text-blue-900">Location Intelligence</h4>
+                        <span className="text-xs text-blue-600">Analyzing location...</span>
+                      </div>
+                      <div className="h-20 flex items-center justify-center">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Show location data if available
+                return null;
+              })()}
+
+              {property.aiAnalysis?.location_summary && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin className="h-5 w-5 text-blue-600" />
+                    <h4 className="font-semibold text-blue-900">Location Intelligence</h4>
+                    {property.aiAnalysis.location_match_score !== undefined && property.aiAnalysis.location_match_score !== null && (
+                      <span className="ml-auto text-sm font-medium text-blue-900">
+                        Match: {property.aiAnalysis.location_match_score}/100
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Commute Info */}
+                  {property.aiAnalysis.location_summary.commute && (
+                    <div className="mb-3 pb-3 border-b border-blue-200">
+                      <div className="text-xs font-medium text-blue-800 mb-2">Commute to Work</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-xs text-blue-700">Peak:</span>
+                          <span className="text-xs font-medium text-blue-900 ml-1">
+                            {property.aiAnalysis.location_summary.commute.drive_peak_mins} min
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-xs text-blue-700">Off-Peak:</span>
+                          <span className="text-xs font-medium text-blue-900 ml-1">
+                            {property.aiAnalysis.location_summary.commute.drive_offpeak_mins} min
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-xs text-blue-700">Distance:</span>
+                          <span className="text-xs font-medium text-blue-900 ml-1">
+                            {property.aiAnalysis.location_summary.commute.distance_miles} miles
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nearby Amenities */}
+                  {property.aiAnalysis.location_summary.amenities && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-blue-800 mb-2">Nearby Amenities (Drive Time)</div>
+                      <div className="grid grid-cols-2 gap-1 text-xs">
+                        {property.aiAnalysis.location_summary.amenities.grocery_drive_mins && (
+                          <div className="text-blue-700">
+                            Grocery: <span className="font-medium text-blue-900">{property.aiAnalysis.location_summary.amenities.grocery_drive_mins} min</span>
+                          </div>
+                        )}
+                        {property.aiAnalysis.location_summary.amenities.pharmacy_drive_mins && (
+                          <div className="text-blue-700">
+                            Pharmacy: <span className="font-medium text-blue-900">{property.aiAnalysis.location_summary.amenities.pharmacy_drive_mins} min</span>
+                          </div>
+                        )}
+                        {property.aiAnalysis.location_summary.amenities.restaurant_drive_mins && (
+                          <div className="text-blue-700">
+                            Dining: <span className="font-medium text-blue-900">{property.aiAnalysis.location_summary.amenities.restaurant_drive_mins} min</span>
+                          </div>
+                        )}
+                        {property.aiAnalysis.location_summary.amenities.park_drive_mins && (
+                          <div className="text-blue-700">
+                            Parks: <span className="font-medium text-blue-900">{property.aiAnalysis.location_summary.amenities.park_drive_mins} min</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Location Flags */}
+                  {property.aiAnalysis.location_flags && property.aiAnalysis.location_flags.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-blue-800">Location Insights:</div>
+                      {property.aiAnalysis.location_flags.slice(0, 5).map((flag: any, idx: number) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
+                            flag.level === 'green' ? 'bg-green-200 text-green-800' :
+                            flag.level === 'yellow' ? 'bg-yellow-200 text-yellow-800' :
+                            'bg-red-200 text-red-800'
+                          }`}>
+                            {flag.level === 'green' ? '✓' : flag.level === 'yellow' ? '⚠' : '!'}
+                          </span>
+                          <span className="text-xs text-blue-900">{flag.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>

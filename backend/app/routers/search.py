@@ -2,8 +2,10 @@ from fastapi import APIRouter, Query, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import logging
 import os
 import uuid
+import httpx
 
 from ..services.search_context_store import (
     generate_search_id,
@@ -11,7 +13,10 @@ from ..services.search_context_store import (
     get_search_context,
     mark_vision_complete,
     store_photo_analysis_results,
-    get_photo_analysis_results
+    get_photo_analysis_results,
+    mark_location_complete,
+    store_location_analysis_results,
+    get_location_analysis_results
 )
 from ..services.photo_analyzer import analyze_property_photos
 from ..services.property_analyzer import _generate_agent_take
@@ -20,6 +25,7 @@ from ..auth import get_current_agent_id
 
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 class AgentSearchRequest(BaseModel):
@@ -228,7 +234,6 @@ def agent_search_photos(searchId: str = Query(..., description="Search ID from a
         }
 
     # Filter to Top 5 by finalScore from isTop20=True listings
-    print(f"[PHOTO ANALYSIS DEBUG] Total ranked_listings: {len(ranked_listings)}, with isTop20: {sum(1 for r in ranked_listings if r.get('isTop20'))}")
     top20_listings = [r for r in ranked_listings if r.get("isTop20")]
     # Sort by finalScore descending and take top 5
     top20_listings.sort(key=lambda x: x.get("finalScore") or 0, reverse=True)
@@ -300,4 +305,141 @@ def agent_search_photos(searchId: str = Query(..., description="Search ID from a
     return {
         "searchId": searchId,
         "photo_analysis": photo_analysis
+    }
+
+
+@router.get("/agent-search/location")
+async def agent_search_location(searchId: str = Query(..., description="Search ID from agent-search response")):
+    """
+    Run location intelligence analysis on Top 5 listings using Gemini 2.5 Flash + Google Maps.
+
+    Requires searchId from the main /agent-search response.
+    Analyzes property locations against buyer's location preferences.
+
+    Returns:
+        {
+            "searchId": str,
+            "location_analysis": {
+                "<mlsNumber>": {
+                    "location_match_score": int (0-100),
+                    "location_flags": [...],
+                    "location_summary": {...}
+                },
+                ...
+            }
+        }
+    """
+    # Check if location analysis results are already cached
+    cached_results = get_location_analysis_results(searchId)
+    if cached_results is not None:
+        print(f"[LOCATION ANALYSIS] Returning cached results for searchId={searchId} ({len(cached_results)} properties)")
+        return {
+            "searchId": searchId,
+            "location_analysis": cached_results
+        }
+
+    # Retrieve cached search context
+    context = get_search_context(searchId)
+    if not context:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Search context not found or expired for searchId={searchId}"
+        )
+
+    profile = context["profile"]
+    ranked_listings = context["ranked_listings"]
+
+    # Build buyer location preferences from profile (optional - location service can work without it)
+    buyer_prefs = None
+    work_address = profile.get("work_address")
+    if work_address:
+        buyer_prefs = {
+            "work_address": work_address,
+            "max_commute_mins": profile.get("max_commute_mins", 30),
+            "prioritize_quiet_street": profile.get("prioritize_quiet_street", False),
+            "prioritize_walkability": profile.get("prioritize_walkability", False),
+            "has_kids": profile.get("has_kids", False)
+        }
+        print(f"[LOCATION ANALYSIS] Using buyer preferences with work_address: {work_address}")
+    else:
+        print(f"[LOCATION ANALYSIS] No work_address in profile - will provide general location intelligence")
+
+    # Filter to Top 5 by finalScore from isTop20=True listings
+    top20_listings = [r for r in ranked_listings if r.get("isTop20")]
+    # Sort by finalScore descending and take top 5
+    top20_listings.sort(key=lambda x: x.get("finalScore") or 0, reverse=True)
+    top5_listings = top20_listings[:5]
+
+    print(f"[LOCATION ANALYSIS] Analyzing {len(top5_listings)} Top 5 listings for searchId={searchId}")
+
+    # Location service URL (from env or default to localhost)
+    location_service_url = os.environ.get("LOCATION_SERVICE_URL", "http://localhost:8002")
+
+    # Run location analysis for each Top 5 listing
+    location_analysis = {}
+    async with httpx.AsyncClient(timeout=90.0) as client:  # Increased for Google Maps + Gemini API calls
+        for listing in top5_listings:
+            mls_number = listing.get("mls_number") or listing.get("mlsNumber") or listing.get("id")
+            if not mls_number:
+                continue
+
+            # Build full address
+            address_parts = [
+                listing.get("address", ""),  # Full street address (e.g., "123 Main St")
+                listing.get("city", ""),
+                listing.get("state", ""),
+                listing.get("zip_code", "")
+            ]
+            full_address = " ".join(str(p) for p in address_parts if p).strip()
+
+            if not full_address:
+                print(f"[LOCATION ANALYSIS] Missing address for {mls_number}, skipping")
+                continue
+
+            print(f"[LOCATION ANALYSIS] Analyzing {mls_number}: {full_address}")
+
+            # Call location service
+            try:
+                response = await client.post(
+                    f"{location_service_url}/analyze",
+                    json={
+                        "address": full_address,
+                        "buyer_prefs": buyer_prefs
+                    }
+                )
+                response.raise_for_status()
+                location_result = response.json()
+
+                # Flatten flags from location_summary.flags to top-level location_flags
+                if location_result.get("location_summary", {}).get("flags"):
+                    location_result["location_flags"] = location_result["location_summary"]["flags"]
+                else:
+                    location_result["location_flags"] = []
+
+                location_analysis[mls_number] = location_result
+
+                # Log match score if available
+                if location_result.get("location_match_score"):
+                    print(f"[LOCATION ANALYSIS] {mls_number} match score: {location_result['location_match_score']}/100")
+
+            except Exception as e:
+                logger.error(f"Error analyzing location for {mls_number}: {e}", exc_info=True)
+                location_analysis[mls_number] = {
+                    "error": str(e),
+                    "location_match_score": None,
+                    "location_flags": [],
+                    "location_summary": None
+                }
+
+    # Store results in cache to prevent re-running on subsequent polls
+    store_location_analysis_results(searchId, location_analysis)
+    print(f"[LOCATION ANALYSIS] Cached results for searchId={searchId}")
+
+    # Mark location analysis as complete
+    mark_location_complete(searchId)
+    print(f"[LOCATION ANALYSIS] Marked location complete for searchId={searchId}")
+
+    return {
+        "searchId": searchId,
+        "location_analysis": location_analysis
     }
