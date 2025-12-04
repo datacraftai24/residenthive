@@ -160,7 +160,6 @@ def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
             if not row:
                 raise HTTPException(status_code=404, detail="Profile not found")
     profile_data = _row_to_profile(row)
-    print(f"[DEBUG] Profile {profile_id} AI fields: ai_summary={profile_data.get('aiSummary') is not None}, decision_drivers={len(profile_data.get('decisionDrivers', []))}")
     return BuyerProfile(**profile_data)
 
 

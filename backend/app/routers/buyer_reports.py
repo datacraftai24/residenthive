@@ -14,7 +14,10 @@ import uuid
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
 from .search import get_search_context  # To retrieve full listing data
-from ..services.search_context_store import get_photo_analysis_results
+from ..services.search_context_store import (
+    get_photo_analysis_results,
+    get_location_analysis_results
+)
 from ..services.outreach_generator import generate_outreach_draft
 from ..services.report_synthesizer import generate_report_synthesis
 
@@ -103,6 +106,22 @@ def get_buyer_report(share_id: str):
         print(f"[BUYER REPORT] Merged photo analysis for {len(photo_analysis)} listings")
     else:
         print(f"[BUYER REPORT] No photo analysis available for searchId={search_id}")
+
+    # Merge location analysis if available
+    location_analysis = get_location_analysis_results(search_id)
+    if location_analysis:
+        for listing in ordered_listings:
+            mls = listing.get('mlsNumber')
+            if mls in location_analysis:
+                if 'aiAnalysis' not in listing:
+                    listing['aiAnalysis'] = {}
+                # Merge location fields into aiAnalysis
+                listing['aiAnalysis']['location_match_score'] = location_analysis[mls].get('location_match_score')
+                listing['aiAnalysis']['location_flags'] = location_analysis[mls].get('location_flags')
+                listing['aiAnalysis']['location_summary'] = location_analysis[mls].get('location_summary')
+        print(f"[BUYER REPORT] Merged location analysis for {len(location_analysis)} listings")
+    else:
+        print(f"[BUYER REPORT] No location analysis available for searchId={search_id}")
 
     # Parse synthesis_data from JSON
     synthesis = None

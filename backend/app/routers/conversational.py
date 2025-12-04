@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Any
 from ..db import get_conn, fetchone_dict
+from ..auth import get_current_agent_id
 import re
 import json
 
@@ -27,7 +28,17 @@ class ApplyChangesRequest(BaseModel):
 
 
 @router.post("/buyer-profiles/{profile_id}/parse-changes")
-def parse_changes(profile_id: int, req: ParseChangesRequest):
+async def parse_changes(profile_id: int, req: ParseChangesRequest, request: Request, agent_id: int = Depends(get_current_agent_id)):
+    # Verify agent owns this profile
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT agent_id FROM buyer_profiles WHERE id = %s", (profile_id,))
+            row = fetchone_dict(cur)
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if row.get("agent_id") != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to modify this profile")
+
     text = req.text.lower()
     changes: List[ChangeItem] = []
 
@@ -55,10 +66,17 @@ def parse_changes(profile_id: int, req: ParseChangesRequest):
         if feat:
             changes.append(ChangeItem(field="mustHaveFeatures", newValue=feat, action="add"))
 
-    # Remove feature
-    m_rm = re.search(r"remove (.+)", text)
+    # Remove feature from must-haves
+    m_rm = re.search(r"remove (.+?)(?:\s+requirement|\s+from|$)", text)
     if m_rm:
         feat = (m_rm.group(1) or "").strip()
+        if feat:
+            changes.append(ChangeItem(field="mustHaveFeatures", oldValue=feat, action="remove"))
+
+    # Add to dealbreakers pattern
+    m_deal = re.search(r"add (.+?) (?:to|as) dealbreaker", text)
+    if m_deal:
+        feat = (m_deal.group(1) or "").strip()
         if feat:
             changes.append(ChangeItem(field="dealbreakers", newValue=feat, action="add"))
 
@@ -73,9 +91,12 @@ def parse_changes(profile_id: int, req: ParseChangesRequest):
 
 
 @router.patch("/buyer-profiles/{profile_id}/apply-changes")
-def apply_changes(profile_id: int, req: ApplyChangesRequest):
+async def apply_changes(profile_id: int, req: ApplyChangesRequest, request: Request, agent_id: int = Depends(get_current_agent_id)):
     updates = {}
     features_add: List[str] = []
+    features_remove: List[str] = []
+    dealbreakers_add: List[str] = []
+
     for ch in req.changes:
         if ch.field in ("budgetMin", "budgetMax", "bedrooms") and ch.newValue is not None:
             updates[{
@@ -85,22 +106,40 @@ def apply_changes(profile_id: int, req: ApplyChangesRequest):
             }[ch.field]] = ch.newValue
         elif ch.field == "mustHaveFeatures" and ch.action == "add" and ch.newValue:
             features_add.append(str(ch.newValue))
+        elif ch.field == "mustHaveFeatures" and ch.action == "remove" and ch.oldValue:
+            features_remove.append(str(ch.oldValue).lower())
         elif ch.field == "dealbreakers" and ch.action == "add" and ch.newValue:
-            # store in dealbreakers list as preference to avoid destructive changes
-            updates.setdefault("dealbreakers", None)
+            dealbreakers_add.append(str(ch.newValue))
 
-    # Fetch current lists
+    # Fetch current lists and verify agent ownership
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT must_have_features, dealbreakers FROM buyer_profiles WHERE id = %s", (profile_id,))
+            cur.execute(
+                "SELECT must_have_features, dealbreakers, agent_id FROM buyer_profiles WHERE id = %s",
+                (profile_id,)
+            )
             row = fetchone_dict(cur)
             if not row:
                 raise HTTPException(status_code=404, detail="Profile not found")
+
+            # Verify agent owns this profile
+            if row.get("agent_id") != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to modify this profile")
+
             current_must = row.get("must_have_features") or []
             current_deal = row.get("dealbreakers") or []
 
+    # Add new features
     if features_add:
         current_must = list({*current_must, *features_add})
+
+    # Remove features (case-insensitive matching)
+    if features_remove:
+        current_must = [f for f in current_must if f.lower() not in features_remove]
+
+    # Add dealbreakers
+    if dealbreakers_add:
+        current_deal = list({*current_deal, *dealbreakers_add})
 
     # Build SQL parts
     sets = []

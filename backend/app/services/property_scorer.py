@@ -124,16 +124,6 @@ class PropertyScorer:
             except (ValueError, TypeError):
                 pass
 
-        # Hard Filter 3: Property Type (completely wrong type)
-        # Only filter if buyer specified a type AND property doesn't match
-        # (Keep it flexible - don't filter if buyer didn't specify)
-        # This is commented out for now - most buyers are flexible on type
-        # property_type = str(listing.get("property_type", "")).lower()
-        # requested_type = str(profile.get("homeType", "")).lower()
-        # if requested_type and property_type:
-        #     if "single" in requested_type and "condo" in property_type:
-        #         return True
-
         return False
 
     def _score_budget(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, Any]:

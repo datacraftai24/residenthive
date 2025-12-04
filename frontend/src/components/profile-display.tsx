@@ -8,7 +8,20 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ExtractedProfile, InsertBuyerProfile } from "@shared/schema";
 import ProfileDetailsCard from "./ProfileDetailsCard";
-import { useState } from "react";
+import RequirementsPopup from "./requirements-popup";
+import { useState, useEffect } from "react";
+
+type MissingField = "location" | "budget" | "homeType" | "bedrooms" | "bathrooms";
+
+function checkMissingRequirements(profile: ExtractedProfile): MissingField[] {
+  const missing: MissingField[] = [];
+  if (!profile.location && !profile.preferredAreas?.[0]) missing.push("location");
+  if (!profile.budget && !profile.budgetMin && !profile.budgetMax) missing.push("budget");
+  if (!profile.homeType) missing.push("homeType");
+  if (profile.bedrooms === null || profile.bedrooms === undefined) missing.push("bedrooms");
+  if (!profile.bathrooms) missing.push("bathrooms");
+  return missing;
+}
 
 interface Agent {
   id: number;
@@ -29,6 +42,17 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
   const queryClient = useQueryClient();
   const [isEditingBasics, setIsEditingBasics] = useState(false);
   const [editedProfile, setEditedProfile] = useState(extractedProfile);
+  const [showRequirementsPopup, setShowRequirementsPopup] = useState(false);
+  const [missingFields, setMissingFields] = useState<MissingField[]>([]);
+
+  // Auto-check for missing requirements when profile is loaded
+  useEffect(() => {
+    const missing = checkMissingRequirements(extractedProfile);
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setShowRequirementsPopup(true);
+    }
+  }, [extractedProfile]);
 
   const saveMutation = useMutation({
     mutationFn: async (profile: InsertBuyerProfile) => {
@@ -134,9 +158,30 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
     saveMutation.mutate(profileToSave);
   };
 
+  const handleRequirementsUpdate = (updated: ExtractedProfile) => {
+    setEditedProfile(updated);
+    setShowRequirementsPopup(false);
+    setMissingFields([]);
+    toast({
+      title: "Profile Updated",
+      description: "Required fields have been filled in.",
+    });
+  };
+
   return (
-    <Card>
-      <CardHeader>
+    <>
+      {/* Requirements Popup - auto-shows if fields are missing */}
+      {showRequirementsPopup && missingFields.length > 0 && (
+        <RequirementsPopup
+          profile={editedProfile}
+          missingFields={missingFields}
+          onUpdate={handleRequirementsUpdate}
+          onClose={() => setShowRequirementsPopup(false)}
+        />
+      )}
+
+      <Card>
+        <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Extracted Profile</CardTitle>
           <Button
@@ -241,5 +286,6 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }
