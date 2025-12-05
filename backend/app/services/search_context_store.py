@@ -82,8 +82,9 @@ def store_search_context(
         logger.info(f"Stored search context in Redis: {search_id}")
 
     except Exception as e:
-        logger.error(f"Error storing search context in Redis: {e}", exc_info=True)
-        raise
+        logger.warning(f"Redis unavailable - skipping search context cache: {e}")
+        # Don't raise - Redis is optional for Cloud Run deployments
+        # Data is already persisted to PostgreSQL
 
 
 def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:

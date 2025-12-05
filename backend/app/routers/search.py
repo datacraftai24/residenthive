@@ -124,10 +124,14 @@ def agent_search(req: AgentSearchRequest, agent_id: int = Depends(get_current_ag
             "is_top20": item.get("isTop20", False),
         })
 
-    # Store search context for later photo analysis AND buyer report
-    store_search_context(search_id, profile, ai_listings)  # Store mapped listings with aiAnalysis
-    top20_count = sum(1 for l in ai_listings if l.get("isTop20"))
-    print(f"[AGENT SEARCH] Stored context for searchId={search_id}, {len(ai_listings)} listings, {top20_count} with isTop20=True")
+    # Store search context for later photo analysis AND buyer report (Redis optional)
+    try:
+        store_search_context(search_id, profile, ai_listings)  # Store mapped listings with aiAnalysis
+        top20_count = sum(1 for l in ai_listings if l.get("isTop20"))
+        print(f"[AGENT SEARCH] Stored context for searchId={search_id}, {len(ai_listings)} listings, {top20_count} with isTop20=True")
+    except Exception as e:
+        print(f"[AGENT SEARCH] Warning: Failed to cache search context in Redis: {e}")
+        print(f"[AGENT SEARCH] Continuing without cache (data persisted to database)")
 
     view1 = {
         "viewType": "broad",
