@@ -48,6 +48,7 @@ cd ..
 echo "Deploying to Cloud Run..."
 # Note: Do NOT set PORT env var - Cloud Run sets this automatically
 # Setting it will cause deployment failure with "reserved env names" error
+# Using --max-instances 1 to ensure all requests hit the same container (for in-memory cache)
 gcloud run deploy ${SERVICE_NAME} \
   --image ${IMAGE_NAME} \
   --platform managed \
@@ -56,8 +57,9 @@ gcloud run deploy ${SERVICE_NAME} \
   --memory 512Mi \
   --cpu 1 \
   --min-instances 0 \
-  --max-instances 10 \
-  --timeout 300
+  --max-instances 1 \
+  --timeout 300 \
+  --set-env-vars LOCATION_SERVICE_URL=https://location-service-971261331418.us-central1.run.app
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
