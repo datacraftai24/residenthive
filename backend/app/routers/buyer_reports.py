@@ -10,6 +10,9 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import json
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
@@ -49,12 +52,22 @@ class OutreachDraftResponse(BaseModel):
     shareUrl: str
 
 
+class SharedPropertyDetailResponse(BaseModel):
+    """Response for public property detail page"""
+    property: Dict[str, Any]
+    aiAnalysis: Optional[Dict[str, Any]] = None
+    agent: Dict[str, Any]
+    reportUrl: str
+
+
 @router.get("/{share_id}", response_model=BuyerReportResponse)
 def get_buyer_report(share_id: str):
     """
     PUBLIC endpoint - Get buyer report data for shareable link.
     No authentication required (buyers access this).
     """
+    logger.info(f"[REPORT_VIEW] share_id={share_id}")
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             # Get report metadata
@@ -123,6 +136,12 @@ def get_buyer_report(share_id: str):
     else:
         print(f"[BUYER REPORT] No location analysis available for searchId={search_id}")
 
+    # Add propertyUrl to each listing for "View Details" links
+    for listing in ordered_listings:
+        mls = listing.get('mlsNumber')
+        if mls:
+            listing['propertyUrl'] = f"/shared/reports/{share_id}/property/{mls}"
+
     # Parse synthesis_data from JSON
     synthesis = None
     if report_row.get('synthesis_data'):
@@ -190,6 +209,55 @@ def create_buyer_report(
     except Exception as e:
         print(f"[BUYER REPORT] Synthesis generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate report synthesis: {str(e)}")
+
+    # PERSIST ANALYSIS SNAPSHOT: Freeze all analysis into synthesis_data
+    # This ensures property detail pages work even after search context expires
+    photo_analysis = get_photo_analysis_results(request.searchId)
+    location_analysis = get_location_analysis_results(request.searchId)
+
+    listing_analysis = {}
+    for listing in top_5_listings:
+        mls = str(listing.get('mlsNumber', ''))
+        if not mls:
+            continue
+
+        analysis_snapshot = {
+            "text": {
+                "headline": listing.get('aiAnalysis', {}).get('headline'),
+                "whats_matching": listing.get('aiAnalysis', {}).get('whats_matching', []),
+                "whats_missing": listing.get('aiAnalysis', {}).get('whats_missing', []),
+                "red_flags": listing.get('aiAnalysis', {}).get('red_flags', []),
+                "fit_score": listing.get('fitScore'),
+                "agent_take": listing.get('aiAnalysis', {}).get('agent_take_ai')
+            },
+            "photos": {},
+            "location": {}
+        }
+
+        # Add photo analysis if available
+        if photo_analysis and mls in photo_analysis:
+            pa = photo_analysis[mls]
+            analysis_snapshot["photos"] = {
+                "photo_headline": pa.get('photo_headline'),
+                "photo_summary": pa.get('photo_summary'),
+                "photo_matches": pa.get('photo_matches', []),
+                "photo_red_flags": pa.get('photo_red_flags', [])
+            }
+
+        # Add location analysis if available
+        if location_analysis and mls in location_analysis:
+            la = location_analysis[mls]
+            analysis_snapshot["location"] = {
+                "location_match_score": la.get('location_match_score'),
+                "location_summary": la.get('location_summary'),
+                "location_flags": la.get('location_flags', [])
+            }
+
+        listing_analysis[mls] = analysis_snapshot
+
+    # Add listing_analysis to synthesis
+    synthesis["listing_analysis"] = listing_analysis
+    logger.info(f"[BUYER REPORT] Persisted analysis snapshot for {len(listing_analysis)} listings")
 
     # Get agent info
     agent_name = None
@@ -305,4 +373,120 @@ def get_outreach_draft(
         sms=drafts['sms'],
         email=drafts['email'],
         shareUrl=share_url
+    )
+
+
+@router.get("/shared/reports/{share_id}/property/{listing_id}", response_model=SharedPropertyDetailResponse)
+def get_shared_property_detail(share_id: str, listing_id: str):
+    """
+    PUBLIC endpoint - Get property detail for a specific listing in a buyer report.
+    No authentication required (buyers access this via shared link).
+
+    Security:
+    - Only properties in the report's included_listing_ids are accessible
+    - Returns only buyer-safe data (no buyer name/email/private notes)
+    """
+    logger.info(f"[PROPERTY_VIEW] share_id={share_id} listing_id={listing_id}")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # 1. Fetch report by share_id
+            cur.execute(
+                """
+                SELECT br.*, bp.name as buyer_name, bp.location
+                FROM buyer_reports br
+                JOIN buyer_profiles bp ON br.profile_id = bp.id
+                WHERE br.share_id = %s
+                """,
+                (share_id,)
+            )
+            report_row = fetchone_dict(cur)
+
+            if not report_row:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # 2. TODO: If report.is_active == False → 404 (for future expiry feature)
+
+            # 3. HARD RULE: if listing_id not in included_listing_ids → 404
+            included_ids = report_row.get('included_listing_ids', [])
+            if str(listing_id) not in [str(lid) for lid in included_ids]:
+                raise HTTPException(status_code=404, detail="Property not found in this report")
+
+            # 4. Get property from repliers_listings (404 if listing removed from feed)
+            cur.execute(
+                """
+                SELECT id, address, city, state, zip_code, price, bedrooms, bathrooms,
+                       square_feet, property_type, year_built, description, features,
+                       lot_size, garage_spaces, status
+                FROM repliers_listings
+                WHERE id = %s OR mls_number = %s
+                """,
+                (listing_id, listing_id)
+            )
+            property_row = fetchone_dict(cur)
+
+            if not property_row:
+                raise HTTPException(status_code=404, detail="Property no longer available")
+
+            # 5. Get images from property_images
+            cur.execute(
+                """
+                SELECT image_url, image_order, ai_description
+                FROM property_images
+                WHERE property_id = %s
+                ORDER BY image_order ASC
+                """,
+                (listing_id,)
+            )
+            images_rows = fetchall_dicts(cur)
+            images = [row['image_url'] for row in images_rows] if images_rows else []
+
+    # 6. Get analysis from synthesis_data.listing_analysis[listing_id] ONLY (never live cache)
+    ai_analysis = None
+    synthesis_data = report_row.get('synthesis_data')
+    if synthesis_data:
+        if isinstance(synthesis_data, str):
+            try:
+                synthesis_data = json.loads(synthesis_data)
+            except json.JSONDecodeError:
+                synthesis_data = {}
+
+        listing_analysis = synthesis_data.get('listing_analysis', {})
+        # Try both str and original key format
+        ai_analysis = listing_analysis.get(str(listing_id)) or listing_analysis.get(listing_id)
+
+    # Build property response (buyer-safe only)
+    property_data = {
+        "listingId": str(property_row.get('id', listing_id)),
+        "mlsNumber": str(listing_id),
+        "address": property_row.get('address', ''),
+        "city": property_row.get('city', ''),
+        "state": property_row.get('state', ''),
+        "zipCode": property_row.get('zip_code', ''),
+        "price": property_row.get('price'),
+        "bedrooms": property_row.get('bedrooms'),
+        "bathrooms": property_row.get('bathrooms'),
+        "sqft": property_row.get('square_feet'),
+        "propertyType": property_row.get('property_type'),
+        "yearBuilt": property_row.get('year_built'),
+        "description": property_row.get('description'),
+        "features": property_row.get('features'),
+        "lotSize": property_row.get('lot_size'),
+        "garageSpaces": property_row.get('garage_spaces'),
+        "status": property_row.get('status'),
+        "images": images
+    }
+
+    # Agent info (buyer-safe only - no private notes)
+    agent_data = {
+        "name": report_row.get('agent_name', 'Your Agent'),
+        "email": report_row.get('agent_email'),
+        "phone": report_row.get('agent_phone')
+    }
+
+    return SharedPropertyDetailResponse(
+        property=property_data,
+        aiAnalysis=ai_analysis,
+        agent=agent_data,
+        reportUrl=f"/buyer-report/{share_id}"
     )

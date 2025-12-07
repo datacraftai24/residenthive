@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientSummaryDeep } from '@/components/ClientSummaryDeep';
-import { Home, Mail, Phone, Loader2, Star, Trophy, Maximize2, Trees, DollarSign } from 'lucide-react';
+import { Home, Mail, Phone, Loader2, Star, Trophy, Maximize2, Trees, DollarSign, ExternalLink } from 'lucide-react';
 
 interface RankedPick {
   mlsNumber: string;
@@ -364,9 +364,9 @@ export function BuyerReportPage() {
             <div className="space-y-8">
               {report.listings.map((listing, index) => (
                 <Card key={listing.mlsNumber || index} className="overflow-hidden">
-                  {/* Property Image */}
+                  {/* Property Image with Hover Overlay */}
                   {listing.images && listing.images.length > 0 && (
-                    <div className="aspect-[2/1] bg-gray-100">
+                    <div className="aspect-[2/1] bg-gray-100 relative group">
                       <img
                         src={listing.images[0]}
                         alt={`${listing.address} - ${listing.city}, ${listing.state}`}
@@ -377,6 +377,20 @@ export function BuyerReportPage() {
                           target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2ViIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
                         }}
                       />
+                      {/* Desktop: Hover overlay */}
+                      {listing.propertyUrl && (
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:flex items-center justify-center">
+                          <a
+                            href={listing.propertyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-white text-gray-900 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-gray-100 transition-colors"
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                            View Full Details
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -461,6 +475,22 @@ export function BuyerReportPage() {
                         listing={listing}
                         isLoadingPhotos={false}
                       />
+                    )}
+
+                    {/* View Full Details Button - Always visible */}
+                    {listing.propertyUrl && (
+                      <div className="mt-6 pt-4 border-t">
+                        <Button variant="outline" className="w-full sm:w-auto" asChild>
+                          <a
+                            href={listing.propertyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Full Details
+                          </a>
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
