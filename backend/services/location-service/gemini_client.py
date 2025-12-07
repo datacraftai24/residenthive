@@ -283,18 +283,56 @@ async def analyze_location_with_gemini(
 
         # Call Gemini 2.5 Flash with Google Maps tool
         # Note: response_mime_type="application/json" is not supported with Google Maps tool
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_maps=types.GoogleMaps())],
-                temperature=0.1,  # Low temperature for consistency
-                max_output_tokens=4096
-            )
-        )
+        # Retry up to 3 times on empty response (Gemini sometimes returns None)
+        max_retries = 3
+        response_text = None
 
-        # Parse response
-        response_text = response.text.strip()
+        for attempt in range(max_retries):
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_maps=types.GoogleMaps())],
+                    temperature=0.1,  # Low temperature for consistency
+                    max_output_tokens=4096,
+                    # Reduce safety filters - we're just analyzing real estate locations
+                    safety_settings=[
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HARASSMENT",
+                            threshold="BLOCK_NONE"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HATE_SPEECH",
+                            threshold="BLOCK_NONE"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold="BLOCK_NONE"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold="BLOCK_NONE"
+                        ),
+                    ]
+                )
+            )
+
+            # Check if response has content
+            if response.text:
+                response_text = response.text.strip()
+                break
+            else:
+                logger.warning(f"Gemini returned empty response for {address} (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(1)  # Brief pause before retry
+
+        if not response_text:
+            logger.error(f"Gemini returned empty response after {max_retries} attempts for {address}")
+            return None
+
+        # Parse response (response_text is now guaranteed non-empty)
+        response_text = response_text
         logger.debug(f"Gemini response: {response_text[:500]}...")  # Log first 500 chars
 
         # Extract JSON from response (may be wrapped in markdown code blocks)

@@ -7,6 +7,7 @@ import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 import ClientDashboard from "@/pages/client-dashboard";
 import { BuyerReportPage } from "@/pages/BuyerReportPage";
+import { SharedPropertyDetail } from "@/pages/shared-property-detail";
 import Analytics from "@/pages/analytics";
 import AgentLogin from "@/pages/agent-login";
 import AgentSetup from "@/pages/agent-setup";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/agent-setup" component={AgentSetup} />
       <Route path="/client/:shareId" component={ClientDashboard} />
       <Route path="/buyer-report/:shareId" component={BuyerReportPage} />
+      <Route path="/shared/reports/:shareId/property/:listingId" component={SharedPropertyDetail} />
 
       {/* Protected routes - authentication required */}
       <Route path="/analytics">
