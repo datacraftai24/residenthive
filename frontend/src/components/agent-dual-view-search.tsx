@@ -20,13 +20,14 @@ import {
 import { SavePropertyButton } from './save-property-button';
 import { ClientSummaryLight } from './ClientSummaryLight';
 import { ClientSummaryDeep } from './ClientSummaryDeep';
+import { OutreachModal } from './outreach-modal';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Search, 
-  Grid, 
-  List, 
-  MapPin, 
+import {
+  Search,
+  Grid,
+  List,
+  MapPin,
   Bed,
   Bath,
   Square,
@@ -39,7 +40,8 @@ import {
   Calendar,
   Home,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Mail
 } from 'lucide-react';
 import type { BuyerProfile } from '@shared/schema';
 
@@ -763,6 +765,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [analysisStatus, setAnalysisStatus] = useState<{ text_complete: boolean; vision_complete_for_top5: boolean; location_complete_for_top5: boolean } | null>(null);
   const [buyerReportShareId, setBuyerReportShareId] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [outreachModalOpen, setOutreachModalOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1309,8 +1312,16 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                               toast({ title: 'Link copied!' });
                             }}
                             size="sm"
+                            variant="outline"
                           >
                             Copy Link
+                          </Button>
+                          <Button
+                            onClick={() => setOutreachModalOpen(true)}
+                            size="sm"
+                          >
+                            <Mail className="h-4 w-4 mr-2" />
+                            Send to Buyer
                           </Button>
                         </div>
                       </div>
@@ -1323,6 +1334,17 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
                     </div>
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Outreach Modal - fetches defaults from backend */}
+              {buyerReportShareId && (
+                <OutreachModal
+                  open={outreachModalOpen}
+                  onOpenChange={setOutreachModalOpen}
+                  shareId={buyerReportShareId}
+                  shareUrl={`${window.location.origin}/buyer-report/${buyerReportShareId}`}
+                  buyerEmail={profile?.email}
+                />
               )}
             </div>
           )}
