@@ -324,6 +324,23 @@ If not explicitly stated:
 Else → "Not Specified"
 
 ---------------------------------------------------
+HOME ORIENTATION & SUN EXPOSURE
+---------------------------------------------------
+Extract preferences about:
+• house facing direction (east, west, north, south)
+• sunlight timing (morning sun, afternoon sun, evening light)
+• explicit avoids (e.g. "avoid west-facing", "no harsh afternoon sun")
+
+Rules:
+• If explicitly required → include in mustHaveFeatures
+• If preferred but flexible → include in niceToHaves
+• If explicitly avoided → include in dealbreakers
+• Preserve nuance ("prefer east, west is ok") — do NOT hallucinate avoids
+• Normalize phrasing:
+  - "morning sun" → "east-facing orientation"
+  - "harsh afternoon sun" → "avoid west-facing orientation"
+
+---------------------------------------------------
 KIDS & PET LOGIC
 ---------------------------------------------------
 Kids → yard, safety, family-friendly, schools
@@ -543,6 +560,22 @@ Extract from this text:
             print(f"[NLP EXTRACTION] Failed to generate vision checklist: {e}")
             profile["visionChecklist"] = {"structural": [], "lifestyle": [], "dealbreakers": [], "optional": []}
 
+        # Extract structured location signals from profile text
+        print(f"[NLP EXTRACTION] Extracting location signals...")
+        try:
+            from app.services.profile_normalizer import normalize_location_signals
+            location_signals = normalize_location_signals(profile)
+            profile["location_preferences"] = location_signals
+            print(f"[NLP EXTRACTION] Location signals extracted: {len(location_signals.get('signals', []))} signals")
+
+            # Also store work_text for backward compat display
+            commute_signal = next((s for s in location_signals.get("signals", []) if s["code"] == "commute"), None)
+            if commute_signal:
+                profile["work_location_text"] = commute_signal.get("work_text")
+        except Exception as e:
+            print(f"[NLP EXTRACTION] Failed to extract location signals: {e}")
+            profile["location_preferences"] = {"version": 2, "signals": []}
+
         return profile
 
     except json.JSONDecodeError as e:
@@ -588,6 +621,7 @@ Extract from this text:
                 "inferredTags": [],
                 "emotionalTone": None,
                 "priorityScore": 50,
+                "location_preferences": {"version": 2, "signals": []},
             }
         else:
             # Retry once
@@ -807,8 +841,8 @@ def _generate_complete_insights(profile: Dict[str, Any]) -> Dict[str, Any]:
     name = profile.get("name", "The buyer")
     location = profile.get("location", "Massachusetts")
     budget = profile.get("budget", "TBD")
-    budget_min = profile.get("budgetMin")
-    budget_max = profile.get("budgetMax")
+    budget_min = profile.get("budgetMin") or 0
+    budget_max = profile.get("budgetMax") or 0
     bedrooms = profile.get("bedrooms", "unknown")
     bathrooms = profile.get("bathrooms", "unknown")
     must_haves = profile.get("mustHaveFeatures", [])
@@ -980,8 +1014,8 @@ def _generate_vision_checklist(profile: Dict[str, Any]) -> Dict[str, list[str]]:
     # Extract profile data
     name = profile.get("name", "Buyer")
     location = profile.get("location", "Unknown")
-    budget_min = profile.get("budgetMin", 0)
-    budget_max = profile.get("budgetMax", 0)
+    budget_min = profile.get("budgetMin") or 0
+    budget_max = profile.get("budgetMax") or 0
     bedrooms = profile.get("bedrooms", "Unknown")
     bathrooms = profile.get("bathrooms", "Unknown")
     must_haves = profile.get("mustHaveFeatures", [])

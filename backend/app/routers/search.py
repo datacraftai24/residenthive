@@ -353,20 +353,32 @@ async def agent_search_location(searchId: str = Query(..., description="Search I
     profile = context["profile"]
     ranked_listings = context["ranked_listings"]
 
-    # Build buyer location preferences from profile (optional - location service can work without it)
+    # Build buyer location preferences from profile signals
+    # IMPORTANT: Only pass signals (version 2). Do NOT rebuild legacy booleans here.
+    # Location service derives what it needs from signals internally.
     buyer_prefs = None
-    work_address = profile.get("work_address")
-    if work_address:
+    location_prefs = profile.get("location_preferences", {})
+
+    if location_prefs.get("version") == 2 and location_prefs.get("signals"):
+        # NEW: Pass structured signals from profile_normalizer
+        signals = location_prefs.get("signals", [])
         buyer_prefs = {
-            "work_address": work_address,
-            "max_commute_mins": profile.get("max_commute_mins", 30),
-            "prioritize_quiet_street": profile.get("prioritize_quiet_street", False),
-            "prioritize_walkability": profile.get("prioritize_walkability", False),
-            "has_kids": profile.get("has_kids", False)
+            "signals": signals,
+            "profile_id": str(profile.get("id", "unknown"))
         }
-        print(f"[LOCATION ANALYSIS] Using buyer preferences with work_address: {work_address}")
+
+        # Extract work_address from commute signal for location service
+        commute_signal = next((s for s in signals if s.get("code") == "commute"), None)
+        if commute_signal and commute_signal.get("work_text"):
+            # Pass raw work_text - location service will geocode on-demand
+            buyer_prefs["work_address"] = commute_signal.get("work_text")
+            buyer_prefs["max_commute_mins"] = commute_signal.get("max_mins", 30)
+
+        signal_codes = [s.get("code") for s in signals]
+        print(f"[LOCATION ANALYSIS] Using signals v2: {signal_codes}")
     else:
-        print(f"[LOCATION ANALYSIS] No work_address in profile - will provide general location intelligence")
+        # Legacy profiles get no buyer_prefs - basic location intelligence only
+        print(f"[LOCATION ANALYSIS] No signals (v2) in profile - will provide general location intelligence")
 
     # Filter to Top 5 by finalScore from isTop20=True listings
     top20_listings = [r for r in ranked_listings if r.get("isTop20")]

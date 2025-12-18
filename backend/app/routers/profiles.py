@@ -61,6 +61,8 @@ ALLOWED_COLUMNS = {
     "nlpConfidence",
     "version",
     "parentProfileId",
+    "locationPreferences",
+    "location_preferences",  # Also accept snake_case from nlp.py
 }
 
 
@@ -112,6 +114,7 @@ def _row_to_profile(row: dict) -> dict:
         "niceToHaves": _coerce_json_list(row.get("nice_to_haves")),
         "flexibilityExplanations": _coerce_json_dict(row.get("flexibility_explanations")),
         "visionChecklist": _coerce_json_dict(row.get("vision_checklist")),
+        "locationPreferences": _coerce_json_dict(row.get("location_preferences")),
         "createdAt": row.get("created_at"),
     }
 
@@ -212,6 +215,7 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "raw_input" if k == "rawInput" else
             "version" if k == "version" else
             "parent_profile_id" if k == "parentProfileId" else
+            "location_preferences" if k == "locationPreferences" else
             "created_at" if k == "createdAt" else
             k
         )
@@ -289,6 +293,7 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "raw_input" if k == "rawInput" else
             "version" if k == "version" else
             "parent_profile_id" if k == "parentProfileId" else
+            "location_preferences" if k == "locationPreferences" else
             k
         )
         sets.append(f"{col} = %s")

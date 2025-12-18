@@ -158,14 +158,40 @@ export default function ProfileDisplay({ extractedProfile, agent, onProfileSaved
     saveMutation.mutate(profileToSave);
   };
 
-  const handleRequirementsUpdate = (updated: ExtractedProfile) => {
-    setEditedProfile(updated);
+  const handleRequirementsUpdate = async (updated: ExtractedProfile) => {
+    // If budget was missing and now provided, regenerate AI insights
+    const hadMissingBudget = missingFields.includes("budget");
+    const nowHasBudget = updated.budgetMin || updated.budgetMax;
+
+    if (hadMissingBudget && nowHasBudget) {
+      try {
+        // Call enhance-profile to regenerate insights with new budget
+        const enhanced = await apiRequest("POST", "/api/enhance-profile", {
+          formData: updated
+        });
+        setEditedProfile(enhanced as ExtractedProfile);
+        toast({
+          title: "Profile Enhanced",
+          description: "AI insights regenerated with your budget.",
+        });
+      } catch (error) {
+        console.error("Failed to enhance profile:", error);
+        setEditedProfile(updated);
+        toast({
+          title: "Profile Updated",
+          description: "Required fields filled. AI insights may be incomplete.",
+        });
+      }
+    } else {
+      setEditedProfile(updated);
+      toast({
+        title: "Profile Updated",
+        description: "Required fields have been filled in.",
+      });
+    }
+
     setShowRequirementsPopup(false);
     setMissingFields([]);
-    toast({
-      title: "Profile Updated",
-      description: "Required fields have been filled in.",
-    });
   };
 
   return (

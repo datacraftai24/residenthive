@@ -359,7 +359,7 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
                        lifestyle_drivers, special_needs, budget_flexibility, location_flexibility,
                        timing_flexibility, emotional_context, voice_transcript, inferred_tags,
                        emotional_tone, priority_score, raw_input, input_method, nlp_confidence,
-                       version, parent_profile_id, ai_summary, vision_checklist
+                       version, parent_profile_id, ai_summary, vision_checklist, location_preferences
                 FROM buyer_profiles WHERE id = %s
                 """,
                 (profile_id,),
@@ -375,6 +375,16 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
             except Exception:
                 return []
         return v or []
+
+    def cd(v):
+        """Coerce JSON dict from string or return empty dict."""
+        if isinstance(v, str):
+            try:
+                import json
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v or {}
     
     # Parse budget - handle both budget string and budgetMin/budgetMax fields
     budget_min = row.get("budget_min")
@@ -418,6 +428,7 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
         "inputMethod": row.get("input_method"),
         "aiSummary": row.get("ai_summary"),
         "visionChecklist": cj(row.get("vision_checklist")),
+        "location_preferences": cd(row.get("location_preferences")),
     }
 
 
