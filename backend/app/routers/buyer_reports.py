@@ -7,7 +7,8 @@ Every search creates a report; agents customize which listings to include.
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+import os
 import json
 import uuid
 import logging
@@ -44,6 +45,8 @@ class BuyerReportResponse(BaseModel):
     createdAt: str
     listings: List[Dict[str, Any]]
     synthesis: Optional[Dict[str, Any]] = None  # LLM-generated intro, ranked_picks, next_steps
+    defaultEmailSubject: Optional[str] = None  # Pre-built email subject for outreach
+    defaultEmailBody: Optional[str] = None  # Pre-built email body for outreach
 
 
 class OutreachDraftResponse(BaseModel):
@@ -60,6 +63,13 @@ class SharedPropertyDetailResponse(BaseModel):
     reportUrl: str
 
 
+class SendReportEmailRequest(BaseModel):
+    """Request to send buyer report via email"""
+    to_email: EmailStr
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
 @router.get("/{share_id}", response_model=BuyerReportResponse)
 def get_buyer_report(share_id: str):
     """
@@ -70,10 +80,10 @@ def get_buyer_report(share_id: str):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Get report metadata
+            # Get report metadata including buyer prefs for email
             cur.execute(
                 """
-                SELECT br.*, bp.name as buyer_name, bp.location
+                SELECT br.*, bp.name as buyer_name, bp.location, bp.budget, bp.budget_min, bp.budget_max, bp.bedrooms
                 FROM buyer_reports br
                 JOIN buyer_profiles bp ON br.profile_id = bp.id
                 WHERE br.share_id = %s
@@ -152,6 +162,34 @@ def get_buyer_report(share_id: str):
         except (json.JSONDecodeError, TypeError):
             synthesis = None
 
+    # Build default email for outreach modal (single source of truth)
+    import os as _os
+    frontend_url = _os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    report_url = f"{frontend_url}/buyer-report/{share_id}"
+
+    buyer_prefs = {
+        "location": report_row.get("location"),
+        "budget": report_row.get("budget"),
+        "budget_min": report_row.get("budget_min"),
+        "budget_max": report_row.get("budget_max"),
+        "bedrooms": report_row.get("bedrooms"),
+    }
+    top_properties = build_top_properties_for_email(ordered_listings)
+
+    # total_reviewed = all listings from search context (already loaded above)
+    total_reviewed = len(all_listings) if all_listings else None
+
+    default_email_body = build_default_email_body(
+        buyer_name=report_row['buyer_name'],
+        agent_name=report_row.get('agent_name', 'Your Agent'),
+        report_url=report_url,
+        top_properties=top_properties,
+        buyer_prefs=buyer_prefs,
+        total_reviewed=total_reviewed,
+        total_narrowed=len(ordered_listings)
+    )
+    default_email_subject = f"Homes I'd recommend for {report_row['buyer_name'] or 'you'}"
+
     return BuyerReportResponse(
         shareId=share_id,
         buyerName=report_row['buyer_name'],
@@ -161,7 +199,9 @@ def get_buyer_report(share_id: str):
         location=report_row.get('location', ''),
         createdAt=report_row['created_at'].isoformat() if report_row.get('created_at') else '',
         listings=ordered_listings,
-        synthesis=synthesis
+        synthesis=synthesis,
+        defaultEmailSubject=default_email_subject,
+        defaultEmailBody=default_email_body
     )
 
 
@@ -490,3 +530,240 @@ def get_shared_property_detail(share_id: str, listing_id: str):
         agent=agent_data,
         reportUrl=f"/buyer-report/{share_id}"
     )
+
+
+# --- Email Template Helpers (single source of truth) ---
+
+def build_top_properties_for_email(listings: list) -> list:
+    """Build enriched property list for email. Single source of truth."""
+    enriched = []
+    for listing in listings[:5]:
+        # Handle both camelCase and snake_case keys
+        enriched.append({
+            "address": listing.get("address"),
+            "city": listing.get("city"),
+            "bedrooms": listing.get("bedrooms"),
+            "bathrooms": listing.get("bathrooms"),
+            "listPrice": listing.get("listPrice") or listing.get("list_price"),
+            # Skip hooks for now - add proper highlight_tagline field later
+        })
+    return enriched
+
+
+def build_buyer_prefs_for_email(profile: dict | None) -> dict:
+    """Extract buyer prefs for email personalization. Single source of truth."""
+    if not profile:
+        return {}
+    return {
+        "location": profile.get("location"),
+        "budget": profile.get("budget"),
+        "budget_min": profile.get("budget_min"),
+        "budget_max": profile.get("budget_max"),
+        "bedrooms": profile.get("bedrooms"),
+    }
+
+
+def build_default_email_body(
+    buyer_name: str,
+    agent_name: str,
+    report_url: str,
+    top_properties: list,
+    buyer_prefs: dict = None,
+    total_reviewed: int = None,
+    total_narrowed: int = None
+) -> str:
+    """Build email body with robust fallbacks for sparse data."""
+
+    # 1. Greeting - safe fallback
+    safe_name = (buyer_name or "").strip() or "there"
+
+    # 2. Prefs summary - human fallback, never "your criteria"
+    pref_parts = []
+    if buyer_prefs:
+        if buyer_prefs.get("bedrooms"):
+            pref_parts.append(f"{buyer_prefs['bedrooms']}+ bedrooms")
+        if buyer_prefs.get("location"):
+            pref_parts.append(f"in {buyer_prefs['location']}")
+
+        # Budget formatting - handle range, single value, or string
+        budget_min = buyer_prefs.get("budget_min")
+        budget_max = buyer_prefs.get("budget_max")
+        budget = buyer_prefs.get("budget")
+
+        if budget_min and budget_max:
+            # Format as range: "$600K - $750K"
+            min_k = f"${budget_min // 1000}K" if budget_min >= 1000 else f"${budget_min:,}"
+            max_k = f"${budget_max // 1000}K" if budget_max >= 1000 else f"${budget_max:,}"
+            pref_parts.append(f"{min_k} - {max_k}")
+        elif isinstance(budget, (int, float)):
+            pref_parts.append(f"around ${budget:,.0f}")
+        elif isinstance(budget, str) and budget:
+            pref_parts.append(f"around {budget}")
+
+    pref_summary = ", ".join(pref_parts) if pref_parts else "homes that match what you're looking for"
+
+    # 3. Volume line - ONLY if meaningful (reviewed > showing)
+    volume_line = ""
+    showing_count = len(top_properties)
+    if (
+        total_reviewed
+        and total_reviewed > showing_count  # Don't flex if no real filtering
+        and total_narrowed
+        and total_narrowed > 0
+    ):
+        volume_line = f"I reviewed about {total_reviewed} active homes that matched your basic criteria, narrowed them down to {total_narrowed} solid options, and I'm sharing the top {showing_count} here."
+
+    # 4. Property bullets - show top 3 as teaser (full list in report)
+    prop_lines = []
+    for p in top_properties[:3]:
+        bits = []
+
+        if p.get("address"):
+            bits.append(p["address"])
+        if p.get("city"):
+            bits.append(p["city"])
+
+        meta_parts = []
+        if p.get("bedrooms"):
+            meta_parts.append(f"{p['bedrooms']} bd")
+        if p.get("bathrooms"):
+            meta_parts.append(f"{p['bathrooms']} ba")
+        if meta_parts:
+            bits.append(" / ".join(meta_parts))
+
+        # Proper price formatting
+        if isinstance(p.get("listPrice"), (int, float)):
+            bits.append(f"${p['listPrice']:,.0f}")
+
+        # Skip hooks for now - add later with proper highlight_tagline field
+
+        # Don't add broken lines
+        if bits:
+            prop_lines.append(f"- {' – '.join(bits)}")
+
+    # 5. Assemble email
+    lines = [
+        f"Hi {safe_name},",
+        "",
+        f"Based on what you shared about wanting {pref_summary}, I pulled together a short list of homes I'd actually recommend – with notes on why they're a fit and what to watch out for.",
+    ]
+
+    if volume_line:
+        lines.extend(["", volume_line])
+
+    if prop_lines:
+        lines.extend(["", "Here are a few of the standouts:"] + prop_lines)
+
+    lines.extend([
+        "",
+        f"You can see the full list and details here: {report_url}",
+        "Each home has a quick breakdown of why it could work for you and what I'd be paying attention to if we go see it in person.",
+        "",
+        "Take 5 minutes to skim this and reply with 2–3 homes you'd like to see, or any that are a hard no.",
+        "If none of these feel right, hit reply and tell me what's missing and I'll adjust the search.",
+        "",
+        f"– {agent_name}",
+    ])
+
+    return "\n".join(lines)
+
+
+@router.post("/{share_id}/send-email")
+def send_buyer_report_email(
+    share_id: str,
+    payload: SendReportEmailRequest,
+    agent_id: int = Depends(get_current_agent_id)
+):
+    """
+    AGENT-only endpoint - Send buyer report via email.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # 1. Load report + buyer profile, validate ownership
+            cur.execute(
+                """
+                SELECT br.*, bp.name as buyer_name, bp.location, bp.budget, bp.budget_min, bp.budget_max, bp.bedrooms
+                FROM buyer_reports br
+                JOIN buyer_profiles bp ON br.profile_id = bp.id
+                WHERE br.share_id = %s
+                """,
+                (share_id,)
+            )
+            report_row = fetchone_dict(cur)
+
+            if not report_row:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            if report_row['agent_id'] != agent_id:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # Get agent info
+            cur.execute("SELECT first_name || ' ' || last_name AS name, email FROM agents WHERE id = %s", (agent_id,))
+            agent_row = cur.fetchone()
+            agent_name = agent_row[0] if agent_row else "Your Agent"
+            agent_email = agent_row[1] if agent_row else None
+
+    # 2. Build report URL
+    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    report_url = f"{frontend_url}/buyer-report/{share_id}"
+
+    # 3. Get listings from search context
+    search_id = report_row['search_id']
+    search_context = get_search_context(search_id)
+
+    listings = []
+    total_reviewed = None
+    if search_context:
+        all_listings = search_context.get('ranked_listings', [])
+        included_ids = report_row.get('included_listing_ids', [])
+        listings = [l for l in all_listings if l.get('mlsNumber') in included_ids]
+        total_reviewed = len(all_listings)
+
+    # 4. Use shared helpers - single source of truth
+    top_properties = build_top_properties_for_email(listings)
+    buyer_prefs = {
+        "location": report_row.get("location"),
+        "budget": report_row.get("budget"),
+        "budget_min": report_row.get("budget_min"),
+        "budget_max": report_row.get("budget_max"),
+        "bedrooms": report_row.get("bedrooms"),
+    }
+
+    # 5. Build email content
+    buyer_name = report_row.get('buyer_name', '')
+    subject = payload.subject or f"Homes I'd recommend for {buyer_name or 'you'}"
+    body = payload.body or build_default_email_body(
+        buyer_name=buyer_name,
+        agent_name=agent_name,
+        report_url=report_url,
+        top_properties=top_properties,
+        buyer_prefs=buyer_prefs,
+        total_reviewed=total_reviewed,
+        total_narrowed=len(listings)
+    )
+
+    # 6. Send via configured provider
+    # Always use DEFAULT_FROM_EMAIL (must be verified in Mailjet)
+    # Agent's email goes in reply_to so replies go to them
+    from ..services.email_service import send_email, DEFAULT_FROM_EMAIL
+    try:
+        success = send_email(
+            to_email=payload.to_email,
+            from_email=DEFAULT_FROM_EMAIL,
+            subject=subject,
+            body=body,
+            reply_to=agent_email
+        )
+        if not success:
+            raise HTTPException(status_code=502, detail="Failed to send email")
+    except ValueError as e:
+        logger.error(f"[REPORT_EMAIL_FAILED] share_id={share_id} to={payload.to_email} error={e}")
+        raise HTTPException(status_code=502, detail="Email service not configured")
+    except Exception as e:
+        logger.error(f"[REPORT_EMAIL_FAILED] share_id={share_id} to={payload.to_email} error={e}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
+
+    # 7. Log for analytics
+    logger.info(f"[REPORT_EMAIL_SENT] share_id={share_id} to={payload.to_email} agent_id={agent_id}")
+
+    return {"status": "sent", "to": payload.to_email}
