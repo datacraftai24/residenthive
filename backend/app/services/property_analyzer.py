@@ -1056,3 +1056,55 @@ def analyze_property_with_ai_v2(
     except Exception as e:
         print(f"[AI V2] Error: {e}")
         return fallback
+
+
+def analyze_batch_v2(
+    profile: Dict[str, Any],
+    items: List[tuple],
+    max_workers: int = None
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Parallel AI analysis for multiple listings using ThreadPoolExecutor.
+    
+    Args:
+        profile: Buyer profile data
+        items: List of (listing, ranking_context) tuples
+        max_workers: Number of concurrent threads (default: from env or 4)
+    
+    Returns:
+        Dict mapping listing_id -> AI analysis result
+    """
+    if max_workers is None:
+        max_workers = int(os.getenv("AI_ANALYSIS_WORKERS", "4"))
+    
+    results = {}
+    
+    # Fallback response for errors
+    fallback = {
+        "headline": "Analysis unavailable",
+        "summary_for_buyer": "We could not generate AI analysis for this property.",
+        "whats_matching": [],
+        "whats_missing": [],
+        "red_flags": []
+    }
+    
+    def analyze_single(item):
+        listing, ranking_context = item
+        listing_id = listing.get("id") or listing.get("mls_number")
+        try:
+            analysis = analyze_property_with_ai_v2(profile, listing, ranking_context)
+            return (listing_id, analysis)
+        except Exception as e:
+            print(f"[AI BATCH] Error analyzing {listing_id}: {e}")
+            return (listing_id, fallback.copy())
+    
+    print(f"[AI BATCH] Starting parallel analysis of {len(items)} listings with {max_workers} workers")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(analyze_single, item) for item in items]
+        for future in as_completed(futures):
+            listing_id, analysis = future.result()
+            results[listing_id] = analysis
+    
+    print(f"[AI BATCH] Completed analysis of {len(results)} listings")
+    return results

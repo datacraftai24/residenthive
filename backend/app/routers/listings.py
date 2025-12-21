@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from ..services.repliers import RepliersClient, RepliersError
 from ..services.scoring_config import ScoringConfig
 from ..services.property_scorer import PropertyScorer
-from ..services.property_analyzer import PropertyAnalyzer, analyze_property_with_ai_v2
+from ..services.property_analyzer import PropertyAnalyzer, analyze_property_with_ai_v2, analyze_batch_v2
 from ..services.listing_quality import ListingQualityAnalyzer
 from ..services.listing_persister import ListingPersister
 from ..services.buyer_ranking import rank_listings, calculate_avg_price_per_sqft
@@ -172,12 +172,11 @@ def listings_search(payload: Dict[str, Any]):
             quality_results[listing_id] = None
 
     # Stage 4: AI analysis ONLY on Top 20 using Layer 1 v2 (text + profile deep match)
-    # Text-only, no photos/vision
-    ai_lookup = {}
+    # Text-only, no photos/vision - PARALLEL execution with ThreadPoolExecutor
+    
+    # Build items list for batch processing
+    items = []
     for ranked in top_20_ranked:
-        listing_id = ranked.get("id") or ranked.get("mls_number")
-
-        # Build ranking context for AI
         ranking_context = {
             "fit_score": ranked.get("fit_score"),
             "fit_chips": ranked.get("fit_chips", []),
@@ -188,14 +187,10 @@ def listings_search(payload: Dict[str, Any]):
             "final_score": ranked.get("final_score"),
             "rank": ranked.get("rank"),
         }
+        items.append((ranked, ranking_context))
 
-        # Call new v2 AI analysis
-        ai_analysis = analyze_property_with_ai_v2(
-            profile=profile,
-            listing=ranked,
-            ranking_context=ranking_context
-        )
-        ai_lookup[listing_id] = ai_analysis
+    # Parallel AI analysis - runs concurrently with ThreadPoolExecutor
+    ai_lookup = analyze_batch_v2(profile, items)
 
     # Build analyzed_listings (Top 20 with AI v2 schema)
     analyzed_listings = []
