@@ -47,6 +47,8 @@ class BuyerReportResponse(BaseModel):
     synthesis: Optional[Dict[str, Any]] = None  # LLM-generated intro, ranked_picks, next_steps
     defaultEmailSubject: Optional[str] = None  # Pre-built email subject for outreach
     defaultEmailBody: Optional[str] = None  # Pre-built email body for outreach
+    profileId: Optional[int] = None  # For chatbot integration
+    agentId: Optional[int] = None  # For chatbot integration
 
 
 class OutreachDraftResponse(BaseModel):
@@ -201,7 +203,9 @@ def get_buyer_report(share_id: str):
         listings=ordered_listings,
         synthesis=synthesis,
         defaultEmailSubject=default_email_subject,
-        defaultEmailBody=default_email_body
+        defaultEmailBody=default_email_body,
+        profileId=report_row.get('profile_id'),
+        agentId=report_row.get('agent_id')
     )
 
 

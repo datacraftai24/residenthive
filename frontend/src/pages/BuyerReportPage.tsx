@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientSummaryDeep } from '@/components/ClientSummaryDeep';
+import { ChatWidget } from '@/components/ChatWidget';
 import { Home, Mail, Phone, Loader2, Star, Trophy, Maximize2, Trees, DollarSign, ExternalLink } from 'lucide-react';
 
 interface RankedPick {
@@ -100,10 +101,12 @@ export function BuyerReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="flex min-h-screen">
+      {/* Main content area */}
+      <div className="flex-1 overflow-auto bg-gray-50">
+        {/* Header */}
+        <div className="bg-white border-b shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -532,6 +535,19 @@ export function BuyerReportPage() {
           </CardContent>
         </Card>
       </div>
+      </div>
+
+      {/* Chat Widget Sidebar */}
+      <ChatWidget
+        shareId={shareId || ''}
+        listings={report.listings}
+        buyerName={report.buyerName}
+        agentName={report.agentName}
+        agentEmail={report.agentEmail}
+        agentPhone={report.agentPhone}
+        profileId={report.profileId}
+        agentId={report.agentId}
+      />
     </div>
   );
 }
