@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -307,7 +309,7 @@ export function ChatWidget({
   return (
     <div
       className={`hidden md:flex flex-col h-screen sticky top-0 border-l bg-white transition-all duration-300 ${
-        isCollapsed ? 'w-12' : 'w-[350px]'
+        isCollapsed ? 'w-12' : 'w-[420px]'
       }`}
     >
       {/* Collapse toggle */}
@@ -348,13 +350,60 @@ export function ChatWidget({
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[90%] rounded-lg px-3 py-2 ${
+                    className={`max-w-[95%] rounded-lg px-3 py-2 ${
                       msg.role === 'user'
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === 'user' ? (
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    ) : (
+                      <div className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 overflow-x-auto">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto my-2">
+                                <table className="min-w-full border-collapse text-xs">{children}</table>
+                              </div>
+                            ),
+                            th: ({ children }) => (
+                              <th className="border border-gray-300 px-2 py-1 bg-gray-200 text-left font-semibold">{children}</th>
+                            ),
+                            td: ({ children }) => (
+                              <td className="border border-gray-300 px-2 py-1">{children}</td>
+                            ),
+                            p: ({ children }) => (
+                              <p className="my-1">{children}</p>
+                            ),
+                            ul: ({ children }) => (
+                              <ul className="list-disc list-inside my-1 pl-2">{children}</ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol className="list-decimal list-inside my-1 pl-2">{children}</ol>
+                            ),
+                            h1: ({ children }) => (
+                              <h1 className="text-lg font-bold my-2">{children}</h1>
+                            ),
+                            h2: ({ children }) => (
+                              <h2 className="text-base font-bold my-2">{children}</h2>
+                            ),
+                            h3: ({ children }) => (
+                              <h3 className="text-sm font-semibold my-1">{children}</h3>
+                            ),
+                            strong: ({ children }) => (
+                              <strong className="font-semibold">{children}</strong>
+                            ),
+                            code: ({ children }) => (
+                              <code className="bg-gray-200 px-1 rounded text-xs">{children}</code>
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
