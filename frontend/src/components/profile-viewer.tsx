@@ -8,19 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Edit, 
   ArrowLeft, 
-  Mail, 
-  DollarSign, 
   Home, 
-  Bed, 
-  Bath,
   Calendar,
-  Target,
   Brain,
   BarChart3,
-  Clock,
-  Search,
-  User,
-  MessageSquare
+  User
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -29,14 +21,10 @@ import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
-import { NLPListingSearch } from "./nlp-listing-search";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
 import ProfileShareButton from "./profile-share-button";
-import InvestmentStrategy from "./investment-strategy";
-import ChatLinkGenerator from "./chat-link-generator";
 import { SavedPropertiesList } from "./saved-properties-list";
 import ProfileDetailsCard from "./ProfileDetailsCard";
-import { useUser } from "@clerk/clerk-react";
 
 type EnhancedProfileResponse = {
   profileId: number;
@@ -64,7 +52,6 @@ interface ProfileViewerProps {
 
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
-  // Remove old search method state - using NLP search now
 
   // Fetch basic profile
   const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
@@ -79,13 +66,6 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!profileId
   });
-
-  const { user } = useUser();
-  // Get agentId from the profile, not from Clerk metadata
-  const agentId = profile?.agentId;
-  const agentName = user?.fullName || user?.username || undefined;
-  const agentEmail = user?.primaryEmailAddress?.emailAddress || undefined;
-  const agentPhone = user?.primaryPhoneNumber?.phoneNumber || undefined;
 
   const isLoading = profileLoading || enhancedLoading;
   const enhancedTags = enhancedProfile?.tags ?? [];
@@ -197,7 +177,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
@@ -208,25 +188,10 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <span className="hidden sm:inline">Agent Search</span>
             <span className="sm:hidden">Agent</span>
           </TabsTrigger>
-          <TabsTrigger value="investment" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Investment Strategy</span>
-            <span className="sm:hidden">Invest</span>
-          </TabsTrigger>
-          <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <Search className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Smart Search</span>
-            <span className="sm:hidden">Search</span>
-          </TabsTrigger>
           <TabsTrigger value="saved" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <Home className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Saved Properties</span>
             <span className="sm:hidden">Saved</span>
-          </TabsTrigger>
-          <TabsTrigger value="chat-link" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Chat Link</span>
-            <span className="sm:hidden">Chat</span>
           </TabsTrigger>
         </TabsList>
 
@@ -276,29 +241,8 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           <AgentDualViewSearch profile={profile} />
         </TabsContent>
 
-        <TabsContent value="investment" className="mt-6">
-          <InvestmentStrategy profile={profile} />
-        </TabsContent>
-
-        <TabsContent value="listings" className="mt-6">
-          {/* New NLP-Powered Search */}
-          {profile && <NLPListingSearch profile={profile} />}
-        </TabsContent>
-
         <TabsContent value="saved" className="mt-6">
           {profile && <SavedPropertiesList profile={profile} />}
-        </TabsContent>
-
-        <TabsContent value="chat-link" className="mt-6">
-          <ChatLinkGenerator
-            profileId={profile.id}
-            profileName={profile.name}
-            agentId={agentId}
-            agentName={agentName}
-            agentEmail={agentEmail}
-            agentPhone={agentPhone}
-            buyerEmail={profile.email}
-          />
         </TabsContent>
       </Tabs>
     </div>

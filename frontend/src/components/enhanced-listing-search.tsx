@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Brain, Eye, Share2, Copy, MessageSquare, Mail, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getDisplayScore, validateScoreBreakdown } from "@/lib/score-utils";
-import ChatLinkGenerator from "@/components/chat-link-generator";
 
 interface EnhancedScoredListing {
   listing: {
@@ -120,15 +119,6 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get buyer profile details for chat link generation
-  const { data: buyerProfile } = useQuery({
-    queryKey: ["/api/buyer-profiles", profileId],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/buyer-profiles/${profileId}`);
-      return await response.json();
-    },
-    enabled: !!profileId
-  });
 
   // Cache status query
   const { data: cacheStatus } = useQuery<CacheStatus>({
@@ -690,15 +680,6 @@ export default function EnhancedListingSearch({ profileId }: { profileId: number
               </div>
             </CardContent>
           </Card>
-
-          {/* Chat Link Generator */}
-          <ChatLinkGenerator 
-            profileId={profileId}
-            profileName={buyerProfile?.name || "Client"}
-            agentId={buyerProfile?.agentId}
-            buyerEmail={buyerProfile?.email}
-            propertyCount={(enhancedResults.top_picks?.length || 0) + (enhancedResults.other_matches?.length || 0)}
-          />
 
           {/* Listings */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>

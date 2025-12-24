@@ -9,11 +9,10 @@ Routers and docs
 - Conversational Edit (parse/apply/quick suggestions): README.conversational.md
 - Feedback, Notes, Lock: README.feedback.md
 - NLP (extract/enhance): README.nlp.md
-- Investment Strategy: README.investment.md
 - Agent Search (dual view): README.search.md
 - Listings (basic/enhanced/hybrid + cache/share/helpers): README.listings.md
 - Analytics (transactions): README.analytics.md
-- Misc helpers (validate-context, NLP search stubs, enhanced profile): README.misc.md
+- Misc helpers (validate-context, enhanced profile): README.misc.md
 
 Conventions
 - Base URL (dev): http://localhost:8000

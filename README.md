@@ -77,18 +77,12 @@ Key API Endpoints (FastAPI)
   - `POST /api/listings/generate-personal-message` — AI-style message (demo)
   - `GET /api/placeholder/{w}/{h}` — SVG placeholder images
 
-- Investment Flow
-  - `POST /api/investment-chat-enhanced` — kick off strategy generation
-  - `GET /api/investment-strategy/{sessionId}` — check status / results
-
 - Analytics
   - `GET /api/profiles/{profileId}/transactions` — list transactions
   - `GET /api/transactions/{transactionId}` — transaction details
 
 - Validation Helpers
   - `POST /api/validate-context` — returns a `chat_url` for the client link generator
-  - `GET /api/listings/nlp-history/{profileId}` — NLP search history (placeholder)
-  - `POST /api/listings/search-nlp/{profileId}` — NLP search (placeholder)
 
 Environment & Config
 - Backend loads `backend/.env` automatically (via `python-dotenv`).

@@ -1,4 +1,4 @@
-from typing import Optional, List, Any
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -115,31 +115,4 @@ class BuyerProfileUpdate(BaseModel):
 class BuyerProfile(BuyerProfileBase):
     id: int
     createdAt: str
-
-
-# Investment Strategy models (subset)
-class InvestmentChatRequest(BaseModel):
-    message: str
-    sessionId: Optional[str] = None
-    context: Optional[dict] = None
-
-
-class InvestmentChatResponse(BaseModel):
-    type: str
-    message: str
-    sessionId: str
-    strategyId: Optional[str] = None
-    rawConversation: Optional[str] = None
-    context: Optional[dict] = None
-
-
-class InvestmentStrategyStatus(BaseModel):
-    status: str
-    message: Optional[str] = None
-    strategy: Optional[Any] = None
-    propertyRecommendations: Optional[Any] = None
-    marketAnalysis: Optional[Any] = None
-    financialProjections: Optional[Any] = None
-    generationTime: Optional[int] = None
-    completedAt: Optional[str] = None
 
