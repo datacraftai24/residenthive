@@ -21,6 +21,10 @@ import {
   Flame,
   Thermometer,
   Snowflake,
+  Building,
+  DollarSign,
+  Handshake,
+  Calendar,
 } from "lucide-react";
 
 interface BuyerInsightsProps {
@@ -43,6 +47,12 @@ interface PropertyInterest {
   agentRecommendation: string;
 }
 
+interface NextStep {
+  action: string;
+  type: "property" | "pricing" | "negotiation" | "communication" | "showing";
+  priority: "high" | "medium";
+}
+
 interface ReportData {
   clientSnapshot: {
     buyerType: string;
@@ -54,7 +64,7 @@ interface ReportData {
   dealbreakers: MustHaveItem[];
   propertyInterest: PropertyInterest[];
   crossPropertyInsights: string[];
-  suggestedActions: string[];
+  nextSteps: NextStep[];
 }
 
 interface InsightsResponse {
@@ -65,6 +75,46 @@ interface InsightsResponse {
     messagesAnalyzed: number;
     propertiesSaved: number;
   };
+}
+
+// Action type badge with icon
+function ActionTypeBadge({ type }: { type: string }) {
+  const config: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
+    property: { 
+      icon: <Building className="h-3 w-3" />, 
+      label: "Properties",
+      className: "bg-blue-100 text-blue-700 border-blue-200"
+    },
+    pricing: { 
+      icon: <DollarSign className="h-3 w-3" />, 
+      label: "Pricing",
+      className: "bg-green-100 text-green-700 border-green-200"
+    },
+    negotiation: { 
+      icon: <Handshake className="h-3 w-3" />, 
+      label: "Negotiation",
+      className: "bg-purple-100 text-purple-700 border-purple-200"
+    },
+    communication: { 
+      icon: <MessageCircle className="h-3 w-3" />, 
+      label: "Communication",
+      className: "bg-slate-100 text-slate-700 border-slate-200"
+    },
+    showing: { 
+      icon: <Calendar className="h-3 w-3" />, 
+      label: "Showing",
+      className: "bg-amber-100 text-amber-700 border-amber-200"
+    },
+  };
+  
+  const { icon, label, className } = config[type] || config.communication;
+  
+  return (
+    <Badge variant="outline" className={`text-xs flex items-center gap-1 ${className}`}>
+      {icon}
+      {label}
+    </Badge>
+  );
 }
 
 // Confidence badge component
@@ -160,9 +210,9 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
+        <Skeleton className="h-32 w-full" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
       </div>
     );
   }
@@ -219,6 +269,46 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
           Refresh
         </Button>
       </div>
+
+      {/* SECTION: NEXT STEPS - NOW AT THE TOP */}
+      <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-amber-500" />
+            What To Do Next
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {report.nextSteps && report.nextSteps.length > 0 ? (
+            <ul className="space-y-3">
+              {report.nextSteps.map((step, i) => (
+                <li key={i} className="flex items-start gap-3 bg-white/60 rounded-lg p-3 border border-amber-100">
+                  <span className={`flex-shrink-0 w-7 h-7 rounded-full text-sm flex items-center justify-center font-bold ${
+                    step.priority === "high" 
+                      ? "bg-amber-500 text-white" 
+                      : "bg-amber-100 text-amber-700"
+                  }`}>
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-800 font-medium">{step.action}</p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <ActionTypeBadge type={step.type} />
+                      {step.priority === "high" && (
+                        <Badge variant="outline" className="text-xs bg-red-50 text-red-600 border-red-200">
+                          High Priority
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">No specific actions recommended yet.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* SECTION A: Client Snapshot */}
       <Card>
@@ -416,32 +506,6 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
           </CardContent>
         </Card>
       )}
-
-      {/* SECTION E: Suggested Actions */}
-      <Card className="border-amber-200 bg-amber-50/30">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-amber-500" />
-            What To Do Next
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {report.suggestedActions.length > 0 ? (
-            <ul className="space-y-2">
-              {report.suggestedActions.map((action, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-sm flex items-center justify-center font-medium">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm text-slate-700 pt-0.5">{action}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500">No specific actions recommended yet.</p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

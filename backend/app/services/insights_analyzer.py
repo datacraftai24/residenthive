@@ -254,9 +254,22 @@ Return a JSON object with this EXACT structure:
   "crossPropertyInsights": [
     "Client prefers larger yards across all properties viewed"
   ],
-  "suggestedActions": [
-    "Schedule showing for 123 Main St",
-    "Send price comps for the area"
+  "nextSteps": [
+    {
+      "action": "Share 3 more properties with larger yards in the $650-700K range",
+      "type": "property",
+      "priority": "high"
+    },
+    {
+      "action": "Focus on demonstrating value - buyer is price sensitive",
+      "type": "pricing",
+      "priority": "high"
+    },
+    {
+      "action": "Use timing flexibility as negotiation leverage",
+      "type": "negotiation",
+      "priority": "medium"
+    }
   ]
 }
 
@@ -268,7 +281,13 @@ FIELD GUIDELINES:
 - interestLevel: "Hot" | "Warm" | "Cold"
 - agentRecommendation: "Book showing" | "Send comps" | "Clarify concern" | "Replace with similar" | "Follow up"
 
-Keep mustHaves to max 5, dealbreakers to max 3, suggestedActions to max 4."""
+NEXT STEPS GUIDELINES (this is the MOST IMPORTANT section):
+- type: "property" (share more listings) | "pricing" (pricing strategy) | "negotiation" (leverage points) | "communication" (address concerns) | "showing" (schedule viewings)
+- priority: "high" | "medium"
+- Be STRATEGIC - not just "schedule showing" but WHY and WHAT to focus on
+- Include specific details from the conversation
+
+Keep mustHaves to max 5, dealbreakers to max 3, nextSteps to max 4."""
 
     user_prompt = f"""Analyze this buyer's chat history and saved properties to create an agent report.
 
@@ -321,18 +340,36 @@ def _validate_report(report: Dict[str, Any], properties: List[Dict]) -> Dict[str
         }
     
     # Ensure arrays exist
-    for field in ["mustHaves", "dealbreakers", "propertyInterest", "crossPropertyInsights", "suggestedActions"]:
+    for field in ["mustHaves", "dealbreakers", "propertyInterest", "crossPropertyInsights", "nextSteps"]:
         if field not in report or not isinstance(report[field], list):
             report[field] = []
     
     # Limit arrays per PRD
     report["mustHaves"] = report["mustHaves"][:5]
     report["dealbreakers"] = report["dealbreakers"][:3]
-    report["suggestedActions"] = report["suggestedActions"][:4]
+    report["nextSteps"] = report["nextSteps"][:4]
     
     # Ensure decision drivers is max 3
     if "decisionDrivers" in report["clientSnapshot"]:
         report["clientSnapshot"]["decisionDrivers"] = report["clientSnapshot"]["decisionDrivers"][:3]
+    
+    # Validate nextSteps structure
+    validated_steps = []
+    for step in report["nextSteps"]:
+        if isinstance(step, str):
+            # Convert old string format to new object format
+            validated_steps.append({
+                "action": step,
+                "type": "communication",
+                "priority": "medium"
+            })
+        elif isinstance(step, dict) and "action" in step:
+            validated_steps.append({
+                "action": step.get("action", ""),
+                "type": step.get("type", "communication"),
+                "priority": step.get("priority", "medium")
+            })
+    report["nextSteps"] = validated_steps
     
     return report
 
@@ -350,8 +387,12 @@ def _generate_empty_report() -> Dict[str, Any]:
         "dealbreakers": [],
         "propertyInterest": [],
         "crossPropertyInsights": [],
-        "suggestedActions": [
-            "Encourage the buyer to start chatting with the AI assistant"
+        "nextSteps": [
+            {
+                "action": "Encourage the buyer to start chatting with the AI assistant",
+                "type": "communication",
+                "priority": "high"
+            }
         ]
     }
 
@@ -406,9 +447,17 @@ def _generate_fallback_report(data: Dict[str, Any]) -> Dict[str, Any]:
         "dealbreakers": dealbreakers,
         "propertyInterest": property_interest,
         "crossPropertyInsights": ["Analysis requires LLM - please try again later"],
-        "suggestedActions": [
-            "Review saved properties with buyer",
-            "Confirm must-haves and dealbreakers"
+        "nextSteps": [
+            {
+                "action": "Review saved properties with buyer",
+                "type": "property",
+                "priority": "high"
+            },
+            {
+                "action": "Confirm must-haves and dealbreakers",
+                "type": "communication",
+                "priority": "high"
+            }
         ]
     }
 
