@@ -12,7 +12,8 @@ import {
   Calendar,
   Brain,
   BarChart3,
-  User
+  User,
+  Lightbulb
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -25,6 +26,7 @@ import { AgentDualViewSearch } from "./agent-dual-view-search";
 import ProfileShareButton from "./profile-share-button";
 import { SavedPropertiesList } from "./saved-properties-list";
 import ProfileDetailsCard from "./ProfileDetailsCard";
+import BuyerInsights from "./buyer-insights";
 
 type EnhancedProfileResponse = {
   profileId: number;
@@ -177,11 +179,16 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
             <span className="sm:hidden">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Buyer Insights</span>
+            <span className="sm:hidden">Insights</span>
           </TabsTrigger>
           <TabsTrigger value="agent-search" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -235,6 +242,10 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="insights" className="space-y-6 mt-6">
+          <BuyerInsights profileId={profile.id} />
         </TabsContent>
 
         <TabsContent value="agent-search" className="space-y-6 mt-6">
