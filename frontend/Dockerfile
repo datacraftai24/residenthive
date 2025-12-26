@@ -15,6 +15,7 @@ RUN npm ci
 # Accept build arguments
 ARG VITE_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsucmVzaWRlbmNlaGl2ZS5jb20k
 ARG VITE_BACKEND_URL=https://api.residencehive.com
+ARG VITE_CHATBOT_URL=https://chatbot-backend-971261331418.us-central1.run.app
 
 # Copy source code
 COPY . .
@@ -22,6 +23,7 @@ COPY . .
 # Build the application with environment variables
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+ENV VITE_CHATBOT_URL=$VITE_CHATBOT_URL
 RUN npm run build
 
 # Stage 2: Production server

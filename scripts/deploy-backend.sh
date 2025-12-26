@@ -59,7 +59,12 @@ gcloud run deploy ${SERVICE_NAME} \
   --min-instances 0 \
   --max-instances 1 \
   --timeout 300 \
-  --set-env-vars LOCATION_SERVICE_URL=https://location-service-971261331418.us-central1.run.app
+  --update-env-vars LOCATION_SERVICE_URL=https://location-service-971261331418.us-central1.run.app \
+  --update-env-vars EMAIL_FROM=info@datacraftai.com \
+  --update-env-vars EMAIL_FROM_NAME=ResidenceHive \
+  --update-env-vars EMAIL_PROVIDER=mailjet \
+  --update-secrets MAILJET_API_KEY=MAILJET_API_KEY:latest \
+  --update-secrets MAILJET_API_SECRET=MAILJET_API_SECRET:latest
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
