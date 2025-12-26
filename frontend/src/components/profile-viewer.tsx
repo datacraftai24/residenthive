@@ -5,15 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Edit, 
-  ArrowLeft, 
-  Home, 
+import {
+  Edit,
+  ArrowLeft,
+  Home,
   Calendar,
   Brain,
   BarChart3,
   User,
-  Lightbulb
+  Lightbulb,
+  FileText
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -23,7 +24,7 @@ import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
-import ProfileShareButton from "./profile-share-button";
+import ReportGeneratorModal from "./report-generator-modal";
 import { SavedPropertiesList } from "./saved-properties-list";
 import ProfileDetailsCard from "./ProfileDetailsCard";
 import BuyerInsights from "./buyer-insights";
@@ -54,6 +55,7 @@ interface ProfileViewerProps {
 
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Fetch basic profile
   const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
@@ -160,17 +162,21 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             {profile.inputMethod}
           </Badge>
           <div className="hidden sm:block">
-            <ConfidenceDisplay 
-              confidence={profile.nlpConfidence || 0} 
+            <ConfidenceDisplay
+              confidence={profile.nlpConfidence || 0}
               inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
               className="ml-2"
             />
           </div>
-          <ProfileShareButton 
-            profileId={profile.id} 
-            profileName={profile.name} 
-          />
-          <Button onClick={() => setIsEditing(true)} size="sm" className="text-xs">
+          <Button
+            onClick={() => setShowReportModal(true)}
+            size="sm"
+            className="text-xs bg-blue-600 hover:bg-blue-700"
+          >
+            <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            Generate Buyer Report
+          </Button>
+          <Button onClick={() => setIsEditing(true)} size="sm" variant="outline" className="text-xs">
             <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Edit
           </Button>
@@ -256,6 +262,14 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           {profile && <SavedPropertiesList profile={profile} />}
         </TabsContent>
       </Tabs>
+
+      {/* Report Generator Modal */}
+      <ReportGeneratorModal
+        profileId={profile.id}
+        profileName={profile.name}
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 }
