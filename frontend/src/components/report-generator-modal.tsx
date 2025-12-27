@@ -16,8 +16,9 @@ import {
   Circle,
   Copy,
   ExternalLink,
-  X
+  Mail
 } from 'lucide-react';
+import { OutreachModal } from './outreach-modal';
 
 type GenerationStep =
   | 'idle'
@@ -30,6 +31,7 @@ type GenerationStep =
 interface ReportGeneratorModalProps {
   profileId: number;
   profileName: string;
+  buyerEmail?: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -51,6 +53,7 @@ interface ReportResult {
 export default function ReportGeneratorModal({
   profileId,
   profileName,
+  buyerEmail,
   isOpen,
   onClose
 }: ReportGeneratorModalProps) {
@@ -59,6 +62,7 @@ export default function ReportGeneratorModal({
   const [reportResult, setReportResult] = useState<ReportResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [outreachModalOpen, setOutreachModalOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
@@ -369,7 +373,19 @@ export default function ReportGeneratorModal({
               </Button>
               <Button
                 variant="outline"
+                onClick={() => setOutreachModalOpen(true)}
+                className="flex-1"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send to Buyer
+              </Button>
+            </div>
+
+            <div className="flex gap-2 mt-2">
+              <Button
+                variant="ghost"
                 onClick={copyToClipboard}
+                size="sm"
                 className="flex-1"
               >
                 {copied ? (
@@ -406,6 +422,15 @@ export default function ReportGeneratorModal({
           </>
         )}
       </DialogContent>
+
+      {/* Outreach Modal for sending email */}
+      <OutreachModal
+        open={outreachModalOpen}
+        onOpenChange={setOutreachModalOpen}
+        shareId={reportResult?.shareId || ''}
+        shareUrl={`${window.location.origin}${reportResult?.shareUrl || ''}`}
+        buyerEmail={buyerEmail}
+      />
     </Dialog>
   );
 }

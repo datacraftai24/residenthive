@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ClientSummaryDeep } from '@/components/ClientSummaryDeep';
 import { ChatWidget } from '@/components/ChatWidget';
-import { Home, Mail, Phone, Loader2, Star, Trophy, Maximize2, Trees, DollarSign, ExternalLink } from 'lucide-react';
+import { Home, Mail, Phone, Loader2, Star, Trophy, Maximize2, Trees, DollarSign, ExternalLink, Car, Clock, Volume2 } from 'lucide-react';
 
 interface RankedPick {
   mlsNumber: string;
@@ -15,14 +15,7 @@ interface RankedPick {
 }
 
 interface RequirementsFlags {
-  meets_bedrooms: string;
-  within_budget: string;
-  in_target_area: string;
-  has_amenities: string;
-  good_condition: string;
-  outdoor_space: string;
-  good_layout: string;
-  low_noise: string;
+  [key: string]: string;  // Dynamic flags based on buyer preferences
 }
 
 interface RequirementsTableEntry {
@@ -30,11 +23,21 @@ interface RequirementsTableEntry {
   flags: RequirementsFlags;
 }
 
+interface DisplayRequirements {
+  criteria: string[];
+  labels: { [key: string]: string };
+  table: RequirementsTableEntry[];
+  condition_notes: { [key: string]: string };
+  hidden_count: number;
+}
+
 interface CategoryWinners {
-  best_overall: string | null;
-  most_space: string | null;
-  best_yard: string | null;
-  most_budget_room: string | null;
+  best_overall?: string | null;
+  best_yard?: string | null;
+  shortest_commute?: string | null;
+  best_parking?: string | null;
+  quietest_location?: string | null;
+  most_budget_room?: string | null;
 }
 
 interface Synthesis {
@@ -42,6 +45,7 @@ interface Synthesis {
   ranked_picks: RankedPick[];
   next_steps: string;
   requirements_table?: RequirementsTableEntry[];
+  display_requirements?: DisplayRequirements;
   category_winners?: CategoryWinners;
 }
 
@@ -182,73 +186,76 @@ export function BuyerReportPage() {
                     </p>
                   </div>
 
-                  {/* Category Winners */}
+                  {/* Category Winners - Buyer-Aware (max 3, no duplicates) */}
                   {report.synthesis.category_winners && (
                     <div className="space-y-3">
                       <h3 className="font-semibold text-gray-900">Category Highlights:</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {report.synthesis.category_winners.best_overall && (() => {
-                          const listing = report.listings.find(l => l.mlsNumber === report.synthesis!.category_winners!.best_overall);
-                          return listing ? (
-                            <div key="best_overall" className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Trophy className="h-5 w-5 text-yellow-600" />
-                                <span className="font-semibold text-gray-900">Best Overall Match</span>
-                              </div>
-                              <p className="text-sm text-gray-700 font-medium">{listing.address}</p>
-                              {listing.aiAnalysis?.headline && (
-                                <p className="text-xs text-gray-600 mt-1">{listing.aiAnalysis.headline}</p>
-                              )}
-                            </div>
-                          ) : null;
-                        })()}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {(() => {
+                          const winners = report.synthesis!.category_winners!;
+                          const categoryConfig: { [key: string]: { label: string; icon: React.ReactNode; gradient: string; border: string } } = {
+                            best_overall: {
+                              label: 'Best Overall Match',
+                              icon: <Trophy className="h-5 w-5 text-yellow-600" />,
+                              gradient: 'from-yellow-50 to-orange-50',
+                              border: 'border-yellow-200'
+                            },
+                            best_yard: {
+                              label: 'Best Outdoor Space',
+                              icon: <Trees className="h-5 w-5 text-green-600" />,
+                              gradient: 'from-green-50 to-emerald-50',
+                              border: 'border-green-200'
+                            },
+                            shortest_commute: {
+                              label: 'Shortest Commute',
+                              icon: <Clock className="h-5 w-5 text-blue-600" />,
+                              gradient: 'from-blue-50 to-cyan-50',
+                              border: 'border-blue-200'
+                            },
+                            best_parking: {
+                              label: 'Best Parking',
+                              icon: <Car className="h-5 w-5 text-indigo-600" />,
+                              gradient: 'from-indigo-50 to-blue-50',
+                              border: 'border-indigo-200'
+                            },
+                            quietest_location: {
+                              label: 'Quietest Location',
+                              icon: <Volume2 className="h-5 w-5 text-teal-600" />,
+                              gradient: 'from-teal-50 to-cyan-50',
+                              border: 'border-teal-200'
+                            },
+                            most_budget_room: {
+                              label: 'Best Value',
+                              icon: <DollarSign className="h-5 w-5 text-purple-600" />,
+                              gradient: 'from-purple-50 to-pink-50',
+                              border: 'border-purple-200'
+                            }
+                          };
 
-                        {report.synthesis.category_winners.most_space && (() => {
-                          const listing = report.listings.find(l => l.mlsNumber === report.synthesis!.category_winners!.most_space);
-                          return listing ? (
-                            <div key="most_space" className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Maximize2 className="h-5 w-5 text-blue-600" />
-                                <span className="font-semibold text-gray-900">Most Space</span>
-                              </div>
-                              <p className="text-sm text-gray-700 font-medium">{listing.address}</p>
-                              {listing.aiAnalysis?.headline && (
-                                <p className="text-xs text-gray-600 mt-1">{listing.aiAnalysis.headline}</p>
-                              )}
-                            </div>
-                          ) : null;
-                        })()}
+                          return Object.entries(winners)
+                            .filter(([_, mls]) => mls)
+                            .slice(0, 3)  // Max 3 category winners
+                            .map(([category, mls]) => {
+                              const listing = report.listings.find(l => l.mlsNumber === mls);
+                              const config = categoryConfig[category];
+                              if (!listing || !config) return null;
 
-                        {report.synthesis.category_winners.best_yard && (() => {
-                          const listing = report.listings.find(l => l.mlsNumber === report.synthesis!.category_winners!.best_yard);
-                          return listing ? (
-                            <div key="best_yard" className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Trees className="h-5 w-5 text-green-600" />
-                                <span className="font-semibold text-gray-900">Best Outdoor Space</span>
-                              </div>
-                              <p className="text-sm text-gray-700 font-medium">{listing.address}</p>
-                              {listing.aiAnalysis?.headline && (
-                                <p className="text-xs text-gray-600 mt-1">{listing.aiAnalysis.headline}</p>
-                              )}
-                            </div>
-                          ) : null;
-                        })()}
-
-                        {report.synthesis.category_winners.most_budget_room && (() => {
-                          const listing = report.listings.find(l => l.mlsNumber === report.synthesis!.category_winners!.most_budget_room);
-                          return listing ? (
-                            <div key="most_budget_room" className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <DollarSign className="h-5 w-5 text-purple-600" />
-                                <span className="font-semibold text-gray-900">Best Value</span>
-                              </div>
-                              <p className="text-sm text-gray-700 font-medium">{listing.address}</p>
-                              {listing.aiAnalysis?.headline && (
-                                <p className="text-xs text-gray-600 mt-1">{listing.aiAnalysis.headline}</p>
-                              )}
-                            </div>
-                          ) : null;
+                              return (
+                                <div
+                                  key={category}
+                                  className={`bg-gradient-to-br ${config.gradient} rounded-lg p-4 border ${config.border}`}
+                                >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {config.icon}
+                                    <span className="font-semibold text-gray-900">{config.label}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-700 font-medium">{listing.address}</p>
+                                  {listing.aiAnalysis?.headline && (
+                                    <p className="text-xs text-gray-600 mt-1">{listing.aiAnalysis.headline}</p>
+                                  )}
+                                </div>
+                              );
+                            });
                         })()}
                       </div>
                     </div>
@@ -294,11 +301,12 @@ export function BuyerReportPage() {
               </Card>
             )}
 
-            {/* Comparison Table */}
-            {report.synthesis?.requirements_table && report.synthesis.requirements_table.length > 0 && (
+            {/* Comparison Table - Buyer-Aware Dynamic Criteria */}
+            {report.synthesis?.display_requirements && report.synthesis.display_requirements.criteria.length > 0 && (
               <Card className="mb-8">
                 <CardHeader>
                   <CardTitle>Requirements Comparison</CardTitle>
+                  <p className="text-sm text-gray-500">Based on the priorities you shared</p>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -308,14 +316,15 @@ export function BuyerReportPage() {
                           <th className="text-left p-3 font-semibold text-gray-700 bg-gray-50">Requirement</th>
                           {report.synthesis.ranked_picks.map((pick, idx) => {
                             const listing = report.listings.find(l => l.mlsNumber === pick.mlsNumber);
+                            const conditionNote = report.synthesis!.display_requirements!.condition_notes[pick.mlsNumber];
                             return (
                               <th key={pick.mlsNumber} className="p-3 text-center bg-gray-50 border-l border-gray-200">
                                 <div className="flex flex-col items-center gap-1">
                                   <Badge className="bg-blue-600 text-white text-xs">{idx + 1}</Badge>
                                   <span className="text-xs font-medium text-gray-700">{listing?.address}</span>
-                                  {listing?.aiAnalysis?.summary_for_buyer && (
-                                    <span className="text-xs text-gray-500 mt-1 max-w-[150px] line-clamp-2">
-                                      {listing.aiAnalysis.summary_for_buyer}
+                                  {conditionNote && (
+                                    <span className="text-xs text-gray-500 mt-1">
+                                      {conditionNote}
                                     </span>
                                   )}
                                 </div>
@@ -325,32 +334,43 @@ export function BuyerReportPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { key: 'meets_bedrooms', label: 'Bedrooms' },
-                          { key: 'within_budget', label: 'Budget' },
-                          { key: 'in_target_area', label: 'Location' },
-                          { key: 'has_amenities', label: 'Amenities' },
-                          { key: 'good_condition', label: 'Condition' },
-                          { key: 'outdoor_space', label: 'Outdoor Space' },
-                          { key: 'good_layout', label: 'Layout' },
-                          { key: 'low_noise', label: 'Quiet' }
-                        ].map((req, reqIdx) => (
-                          <tr key={req.key} className={reqIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="p-3 font-medium text-gray-700 border-b border-gray-200">{req.label}</td>
-                            {report.synthesis!.ranked_picks.map((pick) => {
-                              const entry = report.synthesis!.requirements_table!.find(e => e.mlsNumber === pick.mlsNumber);
-                              const flag = entry?.flags[req.key as keyof RequirementsFlags] || '❌';
-                              return (
-                                <td key={pick.mlsNumber} className="p-3 text-center border-b border-l border-gray-200">
-                                  <span className="text-2xl">{flag}</span>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
+                        {report.synthesis.display_requirements.criteria.map((criterionKey, reqIdx) => {
+                          const label = report.synthesis!.display_requirements!.labels[criterionKey] || criterionKey;
+                          return (
+                            <tr key={criterionKey} className={reqIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                              <td className="p-3 font-medium text-gray-700 border-b border-gray-200">{label}</td>
+                              {report.synthesis!.ranked_picks.map((pick) => {
+                                const entry = report.synthesis!.display_requirements!.table.find(e => e.mlsNumber === pick.mlsNumber);
+                                const flag = entry?.flags[criterionKey] || '⚠️';
+                                return (
+                                  <td key={pick.mlsNumber} className="p-3 text-center border-b border-l border-gray-200">
+                                    <span className="text-2xl">{flag}</span>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Legend */}
+                  <div className="mt-4 text-sm text-gray-500 flex flex-wrap items-center gap-4">
+                    <span>✅ Confirmed</span>
+                    <span>⚠️ Verify</span>
+                    <span>❌ Doesn't match</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    ⚠️ items are worth confirming during showings.
+                  </p>
+
+                  {/* Hidden count microcopy */}
+                  {report.synthesis.display_requirements.hidden_count > 0 && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Showing top {report.synthesis.display_requirements.criteria.length} priorities — others can be reviewed during showings.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

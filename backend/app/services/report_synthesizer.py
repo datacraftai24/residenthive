@@ -13,7 +13,7 @@ import json
 import os
 from typing import Dict, Any, List
 from openai import OpenAI
-from .requirements_analyzer import compute_requirements_checklist, compute_category_winners
+from .requirements_analyzer import compute_requirements_checklist, compute_category_winners, compute_display_requirements
 
 
 def generate_report_synthesis(
@@ -215,15 +215,12 @@ Return JSON only, no extra commentary.
                 if p["mlsNumber"] in input_mls
             ]
 
-        # Add deterministic requirements table
-        requirements_table = []
-        for listing in listings:
-            flags = compute_requirements_checklist(profile, listing)
-            requirements_table.append({
-                "mlsNumber": listing["mlsNumber"],
-                "flags": flags
-            })
-        synthesis["requirements_table"] = requirements_table
+        # Add buyer-aware display requirements (dynamic criteria, labels, table)
+        display_requirements = compute_display_requirements(profile, listings)
+        synthesis["display_requirements"] = display_requirements
+
+        # Keep legacy requirements_table for backwards compatibility
+        synthesis["requirements_table"] = display_requirements["table"]
 
         # Add category winners (pass ranked_picks to align Best Overall with #1 rank)
         category_winners = compute_category_winners(
@@ -276,14 +273,9 @@ def _generate_fallback_synthesis(
 
     # Add requirements table and category winners if profile is provided
     if profile:
-        requirements_table = []
-        for listing in listings:
-            flags = compute_requirements_checklist(profile, listing)
-            requirements_table.append({
-                "mlsNumber": listing["mlsNumber"],
-                "flags": flags
-            })
-        synthesis["requirements_table"] = requirements_table
+        display_requirements = compute_display_requirements(profile, listings)
+        synthesis["display_requirements"] = display_requirements
+        synthesis["requirements_table"] = display_requirements["table"]
         synthesis["category_winners"] = compute_category_winners(
             profile,
             listings,
