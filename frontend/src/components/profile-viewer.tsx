@@ -5,22 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Edit, 
-  ArrowLeft, 
-  Mail, 
-  DollarSign, 
-  Home, 
-  Bed, 
-  Bath,
+import {
+  Edit,
+  ArrowLeft,
+  Home,
   Calendar,
-  Target,
   Brain,
   BarChart3,
-  Clock,
-  Search,
   User,
-  MessageSquare
+  Lightbulb,
+  FileText
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -29,14 +23,11 @@ import TagPersonaDisplay from "./tag-persona-display";
 import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
-import { NLPListingSearch } from "./nlp-listing-search";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
-import ProfileShareButton from "./profile-share-button";
-import InvestmentStrategy from "./investment-strategy";
-import ChatLinkGenerator from "./chat-link-generator";
+import ReportGeneratorModal from "./report-generator-modal";
 import { SavedPropertiesList } from "./saved-properties-list";
 import ProfileDetailsCard from "./ProfileDetailsCard";
-import { useUser } from "@clerk/clerk-react";
+import BuyerInsights from "./buyer-insights";
 
 type EnhancedProfileResponse = {
   profileId: number;
@@ -64,7 +55,7 @@ interface ProfileViewerProps {
 
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
-  // Remove old search method state - using NLP search now
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Fetch basic profile
   const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
@@ -79,13 +70,6 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!profileId
   });
-
-  const { user } = useUser();
-  // Get agentId from the profile, not from Clerk metadata
-  const agentId = profile?.agentId;
-  const agentName = user?.fullName || user?.username || undefined;
-  const agentEmail = user?.primaryEmailAddress?.emailAddress || undefined;
-  const agentPhone = user?.primaryPhoneNumber?.phoneNumber || undefined;
 
   const isLoading = profileLoading || enhancedLoading;
   const enhancedTags = enhancedProfile?.tags ?? [];
@@ -178,17 +162,21 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             {profile.inputMethod}
           </Badge>
           <div className="hidden sm:block">
-            <ConfidenceDisplay 
-              confidence={profile.nlpConfidence || 0} 
+            <ConfidenceDisplay
+              confidence={profile.nlpConfidence || 0}
               inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
               className="ml-2"
             />
           </div>
-          <ProfileShareButton 
-            profileId={profile.id} 
-            profileName={profile.name} 
-          />
-          <Button onClick={() => setIsEditing(true)} size="sm" className="text-xs">
+          <Button
+            onClick={() => setShowReportModal(true)}
+            size="sm"
+            className="text-xs bg-blue-600 hover:bg-blue-700"
+          >
+            <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            Generate Buyer Report
+          </Button>
+          <Button onClick={() => setIsEditing(true)} size="sm" variant="outline" className="text-xs">
             <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Edit
           </Button>
@@ -197,36 +185,26 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
             <span className="sm:hidden">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Buyer Insights</span>
+            <span className="sm:hidden">Insights</span>
           </TabsTrigger>
           <TabsTrigger value="agent-search" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Agent Search</span>
             <span className="sm:hidden">Agent</span>
           </TabsTrigger>
-          <TabsTrigger value="investment" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Investment Strategy</span>
-            <span className="sm:hidden">Invest</span>
-          </TabsTrigger>
-          <TabsTrigger value="listings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <Search className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Smart Search</span>
-            <span className="sm:hidden">Search</span>
-          </TabsTrigger>
           <TabsTrigger value="saved" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <Home className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Saved Properties</span>
             <span className="sm:hidden">Saved</span>
-          </TabsTrigger>
-          <TabsTrigger value="chat-link" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Chat Link</span>
-            <span className="sm:hidden">Chat</span>
           </TabsTrigger>
         </TabsList>
 
@@ -272,35 +250,26 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       )}
         </TabsContent>
 
+        <TabsContent value="insights" className="space-y-6 mt-6">
+          <BuyerInsights profileId={profile.id} />
+        </TabsContent>
+
         <TabsContent value="agent-search" className="space-y-6 mt-6">
           <AgentDualViewSearch profile={profile} />
-        </TabsContent>
-
-        <TabsContent value="investment" className="mt-6">
-          <InvestmentStrategy profile={profile} />
-        </TabsContent>
-
-        <TabsContent value="listings" className="mt-6">
-          {/* New NLP-Powered Search */}
-          {profile && <NLPListingSearch profile={profile} />}
         </TabsContent>
 
         <TabsContent value="saved" className="mt-6">
           {profile && <SavedPropertiesList profile={profile} />}
         </TabsContent>
-
-        <TabsContent value="chat-link" className="mt-6">
-          <ChatLinkGenerator
-            profileId={profile.id}
-            profileName={profile.name}
-            agentId={agentId}
-            agentName={agentName}
-            agentEmail={agentEmail}
-            agentPhone={agentPhone}
-            buyerEmail={profile.email}
-          />
-        </TabsContent>
       </Tabs>
+
+      {/* Report Generator Modal */}
+      <ReportGeneratorModal
+        profileId={profile.id}
+        profileName={profile.name}
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 }

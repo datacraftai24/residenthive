@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Header, Depends
 from typing import List, Optional
 from ..models import BuyerProfile, BuyerProfileCreate, BuyerProfileUpdate
 from ..db import get_conn, fetchall_dicts, fetchone_dict
+from ..services.insights_analyzer import generate_buyer_insights
 from datetime import datetime
 import json
 from ..auth import get_current_agent_id
@@ -353,3 +354,36 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Profile not found")
     return {"success": True}
+
+
+@router.get("/buyer-insights/{profile_id}")
+def get_buyer_insights(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Generate on-demand buyer insights by analyzing chat history with LLM.
+    
+    Returns comprehensive insights including:
+    - Statistics: session counts, sentiment, engagement metrics
+    - LLM Insights: preferences, dealbreakers, readiness score, key quotes
+    - Recent Interactions: property likes/dislikes with reasons
+    - Sentiment History: trend data for charts
+    """
+    # Verify the profile belongs to this agent
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT agent_id FROM buyer_profiles WHERE id = %s",
+                (profile_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if row[0] != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+    
+    # Generate insights
+    try:
+        insights = generate_buyer_insights(profile_id)
+        return insights
+    except Exception as e:
+        print(f"[BUYER INSIGHTS] Error generating insights: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")

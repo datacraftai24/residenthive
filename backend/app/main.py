@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .routers import health as health_router
 from .routers import profiles as profiles_router
-from .routers import investment as investment_router
 from .routers import share as share_router
 from .routers import nlp as nlp_router
 from .routers import misc as misc_router
@@ -79,7 +78,6 @@ def create_app() -> FastAPI:
     # Routers
     app.include_router(health_router.router)
     app.include_router(profiles_router.router)
-    app.include_router(investment_router.router)
     app.include_router(share_router.router)
     app.include_router(nlp_router.router)
     app.include_router(misc_router.router)

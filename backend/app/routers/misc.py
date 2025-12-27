@@ -27,18 +27,3 @@ def enhanced_profile(profile_id: int):
             "confidenceScore": 0,
         },
     }
-
-
-@router.get("/listings/nlp-history/{profile_id}")
-def nlp_history(profile_id: int):
-    return []
-
-
-@router.post("/listings/search-nlp/{profile_id}")
-def nlp_search(profile_id: int, payload: dict):
-    return {
-        "nlp_id": "demo-nlp",
-        "search_url": "",
-        "results": [],
-        "execution_time": 0,
-    }

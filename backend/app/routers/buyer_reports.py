@@ -33,6 +33,7 @@ router = APIRouter(prefix="/api/buyer-reports")
 class CreateBuyerReportRequest(BaseModel):
     searchId: str
     profileId: int
+    allowPartial: bool = False  # Allow report generation even if analysis incomplete
 
 
 class BuyerReportResponse(BaseModel):
@@ -223,13 +224,21 @@ def create_buyer_report(
     if not search_context:
         raise HTTPException(status_code=404, detail="Search context not found or expired")
 
-    # Check if vision analysis is complete
+    # Check analysis status
     analysis_status = search_context.get("analysis_status", {})
-    if not analysis_status.get("vision_complete_for_top5"):
+    vision_complete = analysis_status.get("vision_complete_for_top5", False)
+    location_complete = analysis_status.get("location_complete_for_top5", False)
+
+    # If not allowing partial and vision isn't complete, fail
+    if not request.allowPartial and not vision_complete:
         raise HTTPException(
             status_code=400,
             detail="Photo analysis not complete. Please wait for analysis to finish."
         )
+
+    # Log partial report for monitoring
+    if not vision_complete or not location_complete:
+        print(f"[BUYER REPORT] Generating partial report: vision={vision_complete}, location={location_complete}")
 
     # Get profile and listings
     profile = search_context["profile"]

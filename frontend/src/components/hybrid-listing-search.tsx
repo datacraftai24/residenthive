@@ -9,7 +9,6 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, Eye, Share2, Copy, MessageSquare, Loader2, Star, Camera, BarChart3, RefreshCw, Clock, Database, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getDisplayScore, validateScoreBreakdown } from "@/lib/score-utils";
-import ChatLinkGenerator from "@/components/chat-link-generator";
 
 interface ScoredListing {
   listing: {
@@ -470,15 +469,6 @@ export default function HybridListingSearch({ profileId }: { profileId: number }
               </div>
             </CardContent>
           </Card>
-
-          {/* Chat Link Generator */}
-          <ChatLinkGenerator 
-            profileId={profileId}
-            profileName={buyerProfile?.name || "Client"}
-            agentId={buyerProfile?.agentId}
-            buyerEmail={buyerProfile?.email}
-            propertyCount={(hybridResults.top_picks?.length || 0) + (hybridResults.other_matches?.length || 0)}
-          />
 
           {/* Listings */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
