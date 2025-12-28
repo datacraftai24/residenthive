@@ -20,7 +20,6 @@ import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
 import ConversationalEdit from "./conversational-edit";
 import TagPersonaDisplay from "./tag-persona-display";
-import ConfidenceDisplay from "./confidence-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
 import { AgentDualViewSearch } from "./agent-dual-view-search";
@@ -92,8 +91,6 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     // The query will automatically refetch due to cache invalidation
   };
 
-
-
   if (isLoading) {
     return (
       <div className="space-y-6 p-4 sm:p-6">
@@ -158,16 +155,6 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <Calendar className="h-3 w-3" />
             {new Date(profile.createdAt).toLocaleDateString()}
           </Badge>
-          <Badge variant={profile.inputMethod === 'form' ? 'default' : 'secondary'} className="text-xs">
-            {profile.inputMethod}
-          </Badge>
-          <div className="hidden sm:block">
-            <ConfidenceDisplay
-              confidence={profile.nlpConfidence || 0}
-              inputMethod={profile.inputMethod as 'voice' | 'text' | 'form'}
-              className="ml-2"
-            />
-          </div>
           <Button
             onClick={() => setShowReportModal(true)}
             size="sm"
@@ -267,6 +254,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       <ReportGeneratorModal
         profileId={profile.id}
         profileName={profile.name}
+        buyerEmail={profile.email}
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
       />
