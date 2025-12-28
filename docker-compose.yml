@@ -68,6 +68,7 @@ services:
       args:
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
         VITE_BACKEND_URL: http://localhost:8001
+        VITE_CHATBOT_URL: http://localhost:8010
     container_name: residenthive-frontend
     environment:
       VITE_BACKEND_URL: http://backend:8000
