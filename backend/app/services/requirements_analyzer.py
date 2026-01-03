@@ -629,16 +629,16 @@ def compute_category_winners(
     used_mls = set()
 
     # ==========================================================================
-    # 1. Best Overall (always, from synthesis ranking)
+    # 1. Top Match (always, from synthesis ranking)
     # ==========================================================================
     if ranked_picks and len(ranked_picks) > 0:
-        best_overall_mls = ranked_picks[0].get("mlsNumber")
+        top_match_mls = ranked_picks[0].get("mlsNumber")
     else:
-        best_overall = max(listings, key=lambda x: safe_float(x.get("finalScore")))
-        best_overall_mls = best_overall.get("mlsNumber")
+        top_match = max(listings, key=lambda x: safe_float(x.get("finalScore")))
+        top_match_mls = top_match.get("mlsNumber")
 
-    winners["best_overall"] = best_overall_mls
-    used_mls.add(best_overall_mls)
+    winners["top_match"] = top_match_mls
+    used_mls.add(top_match_mls)
 
     # ==========================================================================
     # 2. One buyer-priority highlight (pick first that applies, avoid duplicates)
@@ -686,7 +686,7 @@ def compute_category_winners(
                 buyer_highlight_added = True
 
     # ==========================================================================
-    # 3. Budget highlight (always, if not already used)
+    # 3. Best Price (always, if not already used)
     # ==========================================================================
     budget_candidates = [l for l in listings if l.get("mlsNumber") not in used_mls]
     if budget_candidates:
@@ -699,6 +699,6 @@ def compute_category_winners(
             return budget_max - price
 
         winner = max(budget_candidates, key=get_budget_room)
-        winners["most_budget_room"] = winner.get("mlsNumber")
+        winners["best_price"] = winner.get("mlsNumber")
 
     return winners  # Max 3 entries, no duplicates

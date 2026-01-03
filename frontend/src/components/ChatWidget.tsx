@@ -40,6 +40,14 @@ interface Listing {
   };
 }
 
+interface LeadContext {
+  leadId?: number;
+  leadType?: string;  // property_specific | area_search
+  propertyAddress?: string;
+  propertyListPrice?: number;
+  source?: string;  // zillow, redfin, google
+}
+
 interface ChatWidgetProps {
   shareId: string;
   listings: Listing[];
@@ -49,6 +57,7 @@ interface ChatWidgetProps {
   agentPhone?: string;
   profileId?: number;
   agentId?: number;
+  leadContext?: LeadContext;  // For lead-aware chatbot responses
 }
 
 const CHATBOT_URL = import.meta.env.VITE_CHATBOT_URL || 'http://localhost:8010';
@@ -69,6 +78,7 @@ export function ChatWidget({
   agentPhone,
   profileId,
   agentId,
+  leadContext,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -135,6 +145,14 @@ export function ChatWidget({
           share_id: shareId,
           client_id: profileId ? String(profileId) : undefined,
           agent_id: agentId ? String(agentId) : undefined,
+          // Lead context for lead-aware responses (null for buyer profiles)
+          lead_context: leadContext ? {
+            lead_id: leadContext.leadId,
+            lead_type: leadContext.leadType,
+            property_address: leadContext.propertyAddress,
+            property_list_price: leadContext.propertyListPrice,
+            source: leadContext.source,
+          } : undefined,
           // Pass listings context as part of the message for the AI
           context: {
             buyer_name: buyerName,

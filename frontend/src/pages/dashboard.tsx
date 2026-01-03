@@ -6,13 +6,35 @@ import BuyerForm from "@/components/buyer-form";
 import ProfileForm from "@/components/profile-form";
 import ProfileDisplay from "@/components/profile-display";
 import ProfileViewer from "@/components/profile-viewer";
+import LeadDisplay from "@/components/lead-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/clerk-react";
 
-type ViewMode = 'home' | 'view-profile' | 'extracted-profile';
+// Lead extraction response type
+interface LeadExtractionResponse {
+  lead: any;
+  card: {
+    classification: {
+      role: string;
+      roleReason: string;
+      leadType: string;
+      leadTypeReason: string;
+    };
+    intentScore: number;
+    intentReasons: string[];
+    whatToClarify: string[];
+    suggestedMessage: string;
+    clarifyingQuestion: string | null;
+    mlsSearchStatus: string | null;
+    mlsMatches: any[] | null;
+    extractionConfidence: number;
+  };
+}
+
+type ViewMode = 'home' | 'view-profile' | 'extracted-profile' | 'lead-display';
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -21,6 +43,7 @@ export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [extractedProfile, setExtractedProfile] = useState<ExtractedProfile | null>(null);
+  const [leadResponse, setLeadResponse] = useState<LeadExtractionResponse | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<BuyerProfile[]>({
     queryKey: ["/api/buyer-profiles"],
@@ -49,6 +72,13 @@ export default function Dashboard() {
     setViewMode('home');
   };
 
+  const handleLeadProcessed = (response: LeadExtractionResponse) => {
+    setLeadResponse(response);
+    setViewMode('lead-display');
+    setSelectedProfileId(null);
+    setExtractedProfile(null);
+  };
+
   const handleProfileSelected = (profile: BuyerProfile) => {
     setSelectedProfileId(profile.id);
     setViewMode('view-profile');
@@ -59,6 +89,7 @@ export default function Dashboard() {
     setViewMode('home');
     setSelectedProfileId(null);
     setExtractedProfile(null);
+    setLeadResponse(null);
   };
 
   return (
@@ -137,10 +168,16 @@ export default function Dashboard() {
               onBack={handleBackToHome}
             />
           ) : viewMode === 'extracted-profile' && extractedProfile ? (
-            <ProfileDisplay 
+            <ProfileDisplay
               extractedProfile={extractedProfile}
               agent={null}
               onProfileSaved={handleProfileSaved}
+            />
+          ) : viewMode === 'lead-display' && leadResponse ? (
+            <LeadDisplay
+              lead={leadResponse.lead}
+              card={leadResponse.card}
+              onClose={handleBackToHome}
             />
           ) : (
             <div className="max-w-6xl mx-auto space-y-8">
@@ -162,7 +199,10 @@ export default function Dashboard() {
                 </TabsContent>
                 
                 <TabsContent value="voice" className="mt-6">
-                  <ProfileForm onProfileExtracted={handleProfileExtracted} />
+                  <ProfileForm
+                    onProfileExtracted={handleProfileExtracted}
+                    onLeadProcessed={handleLeadProcessed}
+                  />
                 </TabsContent>
               </Tabs>
 

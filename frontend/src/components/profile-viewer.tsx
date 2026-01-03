@@ -14,7 +14,8 @@ import {
   BarChart3,
   User,
   Lightbulb,
-  FileText
+  FileText,
+  Inbox
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
@@ -27,6 +28,9 @@ import ReportGeneratorModal from "./report-generator-modal";
 import { SavedPropertiesList } from "./saved-properties-list";
 import ProfileDetailsCard from "./ProfileDetailsCard";
 import BuyerInsights from "./buyer-insights";
+import { LeadOriginBadge } from "./lead-origin-badge";
+import { LeadPropertyCard } from "./lead-property-card";
+import LeadIntelTab from "./lead-intel-tab";
 
 type EnhancedProfileResponse = {
   profileId: number;
@@ -44,6 +48,28 @@ type EnhancedProfileResponse = {
     priceOrientation?: string;
     personalityTraits: string[];
     confidenceScore: number;
+  };
+};
+
+type ProfileLeadResponse = {
+  hasLead: boolean;
+  createdByMethod: string;
+  lead?: {
+    id: number;
+    source: string;
+    leadType: string;
+    propertyAddress: string | null;
+    propertyListPrice: number | null;
+    propertyBedrooms: number | null;
+    propertyBathrooms: string | null;
+    propertySqft: number | null;
+    propertyImageUrl: string | null;
+    propertyListingId: string | null;
+    extractedEmail: string | null;
+    extractedPhone: string | null;
+    createdAt: string;
+    reportSentAt: string | null;
+    reportShareId: string | null;
   };
 };
 
@@ -68,6 +94,14 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     queryKey: ['/api/buyer-profiles', profileId, 'enhanced'],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: !!profileId
+  });
+
+  // Fetch lead data if profile was created from a lead
+  const { data: leadData } = useQuery<ProfileLeadResponse>({
+    queryKey: [`/api/buyer-profiles/${profileId}/lead`],
+    queryFn: getQueryFn({ on401: "throw" }),
+    enabled: !!profileId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   const isLoading = profileLoading || enhancedLoading;
@@ -151,6 +185,9 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {leadData?.hasLead && leadData.lead && (
+            <LeadOriginBadge source={leadData.lead.source} />
+          )}
           <Badge variant="outline" className="gap-1 text-xs">
             <Calendar className="h-3 w-3" />
             {new Date(profile.createdAt).toLocaleDateString()}
@@ -172,7 +209,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
       {/* Tabs Navigation */}
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
@@ -193,9 +230,28 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <span className="hidden sm:inline">Saved Properties</span>
             <span className="sm:hidden">Saved</span>
           </TabsTrigger>
+          <TabsTrigger value="lead" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+            <Inbox className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Lead Intel</span>
+            <span className="sm:hidden">Lead</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6 mt-6">
+          {/* Lead Property Card - show original property interest */}
+          {leadData?.hasLead && leadData.lead?.leadType === "property_specific" && leadData.lead.propertyAddress && (
+            <LeadPropertyCard
+              address={leadData.lead.propertyAddress}
+              listPrice={leadData.lead.propertyListPrice}
+              bedrooms={leadData.lead.propertyBedrooms}
+              bathrooms={leadData.lead.propertyBathrooms}
+              sqft={leadData.lead.propertySqft}
+              imageUrl={leadData.lead.propertyImageUrl}
+              listingId={leadData.lead.propertyListingId}
+              source={leadData.lead.source}
+            />
+          )}
+
           {/* Use ProfileDetailsCard for consistent display */}
           <ProfileDetailsCard profile={profile} />
 
@@ -247,6 +303,10 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
 
         <TabsContent value="saved" className="mt-6">
           {profile && <SavedPropertiesList profile={profile} />}
+        </TabsContent>
+
+        <TabsContent value="lead" className="mt-6">
+          <LeadIntelTab profileId={profile.id} />
         </TabsContent>
       </Tabs>
 

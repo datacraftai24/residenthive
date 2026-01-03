@@ -319,8 +319,8 @@ export function ClientSummaryDeep({
     const severityOrder = { high: 0, medium: 1, low: 2 };
     concerns.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-    // Filter out empty labels and take top 3
-    return concerns.filter(c => c.label && c.label !== 'undefined').slice(0, 3);
+    // Filter out empty labels and take top 5 (increased from 3 to include photo insights)
+    return concerns.filter(c => c.label && c.label !== 'undefined').slice(0, 5);
   };
 
   // Calculate overall fit with specific hints
