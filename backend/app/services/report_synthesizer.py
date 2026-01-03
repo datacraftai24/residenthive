@@ -18,7 +18,8 @@ from .requirements_analyzer import compute_requirements_checklist, compute_categ
 
 def generate_report_synthesis(
     profile: Dict[str, Any],
-    listings: List[Dict[str, Any]]
+    listings: List[Dict[str, Any]],
+    lead_context: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Generate LLM synthesis for buyer report.
@@ -26,6 +27,20 @@ def generate_report_synthesis(
     Args:
         profile: Buyer profile with aiSummary, must-haves, etc.
         listings: List of 3-5 listing dicts with full aiAnalysis
+        lead_context: Optional context from parent lead (for lead-based reports)
+            {
+                "leadId": int,
+                "source": str,  # zillow, redfin, etc.
+                "leadType": str,  # property_specific, area_search, general
+                "propertyAddress": str,
+                "propertyListPrice": int,
+                "propertyBedrooms": int,
+                "propertyBathrooms": str,
+                "propertySqft": int,
+                "propertyImageUrl": str,
+                "originalMessage": str,
+                "timeline": str
+            }
 
     Returns:
         {
@@ -37,7 +52,8 @@ def generate_report_synthesis(
                     "why": str     # 1-2 sentences explaining ranking
                 }
             ],
-            "next_steps": str
+            "next_steps": str,
+            "lead_context": dict (if lead_context was provided)
         }
     """
     if not listings:
@@ -50,7 +66,8 @@ def generate_report_synthesis(
     # Build condensed DTO for each listing (for LLM prompt)
     listing_dtos = []
     for idx, listing in enumerate(listings, 1):
-        ai_analysis = listing.get("aiAnalysis", {})
+        # Handle None explicitly - aiAnalysis can be None for similar listings
+        ai_analysis = listing.get("aiAnalysis") or {}
 
         # Extract top matches/concerns (limit to top 2-3 each)
         whats_matching = ai_analysis.get("whats_matching", [])[:3]
@@ -109,7 +126,106 @@ def generate_report_synthesis(
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     model = os.environ.get("OPENAI_MODEL", "gpt-4o")
 
-    system_prompt = """You are an experienced buyer's agent writing a concise property report summary.
+    # Use lead-aware prompts if lead_context is provided (any lead type)
+    if lead_context:
+        # Determine lead scenario
+        has_property = lead_context.get("propertyAddress")
+        has_budget = profile.get("budgetMax") or profile.get("budgetMin")
+        location = profile.get("location", "the area")
+        source = lead_context.get("source", "online")
+        timeline = lead_context.get("timeline", "")
+
+        # Build scenario-specific framing
+        if has_property:
+            # Scenario 1: Property-specific lead
+            orig_addr = lead_context.get("propertyAddress")
+            orig_price = lead_context.get("propertyListPrice", 0)
+            orig_beds = lead_context.get("propertyBedrooms", "?")
+            orig_baths = lead_context.get("propertyBathrooms", "?")
+            orig_sqft = lead_context.get("propertySqft", "?")
+
+            framing_instruction = f"Reference the property they were looking at: {orig_addr}"
+            intro_example = f"I saw you were looking at {orig_addr}. Here are a few similar homes you might want to explore..."
+
+            lead_section = f"""
+## Context (from {source.title()} inquiry)
+The person was looking at:
+- Property: {orig_addr}
+- Listed at: ${orig_price:,}
+- {orig_beds} beds, {orig_baths} baths{f", {orig_sqft:,} sqft" if orig_sqft and orig_sqft != "?" else ""}
+{f"- Timeline mentioned: {timeline}" if timeline else ""}
+
+You've found similar properties they might want to explore.
+
+"""
+            print(f"[REPORT SYNTHESIS] Lead scenario: PROPERTY-SPECIFIC from {source}")
+
+        elif has_budget:
+            # Scenario 2: Budget mentioned but no property
+            framing_instruction = f"Reference 'the price range you mentioned' - do NOT say 'your budget'"
+            intro_example = f"Based on the price range you mentioned, here are some homes in {location} worth exploring..."
+
+            lead_section = f"""
+## Context (from {source.title()} inquiry)
+The person is interested in:
+- Location: {location}
+- Price range mentioned: up to ${profile.get('budgetMax', 0):,}
+{f"- Timeline mentioned: {timeline}" if timeline else ""}
+
+You've found properties in the price range they mentioned.
+
+"""
+            print(f"[REPORT SYNTHESIS] Lead scenario: BUDGET-MENTIONED from {source}")
+
+        else:
+            # Scenario 3: General inquiry - no property, no budget
+            framing_instruction = f"Keep it general - reference 'homes in {location}' or 'what's currently on the market'"
+            intro_example = f"Here are some homes currently on the market in {location} that you might find interesting..."
+
+            lead_section = f"""
+## Context (from {source.title()} inquiry)
+The person is interested in:
+- Location: {location}
+{f"- Timeline mentioned: {timeline}" if timeline else ""}
+
+You've found some options based on current market availability.
+
+"""
+            print(f"[REPORT SYNTHESIS] Lead scenario: GENERAL-INQUIRY from {source}")
+
+        # Lead-based report: softer tone for first contact
+        system_prompt = f"""You are an experienced real estate agent writing a property report for someone who recently reached out.
+
+CRITICAL - FIRST CONTACT RULES:
+- This is your FIRST interaction - be helpful, not presumptuous
+- NEVER say "your budget" - say "the price range you mentioned" or omit price framing entirely
+- NEVER say "your criteria" or "matches your requirements"
+- NEVER assume what they're looking for beyond what they explicitly mentioned
+- Be warm and invitational, not salesy
+
+FRAMING FOR THIS LEAD:
+{framing_instruction}
+
+EXAMPLE INTRO:
+"{intro_example}"
+
+Return JSON with:
+{{
+  "intro_paragraph": "2-3 sentences. Follow the framing above. Be invitational, not presumptuous.",
+  "ranked_picks": [
+    {{
+      "mlsNumber": "exact MLS number from input",
+      "label": "use one of: 'Top Match', 'Strong Alternative', 'Comparable Option', 'Worth Considering', 'Good Backup'",
+      "why": "1-2 sentences about what makes this property stand out (objective features, not matching to assumed preferences)"
+    }},
+    ... (include ALL properties, ranked by overall appeal)
+  ],
+  "next_steps": "Warm, invitational CTA. Example: 'If any of these catch your eye, I'd be happy to answer questions.'"
+}}"""
+
+    else:
+        # Regular report: no lead context (buyer profile report)
+        system_prompt = """You are an experienced buyer's agent writing a concise property report summary.
 
 Guidelines:
 - Compare ONLY the properties provided (do not invent facts or mention other properties)
@@ -125,15 +241,16 @@ Return JSON with:
   "ranked_picks": [
     {
       "mlsNumber": "exact MLS number from input",
-      "label": "short label like 'Top pick', 'Best value', 'Great backup', etc.",
+      "label": "use one of: 'Top Match', 'Strong Alternative', 'Comparable Option', 'Worth Considering', 'Good Backup'",
       "why": "1-2 sentences explaining why this ranking vs the others"
     },
     ... (include ALL properties, ranked best to least suitable)
   ],
   "next_steps": "1-2 sentences with call to action (e.g., 'Reply with which homes you'd like to see this weekend')"
 }"""
+        lead_section = ""
 
-    user_prompt = f"""Buyer Profile:
+    user_prompt = f"""{lead_section}Buyer Profile:
 {buyer_summary}
 
 Properties I've selected (in order shown):
@@ -230,8 +347,14 @@ Return JSON only, no extra commentary.
         )
         synthesis["category_winners"] = category_winners
 
+        # Include lead_context in synthesis for frontend rendering
+        if lead_context:
+            synthesis["lead_context"] = lead_context
+
         print(f"[REPORT SYNTHESIS] Generated synthesis for {len(listings)} properties")
         print(f"[REPORT SYNTHESIS] Category winners: {category_winners}")
+        if lead_context:
+            print(f"[REPORT SYNTHESIS] Lead context included from {lead_context.get('source', 'unknown')} lead")
         return synthesis
 
     except json.JSONDecodeError as e:
@@ -256,7 +379,7 @@ def _generate_fallback_synthesis(
     )
 
     ranked_picks = []
-    labels = ["Top pick", "Strong option", "Good alternative", "Worth considering", "Backup option"]
+    labels = ["Top Match", "Strong Alternative", "Comparable Option", "Worth Considering", "Good Backup"]
 
     for idx, listing in enumerate(sorted_listings):
         ranked_picks.append({

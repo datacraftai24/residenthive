@@ -7,6 +7,8 @@ import httpx
 from dotenv import load_dotenv
 from pathlib import Path
 
+from .repliers_lookup import standardize_style, parse_multi_city_location
+
 # Load .env files before reading environment variables
 try:
     repo_root_env = Path(__file__).resolve().parents[3] / ".env"
@@ -85,47 +87,20 @@ class RepliersClient:
         if max_baths is not None:
             # Round up to nearest int - Repliers API requires integers for bath filter
             q["maxBaths"] = math.ceil(float(max_baths))
-        # Property type - map user-friendly values to Repliers API style field
-        # Note: Use 'style' parameter (not 'propertyType') for specific property types
-        # propertyType is high-level (Residential, Commercial), style is specific (Single Family Residence, Condominium)
+        # Property type - use lookup to standardize user input to valid API style
+        # Uses repliers_lookup.standardize_style() for fuzzy matching
         if profile.get("homeType"):
-            home_type = profile["homeType"]
-            # Map common values to Repliers API style values (from aggregates data)
-            style_map = {
-                "single-family": "Single Family Residence",
-                "single family": "Single Family Residence",
-                "singlefamily": "Single Family Residence",
-                "condo": "Condominium",
-                "condominium": "Condominium",
-                "townhouse": "Attached (Townhouse/Rowhouse/Duplex)",
-                "multi-family": "Multi Family",
-                "multi family": "Multi Family",
-                "multifamily": "Multi Family",
-                "apartment": "Apartment"
-            }
-            # Use mapped value, or pass through as-is if not in map
-            api_value = style_map.get(home_type.lower(), home_type)
-            q["style"] = api_value
-        # Location - Repliers API uses 'city' parameter for city filtering
-        # NOTE: The API doesn't support state/stateOrProvince parameters
-        # Extract just the city name from various formats
+            api_style = standardize_style(profile["homeType"])
+            if api_style:
+                q["style"] = api_style
+            # If no match found, skip style filter (don't send invalid value)
+        # Location - use lookup to parse multi-city patterns
+        # Uses repliers_lookup.parse_multi_city_location() for "X or Y" patterns
+        # Note: Store as list for multi-city support (API requires repeated params)
         if profile.get("location"):
-            loc = str(profile["location"]).strip()
-            city_name = loc
-
-            # Format 1: Comma-separated (e.g., "Worcester, MA" or "Boston, Massachusetts")
-            if "," in loc:
-                city_name = loc.split(",")[0].strip()
-            # Format 2: Space + 2-letter state code (e.g., "Boston MA")
-            elif " " in loc:
-                parts = loc.split()
-                # Check if last part is a 2-letter state code
-                if len(parts) >= 2 and len(parts[-1]) == 2 and parts[-1].isalpha():
-                    city_name = " ".join(parts[:-1]).strip()
-                # Otherwise use the full string (might be multi-word city like "New York")
-            # Format 3: Single word city (e.g., "Boston") - use as-is
-
-            q["city"] = city_name
+            cities = parse_multi_city_location(profile["location"])
+            if cities:
+                q["_cities"] = cities  # Special key, handled in search()
         # Note: preferredAreas is NOT used for Repliers search - only location field matters
         return q
 
@@ -135,17 +110,29 @@ class RepliersClient:
         Note: Repliers API uses GET with query params, not POST with JSON body.
         Uses RESO-compliant parameters: city, standardStatus, resultsPerPage, pageNum.
         Location filtering works with city names (extracts city from "City, State" format).
+        Multi-city searches use repeated city params (city=X&city=Y).
 
         Returns:
             List of normalized listings, each containing a '_raw' key with the original API response
         """
-        params = self._build_search_query(profile, results_per_page, page_num)
+        params_dict = self._build_search_query(profile, results_per_page, page_num)
         url = f"{self.base_url}{self.search_path}"
+
+        # Convert to list of tuples for httpx (required for multi-city support)
+        # Repliers API requires repeated params: city=X&city=Y (not city=X,Y)
+        cities = params_dict.pop("_cities", None)
+        params = [(k, v) for k, v in params_dict.items()]
+        if cities:
+            for city in cities:
+                params.append(("city", city))
 
         # Debug logging - see exactly what we're sending to Repliers
         import json
         print(f"[REPLIERS] Full URL: {url}")
-        print(f"[REPLIERS] Query params: {json.dumps(params, indent=2)}")
+        params_debug = {k: v for k, v in params_dict.items()}
+        if cities:
+            params_debug["city"] = cities
+        print(f"[REPLIERS] Query params: {json.dumps(params_debug, indent=2)}")
         print(f"[REPLIERS] Profile data: {json.dumps({k: v for k, v in profile.items() if k in ['location', 'budgetMin', 'budgetMax', 'bedrooms', 'maxBedrooms', 'bathrooms', 'homeType']}, indent=2)}")
 
         with httpx.Client(timeout=self.timeout) as client:
@@ -354,3 +341,289 @@ class RepliersClient:
             "special_flags": special_flags,
             "_raw": item,  # Preserve raw API response for quality analysis
         }
+
+    def lookup_address(self, street_name: str, street_number: str = None, city: str = None, state: str = None, zip_code: str = None) -> dict:
+        """
+        Look up property listing history by address using Repliers Address History API.
+
+        Args:
+            street_name: Street name with suffix (e.g., "Beacon St")
+            street_number: Street number (e.g., "15")
+            city: City name (optional)
+            state: State code (optional)
+            zip_code: Postal code (optional)
+
+        Returns:
+            Property details dict if found, None otherwise.
+            Includes: listPrice, bedrooms, bathrooms, sqft, images, status, etc.
+        """
+        url = f"{self.base_url}/listings/history"
+        # API requires 'streetName' parameter
+        params = {"streetName": street_name}
+        if street_number:
+            params["streetNumber"] = street_number
+        if city:
+            params["city"] = city
+        if state:
+            params["state"] = state
+        if zip_code:
+            params["postalCode"] = zip_code
+
+        print(f"[REPLIERS] Address lookup URL: {url}")
+        print(f"[REPLIERS] Address lookup params: {params}")
+
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                r = client.get(url, headers=self._headers(), params=params)
+                print(f"[REPLIERS] Address lookup status: {r.status_code}")
+
+                if r.status_code == 200:
+                    data = r.json()
+                    print(f"[REPLIERS] Address lookup response keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
+
+                    # The history API returns:
+                    # - Top level: address metadata (streetNumber, city, beds, baths, sqft, etc.)
+                    # - history: array of listing records
+                    history = data.get("history", [])
+
+                    if history and len(history) > 0:
+                        # Get the first (most recent) listing from history
+                        listing = history[0]
+                        print(f"[REPLIERS] Found listing: MLS# {listing.get('mlsNumber')}, ${listing.get('listPrice')}")
+
+                        # Combine address metadata with listing data
+                        return self._normalize_history_lookup(data, listing)
+
+                    print("[REPLIERS] No listings found for address")
+                    return None
+                elif r.status_code == 404:
+                    print("[REPLIERS] Address not found")
+                    return None
+                else:
+                    print(f"[REPLIERS] Address lookup failed: {r.status_code} {r.text}")
+                    return None
+        except Exception as e:
+            print(f"[REPLIERS] Address lookup error: {e}")
+            return None
+
+    def _normalize_history_lookup(self, address_data: dict, listing: dict) -> dict:
+        """Normalize history API response combining address metadata with listing data."""
+        # Build full address string
+        street_parts = []
+        if address_data.get("streetNumber"):
+            street_parts.append(str(address_data["streetNumber"]))
+        if address_data.get("streetName"):
+            street_parts.append(address_data["streetName"])
+        if address_data.get("streetSuffix"):
+            street_parts.append(address_data["streetSuffix"])
+        address = " ".join(street_parts)
+
+        # Get primary image from listing if available
+        images = []
+        if listing.get("images"):
+            for img in listing["images"]:
+                url = None
+                if isinstance(img, str):
+                    url = img
+                elif isinstance(img, dict) and img.get("url"):
+                    url = img["url"]
+                if url:
+                    # Add CDN prefix if needed
+                    if not url.startswith("http"):
+                        url = f"https://cdn.repliers.io/{url.lstrip('/')}?class=medium"
+                    images.append(url)
+
+        return {
+            "listingId": listing.get("mlsNumber"),
+            "mlsNumber": listing.get("mlsNumber"),
+            "listPrice": listing.get("listPrice"),
+            "bedrooms": listing.get("beds") or address_data.get("beds"),
+            "bathrooms": listing.get("baths") or address_data.get("baths"),
+            "sqft": int(listing.get("sqft") or address_data.get("sqft") or 0) if (listing.get("sqft") or address_data.get("sqft")) else None,
+            "address": address,
+            "city": address_data.get("city"),
+            "state": address_data.get("state"),
+            "zipCode": address_data.get("zip"),
+            "propertyType": listing.get("propertyType") or address_data.get("propertyType"),
+            "style": listing.get("style") or address_data.get("style"),
+            "status": listing.get("lastStatus"),
+            "listDate": listing.get("listDate"),
+            "daysOnMarket": None,  # Calculate if needed
+            "images": images,
+            "primaryImage": images[0] if images else None,
+            "_raw": {"address": address_data, "listing": listing},
+        }
+
+    def _normalize_address_lookup(self, item: dict) -> dict:
+        """Normalize address lookup response to standard property format (legacy)."""
+        # Use the existing normalizer for consistency
+        normalized = self._normalize_listing(item)
+
+        # Add some address-lookup specific fields
+        return {
+            "listingId": normalized.get("id") or normalized.get("mls_number"),
+            "mlsNumber": normalized.get("mls_number"),
+            "listPrice": normalized.get("price"),
+            "bedrooms": normalized.get("bedrooms"),
+            "bathrooms": normalized.get("bathrooms"),
+            "sqft": normalized.get("square_feet"),
+            "address": normalized.get("address"),
+            "city": normalized.get("city"),
+            "state": normalized.get("state"),
+            "zipCode": normalized.get("zip_code"),
+            "propertyType": normalized.get("property_type"),
+            "yearBuilt": normalized.get("year_built"),
+            "status": item.get("standardStatus") or item.get("status") or normalized.get("status"),
+            "daysOnMarket": normalized.get("days_on_market"),
+            "description": normalized.get("description"),
+            "images": normalized.get("images", []),
+            "primaryImage": normalized.get("images", [None])[0] if normalized.get("images") else None,
+            "_raw": item,
+        }
+
+    def get_similar_listings(self, mls_number: str, radius: int = None) -> List[Dict[str, Any]]:
+        """
+        Get similar listings using Repliers Similar Listings API.
+
+        This endpoint finds properties similar to a reference property,
+        matching on price range, bedrooms, location, and style.
+
+        Args:
+            mls_number: The MLS number of the reference property
+            radius: Optional radius in km to expand search area
+                   (overrides default neighborhood-based matching)
+
+        Returns:
+            List of normalized similar listings
+
+        Raises:
+            RepliersError: If API call fails
+        """
+        url = f"{self.base_url}/listings/{mls_number}/similar"
+        params = {}
+        if radius:
+            params["radius"] = radius
+
+        print(f"[REPLIERS] Similar listings request: {url}")
+        if params:
+            print(f"[REPLIERS] Similar listings params: {params}")
+
+        with httpx.Client(timeout=self.timeout) as client:
+            r = client.get(url, params=params, headers=self._headers())
+            print(f"[REPLIERS] Similar listings status: {r.status_code}")
+
+            if r.status_code >= 400:
+                print(f"[REPLIERS ERROR] Similar listings failed: {r.status_code} {r.text}")
+                raise RepliersError(f"Similar listings failed: {r.status_code} {r.text}")
+
+            data = r.json()
+            print(f"[REPLIERS] Similar listings response keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
+
+        # Handle response - may be {"listings": [...]} or just [...]
+        items = data.get("listings", data) if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            raise RepliersError("Unexpected similar listings response shape")
+
+        print(f"[REPLIERS] Similar listings found: {len(items)}")
+        return [self._normalize_listing(item) for item in items]
+
+    def persist_listing(self, listing: Dict[str, Any], agent_id: int = None, profile_id: int = None) -> bool:
+        """
+        Persist a normalized listing to repliers_listings table.
+        Uses ON CONFLICT to upsert - updates if exists, inserts if new.
+
+        Args:
+            listing: Normalized listing from _normalize_listing()
+            agent_id: Optional agent ID (for agent-synced listings)
+            profile_id: Optional profile ID (for buyer profile listings)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        from ..db import get_conn
+        import json as json_mod
+
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO repliers_listings (
+                            id, mls_number, address, city, state, zip_code,
+                            price, bedrooms, bathrooms, square_feet, property_type,
+                            description, images, status, year_built, lot_size,
+                            days_on_market, list_date, original_price,
+                            price_cuts_count, total_price_reduction,
+                            last_price_change_date, price_trend_direction,
+                            lot_acres, special_flags, raw_json,
+                            agent_id, profile_id, created_at, updated_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s,
+                            %s, %s,
+                            %s, %s,
+                            %s, %s, %s,
+                            %s, %s, NOW(), NOW()
+                        )
+                        ON CONFLICT (id) DO UPDATE SET
+                            price = EXCLUDED.price,
+                            status = EXCLUDED.status,
+                            days_on_market = EXCLUDED.days_on_market,
+                            price_cuts_count = EXCLUDED.price_cuts_count,
+                            total_price_reduction = EXCLUDED.total_price_reduction,
+                            price_trend_direction = EXCLUDED.price_trend_direction,
+                            raw_json = EXCLUDED.raw_json,
+                            updated_at = NOW()
+                    """, (
+                        listing.get("id"),
+                        listing.get("mls_number"),
+                        listing.get("address", ""),
+                        listing.get("city", ""),
+                        listing.get("state", ""),
+                        listing.get("zip_code"),
+                        listing.get("price", 0),
+                        listing.get("bedrooms", 0),
+                        listing.get("bathrooms", 0),
+                        listing.get("square_feet"),
+                        listing.get("property_type", ""),
+                        listing.get("description"),
+                        json_mod.dumps(listing.get("images", [])),
+                        listing.get("status", "A"),
+                        listing.get("year_built"),
+                        listing.get("lot_size"),
+                        listing.get("days_on_market"),
+                        listing.get("list_date"),
+                        listing.get("original_price"),
+                        listing.get("price_cuts_count", 0),
+                        listing.get("total_price_reduction", 0),
+                        listing.get("last_price_change_date"),
+                        listing.get("price_trend_direction"),
+                        listing.get("lot_acres"),
+                        json_mod.dumps(listing.get("special_flags", [])),
+                        json_mod.dumps(listing.get("_raw", {})),
+                        agent_id,
+                        profile_id
+                    ))
+            return True
+        except Exception as e:
+            print(f"[REPLIERS] Failed to persist listing {listing.get('id')}: {e}")
+            return False
+
+    def persist_listings(self, listings: List[Dict[str, Any]], agent_id: int = None, profile_id: int = None) -> int:
+        """
+        Persist multiple listings to database.
+
+        Args:
+            listings: List of normalized listings from _normalize_listing()
+            agent_id: Optional agent ID
+            profile_id: Optional profile ID
+
+        Returns:
+            Number of successfully persisted listings
+        """
+        count = 0
+        for listing in listings:
+            if self.persist_listing(listing, agent_id, profile_id):
+                count += 1
+        return count

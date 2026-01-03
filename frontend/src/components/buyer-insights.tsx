@@ -26,6 +26,7 @@ import {
   Handshake,
   Calendar,
 } from "lucide-react";
+import ChatInsightsCard from "./chat-insights-card";
 
 interface BuyerInsightsProps {
   profileId: number;
@@ -75,6 +76,34 @@ interface InsightsResponse {
     messagesAnalyzed: number;
     propertiesSaved: number;
   };
+}
+
+// Chat insights types
+interface ChatSummary {
+  sessionId?: string;
+  totalMessages: number;
+  engagementLevel: string;
+  readiness: string;
+  ctaShown?: boolean;
+  ctaClicked?: boolean;
+  contactCaptured?: boolean;
+  preferences: Record<string, any>;
+  propertiesDiscussed: string[];
+  lastActivity?: string;
+}
+
+interface ChatInsightsData {
+  riskTopicsDiscussed: string[];
+  topQuestions: string[];
+  objections: string[];
+  suggestedAction: string;
+  followUpMessage: string;
+}
+
+interface ChatInsightsResponse {
+  hasSession: boolean;
+  summary: ChatSummary | null;
+  insights: ChatInsightsData | null;
 }
 
 // Action type badge with icon
@@ -201,6 +230,14 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch chat insights from chatbot sessions
+  const { data: chatInsights } = useQuery<ChatInsightsResponse>({
+    queryKey: [`/api/buyer-profiles/${profileId}/chat-insights`],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!profileId,
+    staleTime: 60 * 1000,
+  });
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refetch();
@@ -269,6 +306,15 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
           Refresh
         </Button>
       </div>
+
+      {/* Chat Insights - from chatbot session data */}
+      {chatInsights?.hasSession && chatInsights.summary && (
+        <ChatInsightsCard
+          summary={chatInsights.summary}
+          insights={chatInsights.insights}
+          compact
+        />
+      )}
 
       {/* SECTION: NEXT STEPS - NOW AT THE TOP */}
       <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm">

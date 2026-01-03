@@ -164,6 +164,134 @@ def get_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
     return BuyerProfile(**profile_data)
 
 
+@router.get("/buyer-profiles/{profile_id}/lead")
+def get_profile_lead(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Get the parent lead data for a profile created from a lead conversion.
+    Returns lead details including property info, source, and lifecycle status.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Get profile with lead info
+            cur.execute("""
+                SELECT parent_lead_id, created_by_method
+                FROM buyer_profiles
+                WHERE id = %s AND agent_id = %s
+            """, (profile_id, agent_id))
+            profile_row = fetchone_dict(cur)
+
+            if not profile_row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+
+            parent_lead_id = profile_row.get("parent_lead_id")
+            created_by_method = profile_row.get("created_by_method") or "agent"
+
+            if not parent_lead_id:
+                return {
+                    "hasLead": False,
+                    "createdByMethod": created_by_method
+                }
+
+            # Get full lead data
+            cur.execute("""
+                SELECT id, agent_id, status, role, role_reason, lead_type, lead_type_reason,
+                       source, property_url, property_address,
+                       intent_score, intent_reasons,
+                       extracted_name, extracted_email, extracted_phone,
+                       extracted_location, extracted_budget,
+                       extracted_budget_min, extracted_budget_max,
+                       extracted_bedrooms, extracted_bathrooms,
+                       extracted_home_type, extracted_timeline,
+                       hints, suggested_message, clarifying_question, what_to_clarify,
+                       mls_search_status, mls_matches, extraction_confidence,
+                       property_listing_id, property_list_price,
+                       property_bedrooms, property_bathrooms,
+                       property_sqft, property_image_url, property_raw,
+                       raw_input, raw_input_normalized,
+                       created_at, engaged_at, converted_at, converted_profile_id,
+                       report_sent_at, report_share_id
+                FROM leads WHERE id = %s
+            """, (parent_lead_id,))
+            lead_row = fetchone_dict(cur)
+
+            if not lead_row:
+                return {
+                    "hasLead": False,
+                    "createdByMethod": created_by_method,
+                    "error": "Lead record not found"
+                }
+
+            # Parse JSON fields
+            def parse_json(val):
+                if val is None:
+                    return None
+                if isinstance(val, (list, dict)):
+                    return val
+                if isinstance(val, str):
+                    try:
+                        return json.loads(val)
+                    except:
+                        return val
+                return val
+
+            # Build lead response
+            lead_data = {
+                "id": lead_row["id"],
+                "agentId": lead_row["agent_id"],
+                "status": lead_row["status"],
+                "role": lead_row["role"],
+                "roleReason": lead_row["role_reason"],
+                "leadType": lead_row["lead_type"],
+                "leadTypeReason": lead_row["lead_type_reason"],
+                "source": lead_row["source"],
+                "propertyUrl": lead_row["property_url"],
+                "propertyAddress": lead_row["property_address"],
+                "intentScore": lead_row["intent_score"],
+                "intentReasons": parse_json(lead_row["intent_reasons"]) or [],
+                "extractedName": lead_row["extracted_name"],
+                "extractedEmail": lead_row["extracted_email"],
+                "extractedPhone": lead_row["extracted_phone"],
+                "extractedLocation": lead_row["extracted_location"],
+                "extractedBudget": lead_row["extracted_budget"],
+                "extractedBudgetMin": lead_row["extracted_budget_min"],
+                "extractedBudgetMax": lead_row["extracted_budget_max"],
+                "extractedBedrooms": lead_row["extracted_bedrooms"],
+                "extractedBathrooms": lead_row["extracted_bathrooms"],
+                "extractedHomeType": lead_row["extracted_home_type"],
+                "extractedTimeline": lead_row["extracted_timeline"],
+                "hints": parse_json(lead_row["hints"]) or [],
+                "suggestedMessage": lead_row["suggested_message"],
+                "clarifyingQuestion": lead_row["clarifying_question"],
+                "whatToClarify": parse_json(lead_row["what_to_clarify"]) or [],
+                "mlsSearchStatus": lead_row["mls_search_status"],
+                "mlsMatches": parse_json(lead_row["mls_matches"]),
+                "extractionConfidence": lead_row["extraction_confidence"],
+                # Property details from Repliers API
+                "propertyListingId": lead_row.get("property_listing_id"),
+                "propertyListPrice": lead_row.get("property_list_price"),
+                "propertyBedrooms": lead_row.get("property_bedrooms"),
+                "propertyBathrooms": lead_row.get("property_bathrooms"),
+                "propertySqft": lead_row.get("property_sqft"),
+                "propertyImageUrl": lead_row.get("property_image_url"),
+                "propertyRaw": parse_json(lead_row.get("property_raw")),
+                "rawInput": lead_row["raw_input"],
+                "rawInputNormalized": lead_row["raw_input_normalized"],
+                "createdAt": lead_row["created_at"].isoformat() if lead_row["created_at"] else None,
+                "engagedAt": lead_row["engaged_at"].isoformat() if lead_row.get("engaged_at") else None,
+                "convertedAt": lead_row["converted_at"].isoformat() if lead_row.get("converted_at") else None,
+                "convertedProfileId": lead_row["converted_profile_id"],
+                # Report tracking
+                "reportSentAt": lead_row["report_sent_at"].isoformat() if lead_row.get("report_sent_at") else None,
+                "reportShareId": lead_row.get("report_share_id"),
+            }
+
+            return {
+                "hasLead": True,
+                "createdByMethod": created_by_method,
+                "lead": lead_data
+            }
+
+
 @router.post("/buyer-profiles", response_model=BuyerProfile)
 def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_current_agent_id)):
     data = profile.model_dump()
@@ -387,3 +515,55 @@ def get_buyer_insights(profile_id: int, agent_id: int = Depends(get_current_agen
     except Exception as e:
         print(f"[BUYER INSIGHTS] Error generating insights: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
+
+@router.get("/buyer-profiles/{profile_id}/chat-insights")
+def get_profile_chat_insights(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Get chatbot session insights for a buyer profile.
+    Returns actionable insights from chatbot conversations including:
+    - Captured preferences
+    - Properties discussed
+    - Risk topics flagged
+    - Suggested actions
+    - Ready-to-use follow-up message
+    """
+    from ..services.chat_insights import get_chat_insights
+
+    # Verify the profile belongs to this agent and get profile details
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, agent_id, name, email FROM buyer_profiles WHERE id = %s",
+                (profile_id,)
+            )
+            row = fetchone_dict(cur)
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            if row["agent_id"] != agent_id:
+                raise HTTPException(status_code=403, detail="Not authorized to access this profile")
+
+    buyer_name = row.get("name")
+    buyer_email = row.get("email")
+
+    # Get chat insights
+    chat_insights = get_chat_insights(
+        profile_id=profile_id,
+        buyer_name=buyer_name,
+        buyer_email=buyer_email
+    )
+
+    if not chat_insights.get("hasSession"):
+        return {
+            "hasSession": False,
+            "summary": {
+                "totalMessages": 0,
+                "engagementLevel": "LOW",
+                "readiness": "LOW",
+                "preferences": {},
+                "propertiesDiscussed": []
+            },
+            "insights": None
+        }
+
+    return chat_insights

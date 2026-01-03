@@ -24,6 +24,7 @@ from ..services.search_context_store import (
 )
 from ..services.outreach_generator import generate_outreach_draft
 from ..services.report_synthesizer import generate_report_synthesis
+from ..services.chat_insights import sync_chat_preferences_to_profile
 
 
 router = APIRouter(prefix="/api/buyer-reports")
@@ -34,6 +35,15 @@ class CreateBuyerReportRequest(BaseModel):
     searchId: str
     profileId: int
     allowPartial: bool = False  # Allow report generation even if analysis incomplete
+
+
+class LeadContextResponse(BaseModel):
+    """Lead context for chatbot - tells it this is from a lead, not buyer profile"""
+    leadId: Optional[int] = None
+    leadType: Optional[str] = None  # property_specific | area_search
+    propertyAddress: Optional[str] = None
+    propertyListPrice: Optional[int] = None
+    source: Optional[str] = None  # zillow, redfin, google
 
 
 class BuyerReportResponse(BaseModel):
@@ -50,6 +60,7 @@ class BuyerReportResponse(BaseModel):
     defaultEmailBody: Optional[str] = None  # Pre-built email body for outreach
     profileId: Optional[int] = None  # For chatbot integration
     agentId: Optional[int] = None  # For chatbot integration
+    leadContext: Optional[LeadContextResponse] = None  # For chatbot lead awareness
 
 
 class OutreachDraftResponse(BaseModel):
@@ -98,72 +109,101 @@ def get_buyer_report(share_id: str):
             if not report_row:
                 raise HTTPException(status_code=404, detail="Report not found")
 
-    # Get full listing data from search context
+    # Parse synthesis_data first (needed for fallback)
+    synthesis = None
+    synthesis_data_raw = report_row.get('synthesis_data')
+    if synthesis_data_raw:
+        try:
+            synthesis = synthesis_data_raw
+            if isinstance(synthesis, str):
+                synthesis = json.loads(synthesis)
+        except (json.JSONDecodeError, TypeError):
+            synthesis = None
+
+    # Get full listing data from search context (or fallback to database)
     search_id = report_row['search_id']
     search_context = get_search_context(search_id)
-
-    if not search_context:
-        raise HTTPException(status_code=404, detail="Search context not found or expired")
-
-    # Filter to included listings only
     included_ids = report_row.get('included_listing_ids', [])
-    all_listings = search_context.get('ranked_listings', [])
 
-    # Match by mlsNumber
-    included_listings = [
-        listing for listing in all_listings
-        if listing.get('mlsNumber') in included_ids
-    ]
+    if search_context:
+        # Fresh search context available - use it
+        all_listings = search_context.get('ranked_listings', [])
 
-    # Preserve order from included_ids
-    listings_by_id = {l['mlsNumber']: l for l in included_listings}
-    ordered_listings = [listings_by_id[lid] for lid in included_ids if lid in listings_by_id]
+        # Match by mlsNumber
+        included_listings = [
+            listing for listing in all_listings
+            if listing.get('mlsNumber') in included_ids
+        ]
 
-    # Merge photo analysis if available
-    photo_analysis = get_photo_analysis_results(search_id)
-    if photo_analysis:
-        for listing in ordered_listings:
-            mls = listing.get('mlsNumber')
-            if mls in photo_analysis:
-                if 'aiAnalysis' not in listing:
-                    listing['aiAnalysis'] = {}
-                # Merge photo fields into aiAnalysis
-                listing['aiAnalysis'].update(photo_analysis[mls])
-        print(f"[BUYER REPORT] Merged photo analysis for {len(photo_analysis)} listings")
+        # Preserve order from included_ids
+        listings_by_id = {l['mlsNumber']: l for l in included_listings}
+        ordered_listings = [listings_by_id[lid] for lid in included_ids if lid in listings_by_id]
+
+        # Merge photo analysis if available
+        photo_analysis = get_photo_analysis_results(search_id)
+        if photo_analysis:
+            for listing in ordered_listings:
+                mls = listing.get('mlsNumber')
+                if mls in photo_analysis:
+                    if 'aiAnalysis' not in listing:
+                        listing['aiAnalysis'] = {}
+                    # Merge photo fields into aiAnalysis
+                    listing['aiAnalysis'].update(photo_analysis[mls])
+            print(f"[BUYER REPORT] Merged photo analysis for {len(photo_analysis)} listings")
+
+        # Merge location analysis if available
+        location_analysis = get_location_analysis_results(search_id)
+        if location_analysis:
+            for listing in ordered_listings:
+                mls = listing.get('mlsNumber')
+                if mls in location_analysis:
+                    if 'aiAnalysis' not in listing:
+                        listing['aiAnalysis'] = {}
+                    # Merge location fields into aiAnalysis
+                    listing['aiAnalysis']['location_match_score'] = location_analysis[mls].get('location_match_score')
+                    listing['aiAnalysis']['location_flags'] = location_analysis[mls].get('location_flags')
+                    listing['aiAnalysis']['location_summary'] = location_analysis[mls].get('location_summary')
+            print(f"[BUYER REPORT] Merged location analysis for {len(location_analysis)} listings")
+
     else:
-        print(f"[BUYER REPORT] No photo analysis available for searchId={search_id}")
+        # DATABASE FALLBACK: Search context expired, use persisted snapshots
+        logger.info(f"[BUYER REPORT] Search context expired for {search_id}, using database fallback")
 
-    # Merge location analysis if available
-    location_analysis = get_location_analysis_results(search_id)
-    if location_analysis:
-        for listing in ordered_listings:
-            mls = listing.get('mlsNumber')
-            if mls in location_analysis:
-                if 'aiAnalysis' not in listing:
-                    listing['aiAnalysis'] = {}
-                # Merge location fields into aiAnalysis
-                listing['aiAnalysis']['location_match_score'] = location_analysis[mls].get('location_match_score')
-                listing['aiAnalysis']['location_flags'] = location_analysis[mls].get('location_flags')
-                listing['aiAnalysis']['location_summary'] = location_analysis[mls].get('location_summary')
-        print(f"[BUYER REPORT] Merged location analysis for {len(location_analysis)} listings")
-    else:
-        print(f"[BUYER REPORT] No location analysis available for searchId={search_id}")
+        if synthesis and synthesis.get('listing_snapshots'):
+            # Use persisted listing snapshots from synthesis_data
+            ordered_listings = synthesis.get('listing_snapshots', [])
+            listing_analysis = synthesis.get('listing_analysis', {})
+
+            # Merge persisted analysis back into listings
+            for listing in ordered_listings:
+                mls = str(listing.get('mlsNumber', ''))
+                if mls in listing_analysis:
+                    analysis = listing_analysis[mls]
+                    if 'aiAnalysis' not in listing:
+                        listing['aiAnalysis'] = {}
+                    # Merge text analysis
+                    if analysis.get('text'):
+                        listing['aiAnalysis'].update(analysis['text'])
+                    # Merge photo analysis
+                    if analysis.get('photos'):
+                        listing['aiAnalysis'].update(analysis['photos'])
+                    # Merge location analysis
+                    if analysis.get('location'):
+                        listing['aiAnalysis']['location_match_score'] = analysis['location'].get('location_match_score')
+                        listing['aiAnalysis']['location_flags'] = analysis['location'].get('location_flags')
+                        listing['aiAnalysis']['location_summary'] = analysis['location'].get('location_summary')
+
+            logger.info(f"[BUYER REPORT] Restored {len(ordered_listings)} listings from database")
+        else:
+            # No snapshots available (old report) - return error
+            logger.error(f"[BUYER REPORT] No listing snapshots available for report {share_id}")
+            raise HTTPException(status_code=404, detail="Report data expired. Please generate a new report.")
 
     # Add propertyUrl to each listing for "View Details" links
     for listing in ordered_listings:
         mls = listing.get('mlsNumber')
         if mls:
             listing['propertyUrl'] = f"/shared/reports/{share_id}/property/{mls}"
-
-    # Parse synthesis_data from JSON
-    synthesis = None
-    if report_row.get('synthesis_data'):
-        try:
-            synthesis = report_row['synthesis_data']
-            if isinstance(synthesis, str):
-                synthesis = json.loads(synthesis)
-        except (json.JSONDecodeError, TypeError):
-            synthesis = None
 
     # Build default email for outreach modal (single source of truth)
     import os as _os
@@ -179,8 +219,8 @@ def get_buyer_report(share_id: str):
     }
     top_properties = build_top_properties_for_email(ordered_listings)
 
-    # total_reviewed = all listings from search context (already loaded above)
-    total_reviewed = len(all_listings) if all_listings else None
+    # total_reviewed = all listings from search context if available
+    total_reviewed = len(search_context.get('ranked_listings', [])) if search_context else None
 
     default_email_body = build_default_email_body(
         buyer_name=report_row['buyer_name'],
@@ -192,6 +232,18 @@ def get_buyer_report(share_id: str):
         total_narrowed=len(ordered_listings)
     )
     default_email_subject = f"Homes I'd recommend for {report_row['buyer_name'] or 'you'}"
+
+    # Extract lead context from synthesis if this report was created from a lead
+    lead_context = None
+    if synthesis and synthesis.get('lead_context'):
+        lc = synthesis['lead_context']
+        lead_context = LeadContextResponse(
+            leadId=lc.get('leadId') or lc.get('lead_id'),
+            leadType=lc.get('leadType') or lc.get('lead_type'),
+            propertyAddress=lc.get('propertyAddress') or lc.get('property_address'),
+            propertyListPrice=lc.get('propertyListPrice') or lc.get('property_list_price'),
+            source=lc.get('source')
+        )
 
     return BuyerReportResponse(
         shareId=share_id,
@@ -206,7 +258,8 @@ def get_buyer_report(share_id: str):
         defaultEmailSubject=default_email_subject,
         defaultEmailBody=default_email_body,
         profileId=report_row.get('profile_id'),
-        agentId=report_row.get('agent_id')
+        agentId=report_row.get('agent_id'),
+        leadContext=lead_context
     )
 
 
@@ -240,6 +293,15 @@ def create_buyer_report(
     if not vision_complete or not location_complete:
         print(f"[BUYER REPORT] Generating partial report: vision={vision_complete}, location={location_complete}")
 
+    # Sync chat preferences to profile before generating report
+    # This ensures the profile reflects any preferences captured during chat
+    try:
+        synced = sync_chat_preferences_to_profile(request.profileId)
+        if synced:
+            print(f"[BUYER REPORT] Synced chat preferences to profile {request.profileId}")
+    except Exception as e:
+        print(f"[BUYER REPORT] Chat preference sync failed (non-blocking): {e}")
+
     # Get profile and listings
     profile = search_context["profile"]
     all_listings = search_context["ranked_listings"]
@@ -256,9 +318,43 @@ def create_buyer_report(
     if len(top_5_listings) == 0:
         raise HTTPException(status_code=400, detail="No listings available for report")
 
-    # Generate LLM synthesis
+    # Check if profile came from a lead and build lead_context
+    lead_context = None
+    parent_lead_id = profile.get("parent_lead_id")
+    if parent_lead_id:
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT id, source, lead_type, property_address, property_list_price,
+                               property_bedrooms, property_bathrooms, property_sqft,
+                               property_image_url, property_listing_id, raw_input, extracted_timeline
+                        FROM leads WHERE id = %s
+                    """, (parent_lead_id,))
+                    lead_row = fetchone_dict(cur)
+
+                    if lead_row:
+                        lead_context = {
+                            "leadId": lead_row["id"],
+                            "source": lead_row["source"],
+                            "leadType": lead_row["lead_type"],
+                            "propertyAddress": lead_row["property_address"],
+                            "propertyListPrice": lead_row["property_list_price"],
+                            "propertyBedrooms": lead_row["property_bedrooms"],
+                            "propertyBathrooms": lead_row["property_bathrooms"],
+                            "propertySqft": lead_row["property_sqft"],
+                            "propertyImageUrl": lead_row["property_image_url"],
+                            "propertyListingId": lead_row["property_listing_id"],
+                            "originalMessage": (lead_row["raw_input"] or "")[:300],  # Truncate
+                            "timeline": lead_row["extracted_timeline"],
+                        }
+                        print(f"[BUYER REPORT] Found lead context from {lead_row['source']} lead")
+        except Exception as e:
+            print(f"[BUYER REPORT] Could not load lead context: {e}")
+
+    # Generate LLM synthesis (with lead context if available)
     try:
-        synthesis = generate_report_synthesis(profile, top_5_listings)
+        synthesis = generate_report_synthesis(profile, top_5_listings, lead_context=lead_context)
     except Exception as e:
         print(f"[BUYER REPORT] Synthesis generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate report synthesis: {str(e)}")
@@ -311,6 +407,30 @@ def create_buyer_report(
     # Add listing_analysis to synthesis
     synthesis["listing_analysis"] = listing_analysis
     logger.info(f"[BUYER REPORT] Persisted analysis snapshot for {len(listing_analysis)} listings")
+
+    # PERSIST LISTING SNAPSHOTS: Store core listing data for database fallback
+    # This allows reports to work even after search context expires
+    listing_snapshots = []
+    for listing in top_5_listings:
+        snapshot = {
+            "mlsNumber": listing.get("mlsNumber"),
+            "address": listing.get("address"),
+            "city": listing.get("city"),
+            "state": listing.get("state"),
+            "zip": listing.get("zip"),
+            "listPrice": listing.get("listPrice"),
+            "bedrooms": listing.get("bedrooms"),
+            "bathrooms": listing.get("bathrooms"),
+            "sqft": listing.get("sqft"),
+            "propertyType": listing.get("propertyType"),
+            "images": listing.get("images", [])[:10],  # Limit to 10 images
+            "finalScore": listing.get("finalScore"),
+            "fitScore": listing.get("fitScore"),
+            "aiAnalysis": listing.get("aiAnalysis", {})
+        }
+        listing_snapshots.append(snapshot)
+    synthesis["listing_snapshots"] = listing_snapshots
+    logger.info(f"[BUYER REPORT] Persisted {len(listing_snapshots)} listing snapshots for database fallback")
 
     # Get agent info
     agent_name = None
@@ -681,6 +801,112 @@ def build_default_email_body(
     return "\n".join(lines)
 
 
+def build_lead_email_body(
+    buyer_name: str,
+    agent_name: str,
+    report_url: str,
+    top_properties: list,
+    lead_context: dict,
+    synthesis_data: dict = None,
+) -> str:
+    """
+    Email body for leads - demonstrates agent value through due diligence.
+
+    Key elements:
+    1. Introduction + context (how they found the property)
+    2. Due diligence statement (what work the agent did)
+    3. A specific insight/finding (proof of value)
+    4. Property teasers with hooks
+    5. Invitational CTA
+    """
+
+    safe_name = (buyer_name or "").strip() or "there"
+
+    # Get values with proper None handling
+    orig_address = lead_context.get("propertyAddress")  # Don't use default - check explicitly
+    source = (lead_context.get("source") or "online").title()
+    location = lead_context.get("location") or "your area"
+
+    # Determine scenario and build intro/due_diligence based on what we know
+    if orig_address:
+        # Scenario 1: Property-specific lead
+        orig_ref = orig_address
+        if lead_context.get("propertyListPrice"):
+            orig_ref += f" (${lead_context['propertyListPrice']:,})"
+        intro = f"I noticed you were looking at {orig_ref} on {source}."
+        due_diligence = "I took a closer look at that property and a few similar ones nearby - reviewed the listing photos, checked the locations, and put together some notes on what stands out and what to watch for."
+    else:
+        # Scenario 2/3: Area search (no specific property)
+        intro = f"I noticed you're exploring homes in {location}."
+        due_diligence = "I put together some options that might be worth considering - reviewed the listing photos, checked the locations, and added notes on what stands out and what to watch for."
+
+    # Extract a specific insight from synthesis if available
+    # This shows the agent actually analyzed the properties
+    insight_line = ""
+    if synthesis_data:
+        ranked_picks = synthesis_data.get("ranked_picks", [])
+        if ranked_picks and len(ranked_picks) > 0:
+            top_pick = ranked_picks[0]
+            if top_pick.get("why"):
+                # Truncate to first sentence
+                insight = top_pick["why"].split(".")[0] + "."
+                insight_line = f"One standout: {insight}"
+
+    lines = [
+        f"Hi {safe_name},",
+        "",
+        f"I'm {agent_name}, a local agent in the area. {intro}",
+        "",
+        due_diligence,
+        "",
+    ]
+
+    if insight_line:
+        lines.append(insight_line)
+        lines.append("")
+
+    lines.append("Here are a few options worth considering:")
+    lines.append("")
+
+    # Property bullets with a hook/insight for each
+    for p in top_properties[:3]:
+        addr = p.get("address", "")
+        price = p.get("listPrice")
+        beds = p.get("bedrooms")
+
+        # Try to get a short hook from aiAnalysis
+        hook = ""
+        ai = p.get("aiAnalysis", {})
+        if ai:
+            whats_matching = ai.get("whats_matching", [])
+            if whats_matching and len(whats_matching) > 0:
+                hook = f" - {whats_matching[0]}"
+
+        line_parts = []
+        if addr:
+            line_parts.append(addr)
+        if beds:
+            line_parts.append(f"{beds} bd")
+        if price and isinstance(price, (int, float)):
+            line_parts.append(f"${price:,.0f}")
+
+        if line_parts:
+            lines.append(f"- {' / '.join(line_parts)}{hook}")
+
+    lines.extend([
+        "",
+        f"Full breakdown with photos and notes here: {report_url}",
+        "",
+        "I'm here to help optimize your search - whether that's finding more options, answering questions about any of these, or just talking through what you're looking for.",
+        "",
+        "If any of these catch your eye, just hit reply. No pressure.",
+        "",
+        f"- {agent_name}",
+    ])
+
+    return "\n".join(lines)
+
+
 @router.post("/{share_id}/send-email")
 def send_buyer_report_email(
     share_id: str,
@@ -742,18 +968,42 @@ def send_buyer_report_email(
         "bedrooms": report_row.get("bedrooms"),
     }
 
-    # 5. Build email content
+    # 5. Build email content - check for lead context first
     buyer_name = report_row.get('buyer_name', '')
     subject = payload.subject or f"Homes I'd recommend for {buyer_name or 'you'}"
-    body = payload.body or build_default_email_body(
-        buyer_name=buyer_name,
-        agent_name=agent_name,
-        report_url=report_url,
-        top_properties=top_properties,
-        buyer_prefs=buyer_prefs,
-        total_reviewed=total_reviewed,
-        total_narrowed=len(listings)
-    )
+
+    # Parse synthesis_data to check for lead context
+    synthesis_data = report_row.get('synthesis_data', {})
+    if isinstance(synthesis_data, str):
+        try:
+            synthesis_data = json.loads(synthesis_data) if synthesis_data else {}
+        except json.JSONDecodeError:
+            synthesis_data = {}
+
+    lead_context = synthesis_data.get('lead_context') if isinstance(synthesis_data, dict) else None
+
+    # Use lead-aware email template if this is from a lead
+    if payload.body:
+        body = payload.body
+    elif lead_context:
+        body = build_lead_email_body(
+            buyer_name=buyer_name,
+            agent_name=agent_name,
+            report_url=report_url,
+            top_properties=top_properties,
+            lead_context=lead_context,
+            synthesis_data=synthesis_data,
+        )
+    else:
+        body = build_default_email_body(
+            buyer_name=buyer_name,
+            agent_name=agent_name,
+            report_url=report_url,
+            top_properties=top_properties,
+            buyer_prefs=buyer_prefs,
+            total_reviewed=total_reviewed,
+            total_narrowed=len(listings)
+        )
 
     # 6. Send via configured provider
     # Always use DEFAULT_FROM_EMAIL (must be verified in Mailjet)
@@ -776,7 +1026,24 @@ def send_buyer_report_email(
         logger.error(f"[REPORT_EMAIL_FAILED] share_id={share_id} to={payload.to_email} error={e}")
         raise HTTPException(status_code=502, detail="Failed to send email")
 
-    # 7. Log for analytics
+    # 7. Track lead status if this report came from a lead
+    # (lead_context was already parsed above in step 5)
+    if lead_context and lead_context.get('leadId'):
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE leads
+                        SET report_sent_at = NOW(),
+                            report_share_id = %s,
+                            status = CASE WHEN status = 'classified' THEN 'engaged' ELSE status END
+                        WHERE id = %s
+                    """, (share_id, lead_context['leadId']))
+            logger.info(f"[REPORT_EMAIL] Updated lead {lead_context['leadId']} with report_sent_at")
+        except Exception as e:
+            logger.error(f"[REPORT_EMAIL] Failed to update lead status: {e}")
+
+    # 8. Log for analytics
     logger.info(f"[REPORT_EMAIL_SENT] share_id={share_id} to={payload.to_email} agent_id={agent_id}")
 
     return {"status": "sent", "to": payload.to_email}

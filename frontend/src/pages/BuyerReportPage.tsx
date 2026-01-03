@@ -40,6 +40,21 @@ interface CategoryWinners {
   most_budget_room?: string | null;
 }
 
+interface LeadContext {
+  leadId: number;
+  source: string;
+  leadType: string;
+  propertyAddress?: string | null;
+  propertyListPrice?: number | null;
+  propertyBedrooms?: number | null;
+  propertyBathrooms?: string | null;
+  propertySqft?: number | null;
+  propertyImageUrl?: string | null;
+  propertyListingId?: string | null;
+  originalMessage?: string | null;
+  timeline?: string | null;
+}
+
 interface Synthesis {
   intro_paragraph: string;
   ranked_picks: RankedPick[];
@@ -47,6 +62,7 @@ interface Synthesis {
   requirements_table?: RequirementsTableEntry[];
   display_requirements?: DisplayRequirements;
   category_winners?: CategoryWinners;
+  lead_context?: LeadContext;
 }
 
 interface BuyerReportData {
@@ -59,6 +75,15 @@ interface BuyerReportData {
   createdAt: string;
   listings: any[];
   synthesis?: Synthesis;
+  profileId?: number;
+  agentId?: number;
+  leadContext?: {
+    leadId?: number;
+    leadType?: string;
+    propertyAddress?: string;
+    propertyListPrice?: number;
+    source?: string;
+  };
 }
 
 export function BuyerReportPage() {
@@ -169,6 +194,55 @@ export function BuyerReportPage() {
           </Card>
         ) : (
           <>
+            {/* Lead Context Card - Show original property interest */}
+            {report.synthesis?.lead_context?.propertyAddress && (
+              <Card className="mb-6 border-2 border-blue-200 bg-gradient-to-br from-blue-50/50 to-white">
+                <CardContent className="p-4">
+                  <div className="flex gap-4 items-start">
+                    {report.synthesis.lead_context.propertyImageUrl && (
+                      <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <img
+                          src={report.synthesis.lead_context.propertyImageUrl}
+                          alt="Original Property"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Home className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-700">
+                          Your Original Interest
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          From {report.synthesis.lead_context.source.charAt(0).toUpperCase() + report.synthesis.lead_context.source.slice(1)}
+                        </Badge>
+                      </div>
+                      <p className="font-medium text-gray-900">
+                        {report.synthesis.lead_context.propertyAddress}
+                      </p>
+                      <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-600">
+                        {report.synthesis.lead_context.propertyListPrice && (
+                          <span className="font-semibold text-green-700">
+                            ${report.synthesis.lead_context.propertyListPrice.toLocaleString()}
+                          </span>
+                        )}
+                        {report.synthesis.lead_context.propertyBedrooms && (
+                          <span>{report.synthesis.lead_context.propertyBedrooms} beds</span>
+                        )}
+                        {report.synthesis.lead_context.propertyBathrooms && (
+                          <span>{report.synthesis.lead_context.propertyBathrooms} baths</span>
+                        )}
+                        {report.synthesis.lead_context.propertySqft && (
+                          <span>{report.synthesis.lead_context.propertySqft.toLocaleString()} sqft</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* LLM Synthesis Section */}
             {report.synthesis && (
               <Card className="mb-8 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
@@ -567,6 +641,7 @@ export function BuyerReportPage() {
         agentPhone={report.agentPhone}
         profileId={report.profileId}
         agentId={report.agentId}
+        leadContext={report.leadContext}
       />
     </div>
   );

@@ -354,7 +354,8 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
                        lifestyle_drivers, special_needs, budget_flexibility, location_flexibility,
                        timing_flexibility, emotional_context, voice_transcript, inferred_tags,
                        emotional_tone, priority_score, raw_input, input_method, nlp_confidence,
-                       version, parent_profile_id, ai_summary, vision_checklist
+                       version, parent_profile_id, ai_summary, vision_checklist,
+                       parent_lead_id
                 FROM buyer_profiles WHERE id = %s
                 """,
                 (profile_id,),
@@ -413,6 +414,7 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
         "inputMethod": row.get("input_method"),
         "aiSummary": row.get("ai_summary"),
         "visionChecklist": cj(row.get("vision_checklist")),
+        "parent_lead_id": row.get("parent_lead_id"),
     }
 
 
