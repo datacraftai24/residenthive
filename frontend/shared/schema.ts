@@ -60,6 +60,10 @@ export const buyerProfiles = pgTable("buyer_profiles", {
   emotionalTone: text("emotional_tone"),
   priorityScore: integer("priority_score").notNull().default(50),
   
+  // Commute Preferences
+  workAddress: text("work_address"),
+  maxCommuteMins: integer("max_commute_mins").default(35),
+
   // Meta & Versioning
   rawInput: text("raw_input").notNull(),
   inputMethod: text("input_method").notNull().default("form"), // 'form', 'voice', 'text'
@@ -796,25 +800,50 @@ export type PromptPerformanceTracking = typeof promptPerformanceTracking.$inferS
 
 // Enhanced form data schema
 export const buyerFormSchema = z.object({
+  // Basic Info
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email is required"),
+  phone: z.string().optional(),
   location: z.string().min(1, "Location is required"),
+  buyerType: z.enum(["traditional", "investor", "first_time", "luxury"]).default("traditional"),
+
+  // Budget & Property
   budget: z.string().min(1, "Budget is required"),
   budgetMin: z.number().optional(),
   budgetMax: z.number().optional(),
   homeType: z.enum(["condo", "townhouse", "single-family", "duplex", "apartment", "other"]),
   bedrooms: z.number().min(0).max(10),
+  minBedrooms: z.number().optional(),
+  maxBedrooms: z.number().optional(),
   bathrooms: z.string().min(1),
+  minBathrooms: z.number().optional(),
+
+  // Lists
   mustHaveFeatures: z.array(z.string()).default([]),
   dealbreakers: z.array(z.string()).default([]),
   preferredAreas: z.array(z.string()).default([]),
   lifestyleDrivers: z.array(z.string()).default([]),
   specialNeeds: z.array(z.string()).default([]),
+
+  // Flexibility
   budgetFlexibility: z.number().min(0).max(100).default(50),
   locationFlexibility: z.number().min(0).max(100).default(50),
   timingFlexibility: z.number().min(0).max(100).default(50),
+
+  // Context
   emotionalContext: z.string().optional(),
-  voiceTranscript: z.string().optional()
+  voiceTranscript: z.string().optional(),
+
+  // Investor fields (when buyerType=investor)
+  investorType: z.enum(["rental_income", "flip", "house_hack", "multi_unit"]).optional(),
+  investmentCapital: z.number().optional(),
+  targetMonthlyReturn: z.number().optional(),
+  targetCapRate: z.number().optional(),
+  investmentStrategy: z.string().optional(),
+
+  // Commute preferences
+  workAddress: z.string().optional(),
+  maxCommuteMins: z.number().min(5).max(120).optional()
 });
 
 export type BuyerFormData = z.infer<typeof buyerFormSchema>;

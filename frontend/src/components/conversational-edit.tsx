@@ -59,17 +59,18 @@ export default function ConversationalEdit({
     mutationFn: async (text: string) => {
       const response = await fetch(`/api/buyer-profiles/${profile.id}/parse-changes`, {
         method: 'POST',
-        body: JSON.stringify({ 
-          text, 
-          currentProfile: profile 
+        body: JSON.stringify({
+          text,
+          currentProfile: profile
         }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to parse changes');
       }
-      
+
       return response.json();
     },
     onSuccess: (data: { changes: ParsedChanges[], confidence: number }) => {
@@ -81,23 +82,48 @@ export default function ConversationalEdit({
   // Apply parsed changes
   const applyChangesMutation = useMutation({
     mutationFn: async () => {
+      // Step 1: Apply the changes
       const response = await fetch(`/api/buyer-profiles/${profile.id}/apply-changes`, {
         method: 'PATCH',
         body: JSON.stringify({ changes: parsedChanges }),
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to apply changes');
       }
-      
-      return response.json();
+
+      const updatedProfile = await response.json();
+
+      // Step 2: Regenerate AI insights automatically
+      try {
+        const regenerateResponse = await fetch(`/api/buyer-profiles/${profile.id}/regenerate-insights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+
+        if (regenerateResponse.ok) {
+          // Return the profile with regenerated insights
+          return await regenerateResponse.json();
+        }
+      } catch (e) {
+        console.warn('Failed to regenerate insights, using updated profile:', e);
+      }
+
+      // Fallback to profile without regenerated insights
+      return updatedProfile;
     },
     onSuccess: (updatedProfile: BuyerProfile) => {
       setEditHistory(prev => [...prev, input]);
       onProfileUpdated(updatedProfile);
+
+      // Invalidate ALL related queries to refresh the UI everywhere
       queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile.id}`] });
-      
+      queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles', profile.id, 'enhanced'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+
       // Reset state
       setInput("");
       setParsedChanges([]);
@@ -170,16 +196,18 @@ export default function ConversationalEdit({
                   isRecording={isRecording}
                   setIsRecording={setIsRecording}
                 />
-                <Button 
+                <Button
                   onClick={handleParseChanges}
                   disabled={!input.trim() || parseChangesMutation.isPending}
                   size="sm"
+                  className="gap-2"
                 >
                   {parseChangesMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Eye className="h-4 w-4" />
                   )}
+                  Preview
                 </Button>
               </div>
             </div>

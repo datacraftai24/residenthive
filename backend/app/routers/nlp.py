@@ -622,67 +622,106 @@ def _parse_budget_string(budget_str: str) -> tuple[int | None, int | None]:
 
     budget_str = budget_str.strip()
 
-    # Helper to convert "700K" or "$700,000" to 700000
+    # Helper to convert various budget formats to integer
+    # Handles: 700K, $700,000, 1.5M, 1.5 mil, 1.5 million, 1.5MM, etc.
     def parse_amount(s: str) -> int | None:
         if not s:
             return None
-        # Remove $, commas, spaces
-        s = s.replace("$", "").replace(",", "").replace(" ", "").upper()
-        # Handle K suffix
-        if s.endswith("K"):
+
+        import re
+
+        # Clean up: remove $, commas, extra spaces
+        s = s.replace("$", "").replace(",", "").strip()
+        s_lower = s.lower()
+
+        # Extract number and multiplier using regex
+        # Matches: "1.5", "1.5 million", "1.5mil", "1.5m", "700k", "1.5MM", etc.
+        match = re.match(r'^([\d.]+)\s*(million|mil|mm|m|thousand|k)?$', s_lower, re.IGNORECASE)
+
+        if match:
             try:
-                return int(float(s[:-1]) * 1000)
+                num = float(match.group(1))
+                suffix = (match.group(2) or "").lower()
+
+                # Determine multiplier based on suffix
+                if suffix in ("million", "mil", "mm", "m"):
+                    return int(num * 1_000_000)
+                elif suffix in ("thousand", "k"):
+                    return int(num * 1_000)
+                else:
+                    # No suffix - if number is small (< 10), assume millions for real estate
+                    # e.g., "1.5" in real estate context likely means $1.5M
+                    if num < 10:
+                        return int(num * 1_000_000)
+                    # If number is reasonable as-is (e.g., 500000), use it
+                    return int(num)
             except:
                 return None
-        # Handle M suffix
-        if s.endswith("M"):
-            try:
-                return int(float(s[:-1]) * 1000000)
-            except:
-                return None
-        # Plain number
+
+        # Fallback: try to parse as plain number
         try:
-            return int(float(s))
+            num = float(s.replace(" ", ""))
+            return int(num)
         except:
             return None
 
-    # Pattern 1: Range with dash: "$400K - $550K" or "400000 - 550000"
-    range_match = re.search(r'([\$\d,KM]+)\s*[-–—to]\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    # Budget amount pattern - matches: $1.5M, 1.5 mil, 1.5 million, 700K, 500000, etc.
+    amount_pattern = r'[\$]?[\d,.]+\s*(?:million|mil|mm|m|thousand|k)?'
+
+    # Pattern 1: Range with dash: "$400K - $550K", "1 mil - 1.5 mil", "1-1.5 million"
+    range_match = re.search(
+        rf'({amount_pattern})\s*[-–—to]+\s*({amount_pattern})',
+        budget_str, re.IGNORECASE
+    )
     if range_match:
         min_val = parse_amount(range_match.group(1))
         max_val = parse_amount(range_match.group(2))
-        return (min_val, max_val)
+        if min_val or max_val:
+            return (min_val, max_val)
 
-    # Pattern 2: "Under $500K" or "Below $500K"
-    under_match = re.search(r'(under|below|less than|max|maximum)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    # Pattern 2: "Under $500K" or "Below 1.5 mil" - min is 50% of max
+    under_match = re.search(
+        rf'(under|below|less than|max|maximum|up to)\s*({amount_pattern})',
+        budget_str, re.IGNORECASE
+    )
     if under_match:
         max_val = parse_amount(under_match.group(2))
-        return (None, max_val)
+        if max_val:
+            # Min is 50% of max to avoid showing properties too cheap
+            min_val = int(max_val * 0.5)
+            return (min_val, max_val)
 
-    # Pattern 3: "At least $300K" or "Minimum $300K" or "Above $300K"
-    above_match = re.search(r'(at least|minimum|min|above|over|more than)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    # Pattern 3: "At least $300K" or "Minimum 1 mil" or "Above 500K"
+    above_match = re.search(
+        rf'(at least|minimum|min|above|over|more than|starting at)\s*({amount_pattern})',
+        budget_str, re.IGNORECASE
+    )
     if above_match:
         min_val = parse_amount(above_match.group(2))
-        return (min_val, None)
+        if min_val:
+            return (min_val, None)
 
-    # Pattern 4: "Around $700K" or "About $700K" or "Approximately $700K"
-    around_match = re.search(r'(around|about|approximately|roughly|near)\s*([\$\d,KM]+)', budget_str, re.IGNORECASE)
+    # Pattern 4: "Around $700K" or "About 1.5 mil" - use ±20% range
+    around_match = re.search(
+        rf'(around|about|approximately|roughly|near|circa)\s*({amount_pattern})',
+        budget_str, re.IGNORECASE
+    )
     if around_match:
         center = parse_amount(around_match.group(2))
         if center:
-            # ±20% range
+            # ±20% range for "around" statements
             min_val = int(center * (1 - BUDGET_FLEXIBILITY_PERCENT))
             max_val = int(center * (1 + BUDGET_FLEXIBILITY_PERCENT))
             return (min_val, max_val)
 
-    # Pattern 5: Single number (treat as center with ±20% range)
-    single_match = re.search(r'[\$]?([\d,KM]+)', budget_str, re.IGNORECASE)
+    # Pattern 5: Single amount - treat as MAX budget, min is 50% to catch deals
+    # Real estate context: "1.5 mil" means they can afford UP TO 1.5M
+    single_match = re.search(rf'({amount_pattern})', budget_str, re.IGNORECASE)
     if single_match:
-        center = parse_amount(single_match.group(1))
-        if center:
-            # ±20% range
-            min_val = int(center * (1 - BUDGET_FLEXIBILITY_PERCENT))
-            max_val = int(center * (1 + BUDGET_FLEXIBILITY_PERCENT))
+        max_val = parse_amount(single_match.group(1))
+        if max_val:
+            # Min is 50% of max to catch hidden gems and deals
+            min_val = int(max_val * 0.5)
             return (min_val, max_val)
 
     return (None, None)

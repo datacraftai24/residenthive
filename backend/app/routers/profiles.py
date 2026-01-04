@@ -3,6 +3,7 @@ from typing import List, Optional
 from ..models import BuyerProfile, BuyerProfileCreate, BuyerProfileUpdate
 from ..db import get_conn, fetchall_dicts, fetchone_dict
 from ..services.insights_analyzer import generate_buyer_insights
+from .nlp import _generate_complete_insights
 from datetime import datetime
 import json
 from ..auth import get_current_agent_id
@@ -62,6 +63,9 @@ ALLOWED_COLUMNS = {
     "nlpConfidence",
     "version",
     "parentProfileId",
+    # Commute fields
+    "workAddress",
+    "maxCommuteMins",
 }
 
 
@@ -114,6 +118,9 @@ def _row_to_profile(row: dict) -> dict:
         "flexibilityExplanations": _coerce_json_dict(row.get("flexibility_explanations")),
         "visionChecklist": _coerce_json_dict(row.get("vision_checklist")),
         "createdAt": row.get("created_at"),
+        # Commute fields
+        "workAddress": row.get("work_address"),
+        "maxCommuteMins": row.get("max_commute_mins"),
     }
 
 
@@ -342,6 +349,8 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "version" if k == "version" else
             "parent_profile_id" if k == "parentProfileId" else
             "created_at" if k == "createdAt" else
+            "work_address" if k == "workAddress" else
+            "max_commute_mins" if k == "maxCommuteMins" else
             k
         )
         columns.append(col)
@@ -418,6 +427,8 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "raw_input" if k == "rawInput" else
             "version" if k == "version" else
             "parent_profile_id" if k == "parentProfileId" else
+            "work_address" if k == "workAddress" else
+            "max_commute_mins" if k == "maxCommuteMins" else
             k
         )
         sets.append(f"{col} = %s")
@@ -482,6 +493,70 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Profile not found")
     return {"success": True}
+
+
+@router.post("/buyer-profiles/{profile_id}/regenerate-insights", response_model=BuyerProfile)
+def regenerate_profile_insights(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Regenerate AI insights for a buyer profile.
+
+    Called after conversational edits to update:
+    - aiSummary
+    - decisionDrivers
+    - constraints
+    - flexibilityExplanations
+    """
+    # First, get the current profile
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM buyer_profiles WHERE id = %s AND agent_id = %s",
+                (profile_id, agent_id)
+            )
+            row = fetchone_dict(cur)
+            if not row:
+                raise HTTPException(status_code=404, detail="Profile not found")
+
+    # Convert to profile dict for insight generation
+    profile_data = _row_to_profile(row)
+
+    # Generate new AI insights
+    print(f"[REGENERATE INSIGHTS] Generating insights for profile {profile_id}...")
+    try:
+        insights = _generate_complete_insights(profile_data)
+        print(f"[REGENERATE INSIGHTS] Generated insights: {list(insights.keys())}")
+    except Exception as e:
+        print(f"[REGENERATE INSIGHTS] Failed to generate insights: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
+    # Update the profile with new insights
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE buyer_profiles
+                SET ai_summary = %s,
+                    decision_drivers = %s,
+                    constraints = %s,
+                    flexibility_explanations = %s
+                WHERE id = %s AND agent_id = %s
+                RETURNING *
+                """,
+                (
+                    insights.get("aiSummary"),
+                    json.dumps(insights.get("decisionDrivers", [])),
+                    json.dumps(insights.get("constraints", [])),
+                    json.dumps(insights.get("flexibilityExplanations", {})),
+                    profile_id,
+                    agent_id
+                )
+            )
+            updated_row = fetchone_dict(cur)
+            if not updated_row:
+                raise HTTPException(status_code=500, detail="Failed to update profile with insights")
+
+    print(f"[REGENERATE INSIGHTS] Profile {profile_id} updated successfully")
+    return BuyerProfile(**_row_to_profile(updated_row))
 
 
 @router.get("/buyer-insights/{profile_id}")
