@@ -1425,12 +1425,16 @@ async def generate_lead_outreach(
         # Get listings from SearchResult
         all_picks = search_result.listings
 
-        # Persist listings to database for chatbot access
-        # This enables chatbot DB queries (get_listings_for_buyer_report) to work
-        from ..services.repliers import RepliersClient
-        repliers = RepliersClient()
-        persisted_count = repliers.persist_listings(all_picks, agent_id=agent_id)
-        logger.info(f"[OUTREACH] Persisted {persisted_count}/{len(all_picks)} listings to database")
+        # Use same persistence as agent search - populates property_images table
+        # This enables chatbot DB queries and property detail page images
+        from ..services.listing_persister import ListingPersister
+        persist_counts = ListingPersister.persist_search_results(
+            listings=all_picks,  # Normalized listings from SearchService (compatible format)
+            analyzed_listings=[],  # Lead analysis uses different format, skip AI insights
+            profile_id=profile_id,
+            agent_id=agent_id
+        )
+        logger.info(f"[OUTREACH] Persisted {persist_counts['listings_persisted']} listings, {persist_counts['images_persisted']} images to database")
     except Exception as e:
         logger.error(f"[OUTREACH] Property search failed for profile {profile_id}: {e}")
         raise HTTPException(
