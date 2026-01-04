@@ -33,6 +33,35 @@ else:
 
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _format_budget_display(min_val: int | None, max_val: int | None) -> str:
+    """Format budget min/max as display string (e.g., '$500K - $700K')."""
+    def format_amount(val: int) -> str:
+        if val >= 1_000_000:
+            if val % 1_000_000 == 0:
+                return f"${val // 1_000_000}M"
+            else:
+                return f"${val / 1_000_000:.1f}M".rstrip('0').rstrip('.')
+        elif val >= 1_000:
+            if val % 1_000 == 0:
+                return f"${val // 1_000}K"
+            else:
+                return f"${val / 1_000:.0f}K"
+        else:
+            return f"${val:,}"
+
+    if min_val and max_val:
+        return f"{format_amount(min_val)} - {format_amount(max_val)}"
+    elif max_val:
+        return f"Up to {format_amount(max_val)}"
+    elif min_val:
+        return f"From {format_amount(min_val)}"
+    return "TBD"
+
+
+# ============================================================================
 # SCHEMA DEFINITIONS
 # ============================================================================
 
@@ -443,6 +472,20 @@ async def apply_changes(
 
     if not updates:
         raise HTTPException(status_code=400, detail="No valid changes to apply")
+
+    # Sync budget display string when budgetMin/budgetMax change
+    if "budget_min" in updates or "budget_max" in updates:
+        # Get final min/max values (from updates or existing row)
+        final_min = updates.get("budget_min") or row.get("budget_min")
+        final_max = updates.get("budget_max") or row.get("budget_max")
+
+        # Format as display string
+        if final_min and final_max:
+            updates["budget"] = _format_budget_display(final_min, final_max)
+        elif final_max:
+            updates["budget"] = _format_budget_display(None, final_max)
+        elif final_min:
+            updates["budget"] = _format_budget_display(final_min, None)
 
     # Build and execute SQL
     sets = [f"{col} = %s" for col in updates.keys()]
