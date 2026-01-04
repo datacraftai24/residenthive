@@ -6,6 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Edit,
   ArrowLeft,
   Home,
@@ -15,11 +21,15 @@ import {
   User,
   Lightbulb,
   FileText,
-  Inbox
+  Inbox,
+  MessageSquare,
+  ClipboardEdit,
+  ChevronDown
 } from "lucide-react";
 import { type BuyerProfile } from "@shared/schema";
 import { getQueryFn } from "@/lib/queryClient";
 import ConversationalEdit from "./conversational-edit";
+import BuyerForm from "./buyer-form";
 import TagPersonaDisplay from "./tag-persona-display";
 import AgentActions from "./agent-actions";
 import AgentFeedback from "./agent-feedback";
@@ -79,7 +89,7 @@ interface ProfileViewerProps {
 }
 
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [editMode, setEditMode] = useState<'conversation' | 'form' | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
   // Fetch basic profile
@@ -113,7 +123,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   useEffect(() => {
     const handler = (e: any) => {
       try {
-        if (e && e.detail === profileId) setIsEditing(true);
+        if (e && e.detail === profileId) setEditMode('conversation');
       } catch {}
     };
     window.addEventListener('open-profile-edit', handler as EventListener);
@@ -121,7 +131,7 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   }, [profileId]);
 
   const handleProfileUpdated = (updatedProfile: BuyerProfile) => {
-    setIsEditing(false);
+    setEditMode(null);
     // The query will automatically refetch due to cache invalidation
   };
 
@@ -156,13 +166,27 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
     );
   }
 
-  if (isEditing) {
+  // Render edit mode components
+  if (editMode === 'conversation') {
     return (
       <ConversationalEdit
         profile={profile}
-        onClose={() => setIsEditing(false)}
+        onClose={() => setEditMode(null)}
         onProfileUpdated={handleProfileUpdated}
       />
+    );
+  }
+
+  if (editMode === 'form') {
+    return (
+      <div className="p-4 sm:p-6">
+        <BuyerForm
+          mode="edit"
+          profile={profile}
+          onProfileUpdated={handleProfileUpdated}
+          onClose={() => setEditMode(null)}
+        />
+      </div>
     );
   }
 
@@ -200,10 +224,27 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
             Generate Buyer Report
           </Button>
-          <Button onClick={() => setIsEditing(true)} size="sm" variant="outline" className="text-xs">
-            <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-            Edit
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="text-xs">
+                <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Edit
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditMode('conversation')}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Quick Edit
+                <span className="ml-2 text-xs text-muted-foreground">Voice/Text</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditMode('form')}>
+                <ClipboardEdit className="h-4 w-4 mr-2" />
+                Full Edit
+                <span className="ml-2 text-xs text-muted-foreground">Form</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

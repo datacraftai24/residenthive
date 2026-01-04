@@ -59,6 +59,10 @@ class BuyerProfileBase(BaseModel):
     version: Optional[int] = 1
     parentProfileId: Optional[int] = None
 
+    # Commute fields
+    workAddress: Optional[str] = None
+    maxCommuteMins: Optional[int] = None
+
 
 class BuyerProfileCreate(BuyerProfileBase):
     pass
@@ -111,6 +115,9 @@ class BuyerProfileUpdate(BaseModel):
     nlpConfidence: Optional[int] = None
     version: Optional[int] = None
     parentProfileId: Optional[int] = None
+    # Commute fields
+    workAddress: Optional[str] = None
+    maxCommuteMins: Optional[int] = None
 
 
 class BuyerProfile(BuyerProfileBase):

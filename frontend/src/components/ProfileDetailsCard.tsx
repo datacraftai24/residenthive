@@ -8,7 +8,9 @@ import {
   Star,
   XCircle,
   Settings,
-  Camera
+  Camera,
+  Car,
+  Clock
 } from "lucide-react";
 import type { BuyerProfile } from "@shared/schema";
 
@@ -99,6 +101,25 @@ export default function ProfileDetailsCard({ profile }: ProfileDetailsCardProps)
             {profile.homeType?.replace('-', ' ') || 'Not specified'}
           </p>
         </div>
+
+        {/* Commute Requirements */}
+        {profile.workAddress && (
+          <div className="bg-blue-50 rounded-lg p-4 md:col-span-2">
+            <div className="flex items-center space-x-2 mb-2">
+              <Car className="h-4 w-4 text-blue-600" />
+              <h3 className="font-medium text-slate-900">Commute</h3>
+            </div>
+            <p className="text-sm text-slate-700 mb-1">
+              <span className="font-medium">Work:</span> {profile.workAddress}
+            </p>
+            {profile.maxCommuteMins && (
+              <p className="text-sm text-slate-600 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Max: {profile.maxCommuteMins} minutes
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Must-Have Features (Green - Non-Negotiable) */}
         <div className="bg-slate-50 rounded-lg p-4 md:col-span-3">

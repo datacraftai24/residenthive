@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -12,19 +12,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { 
-  User, Home, DollarSign, Bed, Bath, Star, XCircle, 
-  MapPin, Heart, Users, Settings, Mic, Sparkles 
+import {
+  User, Home, DollarSign, Bed, Bath, Star, XCircle,
+  MapPin, Heart, Users, Settings, Mic, Sparkles, ChevronDown,
+  TrendingUp, ArrowLeft, Save
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import VoiceInput from "./voice-input";
-import { 
-  buyerFormSchema, 
-  type BuyerFormData, 
+import {
+  buyerFormSchema,
+  type BuyerFormData,
   type ExtractedProfile,
   type InsertBuyerProfile,
+  type BuyerProfile,
   HOME_TYPES,
   MUST_HAVE_FEATURES,
   LIFESTYLE_DRIVERS,
@@ -32,12 +35,79 @@ import {
 } from "@shared/schema";
 
 interface BuyerFormProps {
-  onProfileExtracted: (profile: ExtractedProfile) => void;
+  onProfileExtracted?: (profile: ExtractedProfile) => void;
+  profile?: BuyerProfile;
+  mode?: 'create' | 'edit';
+  onProfileUpdated?: (profile: BuyerProfile) => void;
+  onClose?: () => void;
 }
 
-export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
+// Investor type options
+const INVESTOR_TYPES = [
+  { value: "rental_income", label: "Rental Income" },
+  { value: "flip", label: "Fix & Flip" },
+  { value: "house_hack", label: "House Hack" },
+  { value: "multi_unit", label: "Multi-Unit Investment" }
+] as const;
+
+// Buyer type options
+const BUYER_TYPES = [
+  { value: "traditional", label: "Traditional Buyer" },
+  { value: "investor", label: "Investor" },
+  { value: "first_time", label: "First-Time Buyer" },
+  { value: "luxury", label: "Luxury Buyer" }
+] as const;
+
+// Helper to map BuyerProfile to BuyerFormData
+function mapProfileToFormData(profile: BuyerProfile): Partial<BuyerFormData> {
+  return {
+    name: profile.name,
+    email: profile.email || '',
+    phone: profile.phone || '',
+    location: profile.location,
+    buyerType: (profile.buyerType as BuyerFormData['buyerType']) || 'traditional',
+    budget: profile.budget,
+    budgetMin: profile.budgetMin ?? undefined,
+    budgetMax: profile.budgetMax ?? undefined,
+    homeType: (profile.homeType as BuyerFormData['homeType']) || 'single-family',
+    bedrooms: profile.bedrooms || 3,
+    // Note: minBedrooms, maxBedrooms, minBathrooms not in drizzle schema yet
+    minBedrooms: undefined,
+    maxBedrooms: undefined,
+    bathrooms: profile.bathrooms || '2',
+    minBathrooms: undefined,
+    mustHaveFeatures: profile.mustHaveFeatures || [],
+    dealbreakers: profile.dealbreakers || [],
+    preferredAreas: profile.preferredAreas || [],
+    lifestyleDrivers: profile.lifestyleDrivers || [],
+    specialNeeds: profile.specialNeeds || [],
+    budgetFlexibility: profile.budgetFlexibility || 50,
+    locationFlexibility: profile.locationFlexibility || 50,
+    timingFlexibility: profile.timingFlexibility || 50,
+    emotionalContext: profile.emotionalContext || '',
+    voiceTranscript: '',
+    investorType: (profile.investorType as BuyerFormData['investorType']) || undefined,
+    investmentCapital: profile.investmentCapital ?? undefined,
+    targetMonthlyReturn: profile.targetMonthlyReturn ?? undefined,
+    targetCapRate: profile.targetCapRate ? Number(profile.targetCapRate) : undefined,
+    investmentStrategy: profile.investmentStrategy || undefined,
+    // Commute
+    workAddress: profile.workAddress || undefined,
+    maxCommuteMins: profile.maxCommuteMins ?? undefined
+  };
+}
+
+export default function BuyerForm({
+  onProfileExtracted,
+  profile,
+  mode = 'create',
+  onProfileUpdated,
+  onClose
+}: BuyerFormProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [investorSectionOpen, setInvestorSectionOpen] = useState(false);
+  const [commuteSectionOpen, setCommuteSectionOpen] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<BuyerFormData>({
@@ -45,11 +115,18 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
     defaultValues: {
       name: "",
       email: "",
+      phone: "",
       location: "",
+      buyerType: "traditional",
       budget: "",
+      budgetMin: undefined,
+      budgetMax: undefined,
       homeType: "single-family",
       bedrooms: 2,
+      minBedrooms: undefined,
+      maxBedrooms: undefined,
       bathrooms: "2",
+      minBathrooms: undefined,
       mustHaveFeatures: [],
       dealbreakers: [],
       preferredAreas: [],
@@ -59,9 +136,29 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
       locationFlexibility: 50,
       timingFlexibility: 50,
       emotionalContext: "",
-      voiceTranscript: ""
+      voiceTranscript: "",
+      investorType: undefined,
+      investmentCapital: undefined,
+      targetMonthlyReturn: undefined,
+      targetCapRate: undefined,
+      investmentStrategy: undefined,
+      // Commute
+      workAddress: undefined,
+      maxCommuteMins: undefined
     }
   });
+
+  // CRITICAL: Reset form when profile data loads in edit mode
+  useEffect(() => {
+    if (profile && mode === 'edit') {
+      const formData = mapProfileToFormData(profile);
+      form.reset(formData as BuyerFormData);
+      // Open investor section if this is an investor profile
+      if (profile.buyerType === 'investor') {
+        setInvestorSectionOpen(true);
+      }
+    }
+  }, [profile, mode, form]);
 
   // Save profile to database after enhancement
   const saveProfileMutation = useMutation({
@@ -124,12 +221,14 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
       return response.json();
     },
     onSuccess: (enhancedProfile: ExtractedProfile, originalFormData: BuyerFormData) => {
-      // First, call the onProfileExtracted callback
-      onProfileExtracted(enhancedProfile);
-      
+      // First, call the onProfileExtracted callback if provided
+      if (onProfileExtracted) {
+        onProfileExtracted(enhancedProfile);
+      }
+
       // Then save the profile to database
       saveProfileMutation.mutate({ enhancedProfile, originalFormData });
-      
+
       toast({
         title: "Profile Enhanced",
         description: "Buyer profile has been analyzed with AI insights and is being saved...",
@@ -139,6 +238,77 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
       toast({
         title: "Enhancement Failed",
         description: error.message || "Failed to enhance buyer profile. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update mutation for edit mode (PATCH)
+  const updateMutation = useMutation({
+    mutationFn: async (data: BuyerFormData) => {
+      if (!profile?.id) throw new Error("No profile ID for update");
+
+      // Build update payload with all form fields
+      const updatePayload = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || null,
+        location: data.location,
+        buyerType: data.buyerType,
+        budget: data.budget,
+        budgetMin: data.budgetMin || null,
+        budgetMax: data.budgetMax || null,
+        homeType: data.homeType,
+        bedrooms: data.bedrooms,
+        minBedrooms: data.minBedrooms || null,
+        maxBedrooms: data.maxBedrooms || null,
+        bathrooms: data.bathrooms,
+        minBathrooms: data.minBathrooms || null,
+        mustHaveFeatures: data.mustHaveFeatures,
+        dealbreakers: data.dealbreakers,
+        preferredAreas: data.preferredAreas,
+        lifestyleDrivers: data.lifestyleDrivers,
+        specialNeeds: data.specialNeeds,
+        budgetFlexibility: data.budgetFlexibility,
+        locationFlexibility: data.locationFlexibility,
+        timingFlexibility: data.timingFlexibility,
+        emotionalContext: data.emotionalContext || null,
+        // Investor fields
+        investorType: data.investorType || null,
+        investmentCapital: data.investmentCapital || null,
+        targetMonthlyReturn: data.targetMonthlyReturn || null,
+        targetCapRate: data.targetCapRate || null,
+        investmentStrategy: data.investmentStrategy || null,
+        // Commute fields
+        workAddress: data.workAddress || null,
+        maxCommuteMins: data.maxCommuteMins || null
+      };
+
+      const response = await apiRequest("PATCH", `/api/buyer-profiles/${profile.id}`, updatePayload);
+      return response.json();
+    },
+    onSuccess: (updatedProfile: BuyerProfile) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile?.id}`] });
+
+      toast({
+        title: "Profile Updated",
+        description: "Buyer profile has been updated successfully.",
+      });
+
+      if (onProfileUpdated) {
+        onProfileUpdated(updatedProfile);
+      }
+
+      if (onClose) {
+        onClose();
+      }
+    },
+    onError: (error) => {
+      console.error("Update profile error:", error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update buyer profile. Please try again.",
         variant: "destructive",
       });
     },
@@ -177,16 +347,32 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
       ...data,
       voiceTranscript: voiceTranscript || data.voiceTranscript
     };
-    enhanceMutation.mutate(formDataWithVoice);
+
+    // Use update mutation for edit mode, enhance mutation for create mode
+    if (mode === 'edit' && profile) {
+      updateMutation.mutate(formDataWithVoice);
+    } else {
+      enhanceMutation.mutate(formDataWithVoice);
+    }
   };
+
+  const isSubmitting = mode === 'edit' ? updateMutation.isPending : enhanceMutation.isPending;
 
   return (
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <User className="h-5 w-5 text-primary" />
-          <span>Comprehensive Buyer Profile</span>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center space-x-2">
+            <User className="h-5 w-5 text-primary" />
+            <span>{mode === 'edit' ? `Edit Profile: ${profile?.name}` : 'Comprehensive Buyer Profile'}</span>
+          </CardTitle>
+          {mode === 'edit' && onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -198,7 +384,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                 <User className="h-4 w-4 text-primary" />
                 <h3 className="text-lg font-semibold">Basic Information</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -213,7 +399,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -228,7 +414,48 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                   )}
                 />
               </div>
-              
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="(555) 123-4567" type="tel" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="buyerType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Buyer Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select buyer type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {BUYER_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
@@ -243,7 +470,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="budget"
@@ -268,7 +495,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                 <Home className="h-4 w-4 text-primary" />
                 <h3 className="text-lg font-semibold">Property Requirements</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -276,7 +503,7 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Home Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select home type" />
@@ -294,14 +521,14 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="bedrooms"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Bedrooms</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value.toString()}>
+                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select bedrooms" />
@@ -319,14 +546,14 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="bathrooms"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Bathrooms</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select bathrooms" />
@@ -545,6 +772,195 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
 
             <Separator />
 
+            {/* Investor Section - Only show when buyerType is investor */}
+            {form.watch("buyerType") === "investor" && (
+              <Collapsible open={investorSectionOpen} onOpenChange={setInvestorSectionOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    <div className="flex items-center space-x-2">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      <h3 className="text-lg font-semibold">Investment Details</h3>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${investorSectionOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="investorType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Investment Strategy</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select investment type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {INVESTOR_TYPES.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="investmentCapital"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Available Capital ($)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 100000"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="targetMonthlyReturn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Target Monthly Cash Flow ($)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 500"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="targetCapRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Target Cap Rate (%)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              placeholder="e.g., 6.5"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="investmentStrategy"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Investment Strategy Notes</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Describe your investment strategy, goals, and any specific requirements..."
+                            className="min-h-[80px]"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {form.watch("buyerType") === "investor" && <Separator />}
+
+            {/* Commute Section - Always available */}
+            <Collapsible open={commuteSectionOpen} onOpenChange={setCommuteSectionOpen}>
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 rounded-lg hover:bg-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <h3 className="text-lg font-semibold">Commute Requirements</h3>
+                    <span className="text-sm text-muted-foreground">(Optional)</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${commuteSectionOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Add work address to enable commute analysis in property searches.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="workAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Work Address</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., 123 Main St, Toronto, ON"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="maxCommuteMins"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Max Commute Time (minutes)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="e.g., 35"
+                            min={5}
+                            max={120}
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
             {/* Emotional Context & Voice Input */}
             <div className="space-y-4">
               <div className="flex items-center space-x-2 mb-4">
@@ -593,15 +1009,29 @@ export default function BuyerForm({ onProfileExtracted }: BuyerFormProps) {
             <Separator />
 
             {/* Submit Button */}
-            <div className="flex justify-center pt-4">
-              <Button 
+            <div className="flex justify-center gap-4 pt-4">
+              {mode === 'edit' && onClose && (
+                <Button type="button" variant="outline" size="lg" onClick={onClose}>
+                  Cancel
+                </Button>
+              )}
+              <Button
                 type="submit"
-                disabled={enhanceMutation.isPending || isRecording}
+                disabled={isSubmitting || isRecording}
                 className="px-8 py-2 bg-primary hover:bg-primary/90"
                 size="lg"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
-                {enhanceMutation.isPending ? "Creating Profile..." : "Create Enhanced Profile"}
+                {mode === 'edit' ? (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSubmitting ? "Saving..." : "Save Changes"}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {isSubmitting ? "Creating Profile..." : "Create Enhanced Profile"}
+                  </>
+                )}
               </Button>
             </div>
           </form>
