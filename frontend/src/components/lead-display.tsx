@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import LeadCard from "./lead-card";
+import TaskQueue from "./task-queue";
 import { X, ChevronDown, ChevronUp, Home, Bed, Bath, Ruler, DollarSign } from "lucide-react";
 
 interface LeadData {
@@ -298,8 +299,8 @@ export default function LeadDisplay({ lead, card, onClose }: LeadDisplayProps) {
           </Card>
         </div>
 
-        {/* Right: Lead Card (Agent Feedback) */}
-        <div>
+        {/* Right: Lead Card (Agent Feedback) + Tasks */}
+        <div className="space-y-4">
           <LeadCard
             leadId={lead.id}
             card={card}
@@ -315,6 +316,12 @@ export default function LeadDisplay({ lead, card, onClose }: LeadDisplayProps) {
               emailSentAt: lead.reportSentAt,
             }}
             onSaveAsProfile={handleSaveAsProfile}
+          />
+
+          {/* Due Diligence Tasks */}
+          <TaskQueue
+            leadId={lead.id}
+            shareId={lead.reportShareId || undefined}
           />
         </div>
       </div>

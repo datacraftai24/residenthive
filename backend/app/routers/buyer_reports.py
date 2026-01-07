@@ -222,16 +222,32 @@ def get_buyer_report(share_id: str):
     # total_reviewed = all listings from search context if available
     total_reviewed = len(search_context.get('ranked_listings', [])) if search_context else None
 
-    default_email_body = build_default_email_body(
-        buyer_name=report_row['buyer_name'],
-        agent_name=report_row.get('agent_name', 'Your Agent'),
-        report_url=report_url,
-        top_properties=top_properties,
-        buyer_prefs=buyer_prefs,
-        total_reviewed=total_reviewed,
-        total_narrowed=len(ordered_listings)
-    )
-    default_email_subject = f"Homes I'd recommend for {report_row['buyer_name'] or 'you'}"
+    # Check if this report was created from a lead - use lead-specific email template
+    lead_context_data = synthesis.get('lead_context') if synthesis else None
+
+    if lead_context_data:
+        # Lead-specific email template
+        default_email_body = build_lead_email_body(
+            buyer_name=report_row['buyer_name'],
+            agent_name=report_row.get('agent_name', 'Your Agent'),
+            report_url=report_url,
+            top_properties=top_properties,
+            lead_context=lead_context_data,
+            synthesis_data=synthesis,
+        )
+        default_email_subject = f"Properties for your home search - {report_row['buyer_name'] or 'you'}"
+    else:
+        # Generic buyer profile email template
+        default_email_body = build_default_email_body(
+            buyer_name=report_row['buyer_name'],
+            agent_name=report_row.get('agent_name', 'Your Agent'),
+            report_url=report_url,
+            top_properties=top_properties,
+            buyer_prefs=buyer_prefs,
+            total_reviewed=total_reviewed,
+            total_narrowed=len(ordered_listings)
+        )
+        default_email_subject = f"Homes I'd recommend for {report_row['buyer_name'] or 'you'}"
 
     # Extract lead context from synthesis if this report was created from a lead
     lead_context = None

@@ -487,6 +487,7 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
             cur.execute("DELETE FROM profile_insights_lock WHERE profile_id = %s", (profile_id,))
             cur.execute("DELETE FROM profile_tags WHERE profile_id = %s", (profile_id,))
             cur.execute("DELETE FROM profile_persona WHERE profile_id = %s", (profile_id,))
+            cur.execute("DELETE FROM repliers_listings WHERE profile_id = %s", (profile_id,))
 
             # Finally, the profile
             cur.execute("DELETE FROM buyer_profiles WHERE id = %s", (profile_id,))

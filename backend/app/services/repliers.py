@@ -344,10 +344,14 @@ class RepliersClient:
 
     def lookup_address(self, street_name: str, street_number: str = None, city: str = None, state: str = None, zip_code: str = None) -> dict:
         """
-        Look up property listing history by address using Repliers Address History API.
+        Look up property by address using fuzzy search, then get history.
+
+        Strategy:
+        1. Use keyword search with fuzzySearch=true (handles St/Street variations)
+        2. Once found, fetch full history using /listings/history
 
         Args:
-            street_name: Street name with suffix (e.g., "Beacon St")
+            street_name: Street name with suffix (e.g., "Beacon St" or "Linden Street")
             street_number: Street number (e.g., "15")
             city: City name (optional)
             state: State code (optional)
@@ -357,51 +361,83 @@ class RepliersClient:
             Property details dict if found, None otherwise.
             Includes: listPrice, bedrooms, bathrooms, sqft, images, status, etc.
         """
-        url = f"{self.base_url}/listings/history"
-        # API requires 'streetName' parameter
-        params = {"streetName": street_name}
-        if street_number:
-            params["streetNumber"] = street_number
-        if city:
-            params["city"] = city
-        if state:
-            params["state"] = state
-        if zip_code:
-            params["postalCode"] = zip_code
+        # === STEP 1: Fuzzy search to find the property ===
+        # Extract first word of street name for fuzzy match: "Linden St" → "Linden"
+        street_base = street_name.split()[0] if street_name else ""
+        search_term = f"{street_number} {street_base}".strip()
 
-        print(f"[REPLIERS] Address lookup URL: {url}")
-        print(f"[REPLIERS] Address lookup params: {params}")
+        params = [
+            ("search", search_term),
+            ("searchFields", "address.streetNumber,address.streetName"),
+            ("fuzzySearch", "true"),
+            ("pageSize", "5"),
+        ]
+        if city:
+            params.append(("city", city))
+        if state:
+            params.append(("state", state))
+
+        url = f"{self.base_url}/listings"
+        print(f"[REPLIERS] Fuzzy address search: {search_term}")
 
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                r = client.get(url, headers=self._headers(), params=params)
-                print(f"[REPLIERS] Address lookup status: {r.status_code}")
+                r = client.get(url, params=params, headers=self._headers())
+                print(f"[REPLIERS] Fuzzy search status: {r.status_code}")
 
-                if r.status_code == 200:
-                    data = r.json()
-                    print(f"[REPLIERS] Address lookup response keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
-
-                    # The history API returns:
-                    # - Top level: address metadata (streetNumber, city, beds, baths, sqft, etc.)
-                    # - history: array of listing records
-                    history = data.get("history", [])
-
-                    if history and len(history) > 0:
-                        # Get the first (most recent) listing from history
-                        listing = history[0]
-                        print(f"[REPLIERS] Found listing: MLS# {listing.get('mlsNumber')}, ${listing.get('listPrice')}")
-
-                        # Combine address metadata with listing data
-                        return self._normalize_history_lookup(data, listing)
-
-                    print("[REPLIERS] No listings found for address")
+                if r.status_code != 200:
+                    print(f"[REPLIERS] Fuzzy search failed: {r.status_code}")
                     return None
-                elif r.status_code == 404:
-                    print("[REPLIERS] Address not found")
+
+                data = r.json()
+                listings = data.get("listings", [])
+                print(f"[REPLIERS] Fuzzy search returned {len(listings)} listings")
+
+                # Find exact street number match
+                matched_listing = None
+                matched_addr = None
+                for listing in listings:
+                    addr = listing.get("address", {})
+                    if str(addr.get("streetNumber")) == str(street_number):
+                        matched_listing = listing
+                        matched_addr = addr
+                        break
+
+                if not matched_listing:
+                    print("[REPLIERS] No matching property found")
                     return None
+
+                mls_number = matched_listing.get("mlsNumber")
+                print(f"[REPLIERS] Found property: MLS# {mls_number}")
+
+                # === STEP 2: Get history for this property ===
+                # Use the normalized street name from API response (not input)
+                actual_street_name = matched_addr.get("streetName")  # "Linden Street" not "Linden St"
+
+                history_url = f"{self.base_url}/listings/history"
+                history_params = {
+                    "streetName": actual_street_name,
+                    "streetNumber": street_number,
+                }
+                if city:
+                    history_params["city"] = city
+                if state:
+                    history_params["state"] = state
+
+                print(f"[REPLIERS] Fetching history for: {actual_street_name}")
+
+                hr = client.get(history_url, params=history_params, headers=self._headers())
+                print(f"[REPLIERS] History lookup status: {hr.status_code}")
+
+                if hr.status_code == 200:
+                    history_data = hr.json()
+                    print(f"[REPLIERS] History found, records: {len(history_data.get('history', []))}")
+                    return self._normalize_history_lookup(history_data, matched_listing)
                 else:
-                    print(f"[REPLIERS] Address lookup failed: {r.status_code} {r.text}")
-                    return None
+                    # History not available, return current listing data
+                    print(f"[REPLIERS] No history, using current listing")
+                    return self._normalize_address_lookup(matched_listing)
+
         except Exception as e:
             print(f"[REPLIERS] Address lookup error: {e}")
             return None
