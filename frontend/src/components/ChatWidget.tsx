@@ -5,12 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Send, X, ChevronLeft, ChevronRight, Mail, Phone, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, X, ChevronLeft, ChevronRight, Mail, Phone, Loader2, User, Bell, Calendar, AlertTriangle, HelpCircle } from 'lucide-react';
+
+interface ActionButton {
+  label: string;
+  icon: string;
+  action: string;
+  payload: {
+    topic?: string;
+    message?: string;
+    properties?: string[];
+  };
+}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  actionButtons?: ActionButton[];
 }
 
 interface Listing {
@@ -68,6 +80,14 @@ const QUICK_ACTIONS = [
   { label: 'What red flags to watch?', message: 'What are the main red flags or concerns I should know about across these properties?' },
   { label: 'Best outdoor space?', message: 'Which property has the best outdoor space and yard?' },
 ];
+
+// Icon mapping for action buttons from chatbot
+const ACTION_BUTTON_ICONS: Record<string, React.ReactNode> = {
+  user: <User className="h-3 w-3" />,
+  bell: <Bell className="h-3 w-3" />,
+  calendar: <Calendar className="h-3 w-3" />,
+  alert: <AlertTriangle className="h-3 w-3" />,
+};
 
 export function ChatWidget({
   shareId,
@@ -172,6 +192,7 @@ export function ChatWidget({
         role: 'assistant',
         content: data.response || 'I apologize, I couldn\'t process that request. Please try again.',
         timestamp: new Date(),
+        actionButtons: data.action_buttons || undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -192,6 +213,53 @@ export function ChatWidget({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  // Handle action button click - creates a task via /cta/click endpoint
+  const handleActionButtonClick = async (button: ActionButton) => {
+    try {
+      // Get last user message and bot response for rich context
+      const lastUserMsg = messages.filter(m => m.role === 'user').slice(-1)[0];
+      const lastBotMsg = messages.filter(m => m.role === 'assistant').slice(-1)[0];
+
+      const response = await fetch(`${CHATBOT_URL}/cta/click`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: button.action,
+          session_id: sessionId || undefined,
+          agent_name: agentName,
+          topic: button.payload?.topic || 'general',
+          message: lastUserMsg?.content,
+          bot_response: lastBotMsg?.content?.slice(0, 500),
+          properties: listings.map(l => l.address),
+          share_id: shareId,
+          profile_id: profileId,
+        }),
+      });
+
+      if (response.ok) {
+        // Show confirmation message to user
+        const confirmationMessage: Message = {
+          role: 'assistant',
+          content: `Got it! I've sent a note to ${agentName} about this. They'll follow up with you soon.`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, confirmationMessage]);
+      } else {
+        throw new Error('Failed to create task');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `Sorry, I had trouble sending that to ${agentName}. Please try again or contact them directly.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     }
   };
 
@@ -232,7 +300,7 @@ export function ChatWidget({
                 {messages.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
                   >
                     <div
                       className={`max-w-[85%] rounded-lg px-4 py-2 ${
@@ -243,6 +311,29 @@ export function ChatWidget({
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
+                    {/* Action buttons for assistant messages */}
+                    {msg.role === 'assistant' && msg.actionButtons && msg.actionButtons.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2 max-w-[85%]">
+                        {msg.actionButtons.map((btn, btnIdx) => {
+                          // Replace generic label with agent name for notify_agent actions
+                          const buttonLabel = btn.action === 'notify_agent'
+                            ? `Send to ${agentName}`
+                            : btn.label;
+                          return (
+                            <Button
+                              key={btnIdx}
+                              variant="outline"
+                              size="sm"
+                              className="text-xs bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
+                              onClick={() => handleActionButtonClick(btn)}
+                            >
+                              {ACTION_BUTTON_ICONS[btn.icon] || <HelpCircle className="h-3 w-3" />}
+                              <span className="ml-1">{buttonLabel}</span>
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {isLoading && (
@@ -365,7 +456,7 @@ export function ChatWidget({
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   <div
                     className={`max-w-[95%] rounded-lg px-3 py-2 ${
@@ -423,6 +514,29 @@ export function ChatWidget({
                       </div>
                     )}
                   </div>
+                  {/* Action buttons for assistant messages */}
+                  {msg.role === 'assistant' && msg.actionButtons && msg.actionButtons.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2 max-w-[95%]">
+                      {msg.actionButtons.map((btn, btnIdx) => {
+                        // Replace generic label with agent name for notify_agent actions
+                        const buttonLabel = btn.action === 'notify_agent'
+                          ? `Send to ${agentName}`
+                          : btn.label;
+                        return (
+                          <Button
+                            key={btnIdx}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleActionButtonClick(btn)}
+                          >
+                            {ACTION_BUTTON_ICONS[btn.icon] || <HelpCircle className="h-3 w-3" />}
+                            <span className="ml-1">{buttonLabel}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
               {isLoading && (

@@ -31,6 +31,7 @@ import {
   Rocket,
 } from "lucide-react";
 import ChatInsightsCard from "./chat-insights-card";
+import TaskQueue from "./task-queue";
 
 // Types for lead data
 interface LeadData {
@@ -356,6 +357,14 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
           summary={chatData.summary}
           insights={chatData.insights}
           email={lead.extractedEmail}
+        />
+      )}
+
+      {/* Due Diligence Tasks - verification items from chatbot interactions */}
+      {outreachEligibility.alreadySent && lead.reportShareId && (
+        <TaskQueue
+          leadId={lead.id}
+          shareId={lead.reportShareId}
         />
       )}
 
