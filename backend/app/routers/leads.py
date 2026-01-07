@@ -206,6 +206,179 @@ def lookup_property_details(text: str, property_address: Optional[str] = None) -
         return None
 
 
+def _extract_city_from_location(loc: str) -> Optional[str]:
+    """
+    Extract city name from location string (handles full addresses).
+
+    Examples:
+        "42 Walnut St, Newton, MA" → "Newton"
+        "Newton, MA" → "Newton"
+        "Newton MA" → "Newton"
+        "Boston" → "Boston"
+    """
+    if not loc:
+        return None
+
+    loc = loc.strip()
+    parts = [p.strip() for p in loc.split(",")]
+    first = parts[0]
+
+    # Detect street address pattern: "123 Main St"
+    is_street = bool(re.match(
+        r'^\d+\s+\w+.*\s+(St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Ln|Lane|Ct|Way|Blvd|Pl|Cir|Circle|Boulevard|Place|Terrace|Ter)\.?$',
+        first, re.IGNORECASE
+    ))
+
+    if is_street and len(parts) >= 2:
+        # Full address: "123 Main St, Newton, MA" → "Newton"
+        return parts[1].strip()
+    elif len(parts) >= 2:
+        # City, State format: "Newton, MA" → "Newton"
+        return parts[0].strip()
+    else:
+        # Check for state suffix: "Newton MA" → "Newton"
+        words = loc.split()
+        if len(words) >= 2 and len(words[-1]) == 2 and words[-1].isupper():
+            return " ".join(words[:-1])
+        return loc
+
+
+def _parse_budget_string(budget_str: str) -> Optional[dict]:
+    """
+    Parse budget string into min/max integers.
+
+    Examples:
+        "$1,250,000" → {"min": 1250000, "max": 1250000}
+        "$500K-$600K" → {"min": 500000, "max": 600000}
+        "$500,000 - $600,000" → {"min": 500000, "max": 600000}
+        "500K" → {"min": 500000, "max": 500000}
+    """
+    if not budget_str:
+        return None
+
+    # Remove $ and commas, normalize
+    clean = budget_str.replace("$", "").replace(",", "").strip()
+
+    # Handle range: "500K-600K" or "500000 - 600000"
+    range_match = re.match(r'(\d+\.?\d*)\s*[Kk]?\s*[-–to]+\s*(\d+\.?\d*)\s*[Kk]?', clean)
+    if range_match:
+        min_val = float(range_match.group(1))
+        max_val = float(range_match.group(2))
+
+        # Check if K suffix was in original
+        if 'k' in budget_str.lower():
+            # Determine which values need K multiplier
+            if min_val < 10000:
+                min_val *= 1000
+            if max_val < 10000:
+                max_val *= 1000
+
+        return {"min": int(min_val), "max": int(max_val)}
+
+    # Handle single value: "1250000" or "500K" or "1.25M"
+    single_match = re.match(r'(\d+\.?\d*)\s*([KkMm])?', clean)
+    if single_match:
+        value = float(single_match.group(1))
+        suffix = single_match.group(2)
+
+        if suffix and suffix.lower() == 'k':
+            value *= 1000
+        elif suffix and suffix.lower() == 'm':
+            value *= 1000000
+
+        return {"min": int(value), "max": int(value)}
+
+    return None
+
+
+def validate_and_enhance_extraction(
+    extracted: dict,
+    property_details: Optional[dict] = None,
+    property_address: Optional[str] = None
+) -> dict:
+    """
+    Validate and enhance LLM extraction for search readiness.
+    Called after LLM extraction, before storing to database.
+
+    Enhancements:
+    1. Parse city from full address → searchCity
+    2. Create budget range if min == max (70%-120%)
+    3. Fill missing beds/baths from property lookup
+    4. Set searchReady flag
+    """
+    enhanced = dict(extracted)
+
+    # === 1. LOCATION: Parse city from full address ===
+    location = enhanced.get("location") or property_address
+    if location:
+        city = _extract_city_from_location(location)
+        if city:
+            enhanced["searchCity"] = city
+            print(f"[ENHANCE] Location '{location}' → searchCity '{city}'")
+
+    # === 2. BUDGET: Create range if single value (70%-120%) ===
+    budget_min = enhanced.get("budgetMin")
+    budget_max = enhanced.get("budgetMax")
+    budget_str = enhanced.get("budget")  # String like "$1,250,000" or "$500K-$600K"
+
+    # Parse budget string if min/max are missing
+    if not budget_min and not budget_max and budget_str:
+        parsed = _parse_budget_string(budget_str)
+        if parsed:
+            budget_min = parsed.get("min")
+            budget_max = parsed.get("max")
+            print(f"[ENHANCE] Parsed budget string '{budget_str}' → min={budget_min}, max={budget_max}")
+
+    if budget_min and budget_max and budget_min == budget_max:
+        # Same value (listing price) → create search range
+        base = budget_max
+        enhanced["budgetMin"] = int(base * 0.7)   # 70% for value options
+        enhanced["budgetMax"] = int(base * 1.2)   # 120% for aspirational
+        print(f"[ENHANCE] Budget ${base:,} → ${enhanced['budgetMin']:,}-${enhanced['budgetMax']:,}")
+    elif budget_max and not budget_min:
+        enhanced["budgetMin"] = int(budget_max * 0.7)
+        enhanced["budgetMax"] = budget_max
+        print(f"[ENHANCE] Budget min inferred: ${enhanced['budgetMin']:,} (70% of max)")
+    elif budget_min and not budget_max:
+        enhanced["budgetMin"] = budget_min
+        enhanced["budgetMax"] = int(budget_min * 1.5)
+        print(f"[ENHANCE] Budget max inferred: ${enhanced['budgetMax']:,} (150% of min)")
+    elif budget_min and budget_max:
+        # Both exist, just store them
+        enhanced["budgetMin"] = budget_min
+        enhanced["budgetMax"] = budget_max
+
+    # === 3. BEDS/BATHS: Fill from property if missing ===
+    if property_details:
+        if not enhanced.get("bedrooms") and property_details.get("bedrooms"):
+            enhanced["bedrooms"] = property_details["bedrooms"]
+            print(f"[ENHANCE] Filled bedrooms from property: {enhanced['bedrooms']}")
+
+        if not enhanced.get("bathrooms") and property_details.get("bathrooms"):
+            enhanced["bathrooms"] = property_details["bathrooms"]
+            print(f"[ENHANCE] Filled bathrooms from property: {enhanced['bathrooms']}")
+
+        # Use property price if no budget extracted
+        if not budget_min and not budget_max and property_details.get("listPrice"):
+            price = property_details["listPrice"]
+            enhanced["budgetMin"] = int(price * 0.7)
+            enhanced["budgetMax"] = int(price * 1.2)
+            print(f"[ENHANCE] Budget from property ${price:,} → ${enhanced['budgetMin']:,}-${enhanced['budgetMax']:,}")
+
+    # === 4. VALIDATE: Check search readiness ===
+    enhanced["searchReady"] = bool(
+        enhanced.get("searchCity") and
+        (enhanced.get("budgetMin") or enhanced.get("budgetMax"))
+    )
+
+    if enhanced["searchReady"]:
+        print(f"[ENHANCE] Search ready: city={enhanced['searchCity']}, budget=${enhanced.get('budgetMin', 0):,}-${enhanced.get('budgetMax', 0):,}")
+    else:
+        print(f"[ENHANCE] Search NOT ready: city={enhanced.get('searchCity')}, budget={enhanced.get('budgetMin')}-{enhanced.get('budgetMax')}")
+
+    return enhanced
+
+
 def classify_lead_deterministic(
     text: str,
     source: str,
@@ -344,7 +517,8 @@ CRITICAL RULES:
 1. Only extract what is EXPLICITLY stated in the text
 2. Return null for anything not clearly mentioned
 3. Never infer, assume, or guess values
-4. Extract hints as soft signals (phrases, not facts)
+4. Extract hints as verbatim phrases from the input that signal preferences or concerns. Do not paraphrase.
+5. For structured JSON input, extract data from nested objects like listing_context
 
 INPUT:
 {raw_text}
@@ -353,15 +527,15 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: City/neighborhood if named
+- location: City/neighborhood/address if named
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
-- bedrooms: Number ONLY if stated with a digit (e.g., "3 bed")
-- bathrooms: Number ONLY if stated with a digit
-- homeType: Property type if mentioned (condo, townhouse, etc.)
+- bedrooms: Number if stated (recognize: beds, bed, bedrooms, bedroom, br, "3 bed", "3br", listing_context.beds)
+- bathrooms: Number or string if stated (recognize: baths, bath, bathrooms, bathroom, ba, "2 bath", "2.5ba", listing_context.baths)
+- homeType: Property type if mentioned (condo, townhouse, single family, etc.)
 - timeline: Timeline if mentioned ("this weekend", "ASAP", "next month")
-- hints: Soft signals like ["good schools", "quiet area", "close to transit"]
+- hints: Verbatim phrases from input signaling preferences (e.g., "good schools", "quiet area")
 
 FORBIDDEN (never generate):
 - School ratings or assignments
@@ -377,9 +551,11 @@ THEN GENERATE:
    - Explain briefly why you can help
    - One clear next step / call to action
    - Sound like a senior agent, not a chatbot
+   - Do NOT mention AI, automation, or analysis. Write as if you personally reviewed the request.
 
 2. clarifyingQuestion (ONE question or null):
    - Ask about the most important missing info
+   - If multiple fields are missing, prioritize: budget → location → timeline → bedrooms/homeType
    - ONLY return ONE question, never multiple
    - If everything seems covered, return null
 
@@ -410,7 +586,8 @@ CRITICAL RULES:
 1. Only extract what is EXPLICITLY stated in the text
 2. Return null for anything not clearly mentioned
 3. Never infer, assume, or guess values
-4. Extract hints as soft signals (phrases, not facts)
+4. Extract hints as verbatim phrases from the input that signal preferences or concerns. Do not paraphrase.
+5. For structured JSON input, extract data from nested objects like listing_context
 
 INPUT:
 {raw_text}
@@ -432,11 +609,11 @@ EXTRACT (return null if not stated):
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
-- bedrooms: Number ONLY if stated with a digit (e.g., "3 bed")
-- bathrooms: Number ONLY if stated with a digit
+- bedrooms: Number if stated (recognize: beds, bed, bedrooms, bedroom, br, "3 bed", "3br", listing_context.beds)
+- bathrooms: Number or string if stated (recognize: baths, bath, bathrooms, bathroom, ba, "2 bath", "2.5ba", listing_context.baths)
 - homeType: Property type if mentioned (condo, townhouse, etc.)
 - timeline: Timeline if mentioned ("this weekend", "ASAP", "next month")
-- hints: Soft signals like ["good schools", "quiet area", "close to transit"]
+- hints: Verbatim phrases from input signaling preferences (e.g., "good schools", "quiet area")
 
 FORBIDDEN (never generate):
 - School ratings or assignments
@@ -453,6 +630,7 @@ THEN GENERATE:
    - Sound knowledgeable about this listing
    - One clear next step (schedule showing is ideal for property-specific leads)
    - Sound like a senior agent who knows this property, not a chatbot
+   - Do NOT mention AI, automation, or analysis. Write as if you personally reviewed the request.
 
 2. clarifyingQuestion (ONE question or null):
    - For property-specific leads, focus on scheduling: "Would you like to see it this week?"
@@ -871,6 +1049,13 @@ def process_lead(
         }
 
     extracted = extraction.get("extracted", {})
+
+    # Validate and enhance extraction for search readiness
+    extracted = validate_and_enhance_extraction(
+        extracted,
+        property_details=property_details,
+        property_address=property_address
+    )
 
     # Check for duplicate by contact (after LLM extraction)
     with get_conn() as conn:
@@ -1760,6 +1945,13 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
         if not location:
             location = lead_row.get("property_address", "")
 
+    # Extract city from full address for search (e.g., "42 Walnut St, Newton, MA" → "Newton")
+    if location:
+        city = _extract_city_from_location(location)
+        if city and city != location:
+            print(f"[PROFILE] Location '{location}' → city '{city}'")
+            location = city
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -1869,6 +2061,13 @@ def convert_lead_to_profile(
                             location += f", {addr_data['state']}"
                 if not location:
                     location = lead_row.get("property_address", "")
+
+            # Extract city from full address for search
+            if location:
+                city = _extract_city_from_location(location)
+                if city and city != location:
+                    print(f"[PROFILE] Location '{location}' → city '{city}'")
+                    location = city
 
             # Create buyer profile
             cur.execute("""

@@ -3,19 +3,10 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Copy, Info, UserPlus, Zap, Loader2, ExternalLink, Mail, CheckCircle, MessageCircle, MousePointerClick } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { OutreachModal } from "./outreach-modal";
 
 interface ChatSessionSummary {
   totalSessions: number;
@@ -92,8 +83,7 @@ function getRoleBadgeVariant(role: string): "default" | "secondary" | "destructi
 export default function LeadCard({ leadId, card, leadEligibility, onSaveAsProfile, onOutreachGenerated }: LeadCardProps) {
   const { toast } = useToast();
   const [isGeneratingOutreach, setIsGeneratingOutreach] = useState(false);
-  const [showEmailConfirm, setShowEmailConfirm] = useState(false);
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailSent, setEmailSent] = useState(!!leadEligibility?.emailSentAt);
   const [currentReportShareId, setCurrentReportShareId] = useState(leadEligibility?.reportShareId || null);
   const [chatSummary, setChatSummary] = useState<ChatSessionSummary | null>(null);
@@ -180,38 +170,6 @@ export default function LeadCard({ leadId, card, leadEligibility, onSaveAsProfil
       });
     } finally {
       setIsGeneratingOutreach(false);
-    }
-  };
-
-  const handleSendEmail = async () => {
-    if (!currentReportShareId || !leadEligibility?.extractedEmail) return;
-
-    setIsSendingEmail(true);
-    try {
-      // Reuse existing buyer-reports send-email endpoint
-      const response = await apiRequest("POST", `/api/buyer-reports/${currentReportShareId}/send-email`, {
-        to_email: leadEligibility.extractedEmail,
-      });
-
-      if (response.ok) {
-        setEmailSent(true);
-        toast({
-          title: "Email sent!",
-          description: `Report sent to ${leadEligibility.extractedEmail}`,
-        });
-      } else {
-        const data = await response.json();
-        throw new Error(data.detail || "Failed to send email");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Failed to send email",
-        description: error?.message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingEmail(false);
-      setShowEmailConfirm(false);
     }
   };
 
@@ -402,21 +360,11 @@ export default function LeadCard({ leadId, card, leadEligibility, onSaveAsProfil
               {leadEligibility?.extractedEmail && !emailSent && (
                 <Button
                   size="sm"
-                  onClick={() => setShowEmailConfirm(true)}
-                  disabled={isSendingEmail}
+                  onClick={() => setShowEmailModal(true)}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  {isSendingEmail ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-4 w-4 mr-1" />
-                      Send to Lead
-                    </>
-                  )}
+                  <Mail className="h-4 w-4 mr-1" />
+                  Send to Lead
                 </Button>
               )}
             </div>
@@ -507,23 +455,22 @@ export default function LeadCard({ leadId, card, leadEligibility, onSaveAsProfil
         </Card>
       )}
 
-      {/* Email Confirmation Dialog */}
-      <AlertDialog open={showEmailConfirm} onOpenChange={setShowEmailConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send Report to Lead?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will email the buyer report to {leadEligibility?.extractedEmail}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSendEmail}>
-              Send Email
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Email Modal - same as buyer profile flow */}
+      {currentReportShareId && (
+        <OutreachModal
+          open={showEmailModal}
+          onOpenChange={(open) => {
+            setShowEmailModal(open);
+            // Mark as sent when modal closes (email was sent successfully)
+            if (!open && showEmailModal) {
+              setEmailSent(true);
+            }
+          }}
+          shareId={currentReportShareId}
+          shareUrl={`${window.location.origin}/buyer-report/${currentReportShareId}`}
+          buyerEmail={leadEligibility?.extractedEmail || ""}
+        />
+      )}
 
       {/* Extraction Confidence (for debugging) */}
       <div className="text-xs text-muted-foreground text-right">
