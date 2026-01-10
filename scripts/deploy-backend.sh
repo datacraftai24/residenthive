@@ -63,6 +63,10 @@ gcloud run deploy ${SERVICE_NAME} \
   --update-env-vars EMAIL_FROM=info@datacraftai.com \
   --update-env-vars EMAIL_FROM_NAME=ResidenceHive \
   --update-env-vars EMAIL_PROVIDER=mailjet \
+  --update-env-vars FRONTEND_BASE_URL=https://app.residencehive.com \
+  --update-env-vars GEMINI_MODEL_VISION=gemini-2.5-flash \
+  --update-env-vars USE_ENHANCED_EXTRACTION=true \
+  --update-env-vars USE_ENHANCED_STRATEGY=true \
   --update-secrets MAILJET_API_KEY=MAILJET_API_KEY:latest \
   --update-secrets MAILJET_API_SECRET=MAILJET_API_SECRET:latest
 
