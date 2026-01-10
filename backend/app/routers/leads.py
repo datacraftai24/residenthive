@@ -1919,8 +1919,9 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
     property_price = lead_row.get("property_list_price")
     if property_price:
         # Budget range: -50% to +10% of property price
-        inferred_min = int(property_price * 0.5)
-        inferred_max = int(property_price * 1.1)
+        property_price_float = float(property_price)
+        inferred_min = int(property_price_float * 0.5)
+        inferred_max = int(property_price_float * 1.1)
 
         if not budget_min:
             budget_min = inferred_min
@@ -2033,8 +2034,9 @@ def convert_lead_to_profile(
             property_price = lead_row.get("property_list_price")
             if property_price:
                 # Budget range: -50% to +10% of property price (for similar listings)
-                inferred_min = int(property_price * 0.5)
-                inferred_max = int(property_price * 1.1)
+                property_price_float = float(property_price)
+                inferred_min = int(property_price_float * 0.5)
+                inferred_max = int(property_price_float * 1.1)
 
                 # Only use inferred values if extracted values are missing
                 if not budget_min:
