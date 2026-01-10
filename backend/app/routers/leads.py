@@ -28,6 +28,15 @@ LLM must return null for missing fields, never guess.
 import re
 import json
 import logging
+from decimal import Decimal
+
+
+class DecimalEncoder(json.JSONEncoder):
+    """Custom JSON encoder that converts Decimal to float for DB storage."""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 
@@ -1196,7 +1205,7 @@ def process_lead(
                 str(property_details.get("bathrooms")) if property_details and property_details.get("bathrooms") else None,
                 property_details.get("sqft") if property_details else None,
                 property_details.get("primaryImage") if property_details else None,
-                json.dumps(property_details) if property_details else None,
+                json.dumps(property_details, cls=DecimalEncoder) if property_details else None,
                 request.rawText, normalized_input
             ))
             row = fetchone_dict(cur)
@@ -1829,7 +1838,7 @@ async def generate_lead_outreach(
             """, (
                 share_id, profile_id, agent_id, search_id,
                 agent_name, agent_email, agent_phone,
-                top_5_ids, json.dumps(synthesis)
+                top_5_ids, json.dumps(synthesis, cls=DecimalEncoder)
             ))
 
     logger.info(f"[OUTREACH] Created report with shareId={share_id}, {len(top_5_ids)} listings")
