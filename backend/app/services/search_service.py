@@ -274,11 +274,12 @@ class SearchService:
         """
         price = lead.get("property_list_price")
         address = lead.get("property_address")
+        price_float = float(price) if price else None
 
         return {
             "location": lead.get("extracted_location") or self._extract_city_from_address(address),
-            "budgetMin": int(price * 0.8) if price else None,
-            "budgetMax": int(price * 1.2) if price else None,
+            "budgetMin": int(price_float * 0.8) if price_float else None,
+            "budgetMax": int(price_float * 1.2) if price_float else None,
             "bedrooms": lead.get("property_bedrooms"),
             "bathrooms": lead.get("property_bathrooms"),
         }
