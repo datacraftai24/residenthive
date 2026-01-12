@@ -287,17 +287,54 @@ export default function BuyerForm({
       const response = await apiRequest("PATCH", `/api/buyer-profiles/${profile.id}`, updatePayload);
       return response.json();
     },
-    onSuccess: (updatedProfile: BuyerProfile) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile?.id}`] });
+    onSuccess: async (updatedProfile: BuyerProfile) => {
+      // Regenerate AI insights after profile update
+      try {
+        const regenerateResponse = await apiRequest("POST", `/api/buyer-profiles/${profile?.id}/regenerate-insights`);
+        if (regenerateResponse.ok) {
+          const profileWithInsights = await regenerateResponse.json();
+          console.log("[BuyerForm] AI insights regenerated successfully");
 
-      toast({
-        title: "Profile Updated",
-        description: "Buyer profile has been updated successfully.",
-      });
+          queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+          queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile?.id}`] });
 
-      if (onProfileUpdated) {
-        onProfileUpdated(updatedProfile);
+          toast({
+            title: "Profile Updated",
+            description: "Buyer profile and AI analysis have been updated.",
+          });
+
+          if (onProfileUpdated) {
+            onProfileUpdated(profileWithInsights);
+          }
+        } else {
+          console.warn("[BuyerForm] Failed to regenerate AI insights, using updated profile");
+          queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+          queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile?.id}`] });
+
+          toast({
+            title: "Profile Updated",
+            description: "Profile updated but AI analysis refresh failed.",
+            variant: "default",
+          });
+
+          if (onProfileUpdated) {
+            onProfileUpdated(updatedProfile);
+          }
+        }
+      } catch (error) {
+        console.error("[BuyerForm] Error regenerating AI insights:", error);
+        queryClient.invalidateQueries({ queryKey: ['/api/buyer-profiles'] });
+        queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profile?.id}`] });
+
+        toast({
+          title: "Profile Updated",
+          description: "Profile updated but AI analysis refresh failed.",
+          variant: "default",
+        });
+
+        if (onProfileUpdated) {
+          onProfileUpdated(updatedProfile);
+        }
       }
 
       if (onClose) {
