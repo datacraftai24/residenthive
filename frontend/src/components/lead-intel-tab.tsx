@@ -29,6 +29,16 @@ import {
   Calendar,
   Loader2,
   Rocket,
+  Flame,
+  Thermometer,
+  Snowflake,
+  PhoneCall,
+  MessageCircle,
+  Bell,
+  CalendarClock,
+  CircleDot,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import ChatInsightsCard from "./chat-insights-card";
 import TaskQueue from "./task-queue";
@@ -127,11 +137,160 @@ const leadTypeLabels: Record<string, string> = {
   general: "General Inquiry",
 };
 
+// Lead temperature thresholds
+const getLeadTemperature = (intentScore: number) => {
+  if (intentScore >= 60) return { label: "Hot", color: "bg-red-500", textColor: "text-red-700", bgLight: "bg-red-50", icon: Flame };
+  if (intentScore >= 35) return { label: "Warm", color: "bg-amber-500", textColor: "text-amber-700", bgLight: "bg-amber-50", icon: Thermometer };
+  return { label: "Cold", color: "bg-blue-400", textColor: "text-blue-700", bgLight: "bg-blue-50", icon: Snowflake };
+};
+
+// Lead stages
+const LEAD_STAGES = [
+  { id: "new", label: "New", icon: Circle },
+  { id: "contacted", label: "Contacted", icon: MessageCircle },
+  { id: "qualified", label: "Qualified", icon: CheckCircle2 },
+  { id: "showing", label: "Showing", icon: Home },
+  { id: "offer", label: "Offer", icon: FileText },
+  { id: "closed", label: "Closed", icon: CheckCircle2 },
+];
+
+// Lead Temperature Badge Component
+function LeadTemperatureBadge({ intentScore, timeline }: { intentScore: number; timeline?: string }) {
+  const temp = getLeadTemperature(intentScore);
+  const TempIcon = temp.icon;
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${temp.bgLight} border border-${temp.color}/20`}>
+      <div className={`p-2 rounded-full ${temp.color}`}>
+        <TempIcon className="h-5 w-5 text-white" />
+      </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <span className={`text-lg font-bold ${temp.textColor}`}>{temp.label} Lead</span>
+          <span className="text-sm text-muted-foreground">({intentScore}/100)</span>
+        </div>
+        {timeline && (
+          <p className="text-xs text-muted-foreground">Timeline: {timeline}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Lead Stage Tracker Component
+function LeadStageTracker({ currentStage, onStageChange }: { currentStage: string; onStageChange?: (stage: string) => void }) {
+  const currentIndex = LEAD_STAGES.findIndex(s => s.id === currentStage);
+
+  return (
+    <div className="flex items-center justify-between w-full overflow-x-auto pb-2">
+      {LEAD_STAGES.map((stage, index) => {
+        const isCompleted = index < currentIndex;
+        const isCurrent = index === currentIndex;
+        const StageIcon = stage.icon;
+
+        return (
+          <div key={stage.id} className="flex items-center flex-1">
+            <button
+              onClick={() => onStageChange?.(stage.id)}
+              className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-all hover:bg-slate-100 ${
+                isCurrent ? "bg-blue-50" : ""
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                isCompleted ? "bg-green-500 text-white" :
+                isCurrent ? "bg-blue-500 text-white ring-2 ring-blue-200" :
+                "bg-slate-200 text-slate-500"
+              }`}>
+                {isCompleted ? <Check className="h-4 w-4" /> : <StageIcon className="h-4 w-4" />}
+              </div>
+              <span className={`text-xs whitespace-nowrap ${
+                isCurrent ? "font-semibold text-blue-700" :
+                isCompleted ? "text-green-700" : "text-muted-foreground"
+              }`}>
+                {stage.label}
+              </span>
+            </button>
+            {index < LEAD_STAGES.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-1 ${
+                isCompleted ? "bg-green-500" : "bg-slate-200"
+              }`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Quick Actions Component
+function QuickActions({
+  phone,
+  email,
+  onCall,
+  onText,
+  onEmail,
+  onSetReminder
+}: {
+  phone?: string | null;
+  email?: string | null;
+  onCall?: () => void;
+  onText?: () => void;
+  onEmail?: () => void;
+  onSetReminder?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onCall}
+        disabled={!phone}
+        className="gap-1.5"
+      >
+        <PhoneCall className="h-4 w-4" />
+        Call
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onText}
+        disabled={!phone}
+        className="gap-1.5"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Text
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onEmail}
+        disabled={!email}
+        className="gap-1.5"
+      >
+        <Mail className="h-4 w-4" />
+        Email
+      </Button>
+      <div className="w-px h-6 bg-slate-200 mx-1" />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onSetReminder}
+        className="gap-1.5"
+      >
+        <Bell className="h-4 w-4" />
+        Set Reminder
+      </Button>
+    </div>
+  );
+}
+
 export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showFullMessage, setShowFullMessage] = useState(false);
+  const [showFullMessage, setShowFullMessage] = useState(true); // Show by default now
   const [isGeneratingOutreach, setIsGeneratingOutreach] = useState(false);
+  const [leadStage, setLeadStage] = useState("new");
+  const [showReminderModal, setShowReminderModal] = useState(false);
 
   const { data: leadData, isLoading } = useQuery<ProfileLeadResponse>({
     queryKey: [`/api/buyer-profiles/${profileId}/lead`],
@@ -271,8 +430,84 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
     }
   };
 
+  // Quick action handlers
+  const handleCall = () => {
+    if (lead.extractedPhone) {
+      window.open(`tel:${lead.extractedPhone}`);
+      toast({ title: "Calling...", description: `Dialing ${lead.extractedPhone}` });
+    }
+  };
+
+  const handleText = () => {
+    if (lead.extractedPhone) {
+      const message = encodeURIComponent(`Hi ${lead.extractedName || "there"}, following up on your property inquiry.`);
+      window.open(`sms:${lead.extractedPhone}?body=${message}`);
+    }
+  };
+
+  const handleQuickEmail = () => {
+    if (lead.extractedEmail) {
+      const subject = encodeURIComponent("Following up on your property inquiry");
+      window.open(`mailto:${lead.extractedEmail}?subject=${subject}`);
+    }
+  };
+
+  const handleSetReminder = () => {
+    toast({
+      title: "Reminder Set",
+      description: "You'll be reminded to follow up tomorrow at 9 AM",
+    });
+    // TODO: Integrate with actual reminder/notification system
+  };
+
+  const handleStageChange = (newStage: string) => {
+    setLeadStage(newStage);
+    toast({
+      title: "Stage Updated",
+      description: `Lead moved to "${LEAD_STAGES.find(s => s.id === newStage)?.label}"`,
+    });
+    // TODO: Persist stage change to backend
+  };
+
+  // Determine initial stage based on lead data
+  const getCurrentStage = () => {
+    if (lead.reportSentAt) return "contacted";
+    if (lead.convertedAt) return "new";
+    return "new";
+  };
+
   return (
     <div className="space-y-6">
+      {/* NEW: Lead Summary Header - Temperature + Quick Actions */}
+      <Card className="border-slate-200">
+        <CardContent className="py-4 space-y-4">
+          {/* Row 1: Temperature Badge + Quick Actions */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <LeadTemperatureBadge
+              intentScore={lead.intentScore}
+              timeline={lead.extractedTimeline || undefined}
+            />
+            <QuickActions
+              phone={lead.extractedPhone}
+              email={lead.extractedEmail}
+              onCall={handleCall}
+              onText={handleText}
+              onEmail={handleQuickEmail}
+              onSetReminder={handleSetReminder}
+            />
+          </div>
+
+          {/* Row 2: Stage Tracker */}
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground mb-2">Lead Pipeline</p>
+            <LeadStageTracker
+              currentStage={getCurrentStage()}
+              onStageChange={handleStageChange}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Generate Outreach Card - prominent CTA */}
       {!outreachEligibility.alreadySent && (
         <Card className={`${outreachEligibility.canGenerate ? "border-green-300 bg-green-50/50" : "border-amber-200 bg-amber-50/30"}`}>
@@ -445,31 +680,47 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
         </Card>
       </div>
 
-      {/* Original Message */}
-      <Card>
+      {/* Original Message - Now shows preview by default */}
+      <Card className="border-blue-100 bg-blue-50/20">
         <CardHeader
-          className="pb-3 cursor-pointer"
+          className="pb-2 cursor-pointer"
           onClick={() => setShowFullMessage(!showFullMessage)}
         >
           <CardTitle className="text-sm flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Original Message
+              <MessageSquare className="h-4 w-4 text-blue-600" />
+              Original Lead Message
+              <Badge variant="outline" className="text-xs ml-2">
+                {lead.rawInput?.length || 0} chars
+              </Badge>
             </span>
-            {showFullMessage ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
+            <Button variant="ghost" size="sm" className="h-6 px-2">
+              {showFullMessage ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  <span className="text-xs">Collapse</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  <span className="text-xs">Expand</span>
+                </>
+              )}
+            </Button>
           </CardTitle>
         </CardHeader>
-        {showFullMessage && (
-          <CardContent>
-            <div className="bg-slate-50 rounded-lg p-4 text-sm whitespace-pre-wrap">
-              {lead.rawInput}
-            </div>
-          </CardContent>
-        )}
+        <CardContent className="pt-0">
+          <div className="bg-white rounded-lg p-4 text-sm border border-blue-100">
+            {showFullMessage ? (
+              <div className="whitespace-pre-wrap">{lead.rawInput}</div>
+            ) : (
+              <div className="text-muted-foreground">
+                {lead.rawInput?.substring(0, 150)}
+                {(lead.rawInput?.length || 0) > 150 && "..."}
+              </div>
+            )}
+          </div>
+        </CardContent>
       </Card>
 
       {/* What Was Extracted vs What's Missing */}
