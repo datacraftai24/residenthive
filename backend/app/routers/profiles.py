@@ -3,7 +3,7 @@ from typing import List, Optional
 from ..models import BuyerProfile, BuyerProfileCreate, BuyerProfileUpdate
 from ..db import get_conn, fetchall_dicts, fetchone_dict
 from ..services.insights_analyzer import generate_buyer_insights
-from .nlp import _generate_complete_insights
+from .nlp import _generate_complete_insights, _generate_vision_checklist
 from datetime import datetime
 import json
 from ..auth import get_current_agent_id
@@ -530,7 +530,16 @@ def regenerate_profile_insights(profile_id: int, agent_id: int = Depends(get_cur
         print(f"[REGENERATE INSIGHTS] Failed to generate insights: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
 
-    # Update the profile with new insights
+    # Generate vision checklist for photo analysis
+    print(f"[REGENERATE INSIGHTS] Generating vision checklist for profile {profile_id}...")
+    try:
+        vision_checklist = _generate_vision_checklist(profile_data)
+        print(f"[REGENERATE INSIGHTS] Generated vision checklist: {list(vision_checklist.keys())}")
+    except Exception as e:
+        print(f"[REGENERATE INSIGHTS] Failed to generate vision checklist: {e}")
+        vision_checklist = {"structural": [], "lifestyle": [], "dealbreakers": [], "optional": []}
+
+    # Update the profile with new insights and vision checklist
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -539,7 +548,8 @@ def regenerate_profile_insights(profile_id: int, agent_id: int = Depends(get_cur
                 SET ai_summary = %s,
                     decision_drivers = %s,
                     constraints = %s,
-                    flexibility_explanations = %s
+                    flexibility_explanations = %s,
+                    vision_checklist = %s
                 WHERE id = %s AND agent_id = %s
                 RETURNING *
                 """,
@@ -548,6 +558,7 @@ def regenerate_profile_insights(profile_id: int, agent_id: int = Depends(get_cur
                     json.dumps(insights.get("decisionDrivers", [])),
                     json.dumps(insights.get("constraints", [])),
                     json.dumps(insights.get("flexibilityExplanations", {})),
+                    json.dumps(vision_checklist),
                     profile_id,
                     agent_id
                 )
