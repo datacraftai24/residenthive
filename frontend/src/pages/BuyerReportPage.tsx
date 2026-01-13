@@ -117,9 +117,9 @@ interface Listing {
   aiAnalysis?: {
     headline?: string;
     why_its_a_fit?: string;
-    whats_matching?: string[];
-    whats_missing?: string[];
-    red_flags?: string[];
+    whats_matching?: Array<{ requirement: string; evidence: string; source: string }>;
+    whats_missing?: Array<{ concern: string; severity: string; workaround?: string }>;
+    red_flags?: Array<{ concern: string; quote?: string; risk_level: string; follow_up?: string }>;
     photo_headline?: string;
     photo_summary?: string;
   };

@@ -40,7 +40,7 @@ export function PropertyCard({ listing, rank, onViewDetails }: PropertyCardProps
         </Badge>
         {listing.fitScore && listing.fitScore > 0 && (
           <Badge className="absolute top-2 right-2 bg-white/90 text-gray-900">
-            {Math.round(listing.fitScore * 100)}% match
+            {Math.round(listing.fitScore > 1 ? listing.fitScore : listing.fitScore * 100)}% match
           </Badge>
         )}
       </div>

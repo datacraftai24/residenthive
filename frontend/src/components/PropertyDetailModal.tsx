@@ -5,12 +5,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bed, Bath, Maximize, MapPin, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
+interface WhatsMatchingItem {
+  requirement: string;
+  evidence: string;
+  source: string;
+}
+
+interface WhatsMissingItem {
+  concern: string;
+  severity: string;
+  workaround?: string;
+}
+
+interface RedFlagItem {
+  concern: string;
+  quote?: string;
+  risk_level: string;
+  follow_up?: string;
+}
+
 interface AIAnalysis {
   headline?: string;
   why_its_a_fit?: string;
-  whats_matching?: string[];
-  whats_missing?: string[];
-  red_flags?: string[];
+  whats_matching?: WhatsMatchingItem[];
+  whats_missing?: WhatsMissingItem[];
+  red_flags?: RedFlagItem[];
 }
 
 interface Listing {
@@ -154,7 +173,7 @@ export function PropertyDetailModal({
                 <strong>What's matching:</strong>
                 <ul className="mt-1 list-disc list-inside text-gray-700">
                   {aiAnalysis.whats_matching.map((item, i) => (
-                    <li key={i}>{item}</li>
+                    <li key={i}>{item.requirement}: {item.evidence}</li>
                   ))}
                 </ul>
               </div>
@@ -164,7 +183,7 @@ export function PropertyDetailModal({
                 <strong>What's missing:</strong>
                 <ul className="mt-1 list-disc list-inside text-gray-600">
                   {aiAnalysis.whats_missing.map((item, i) => (
-                    <li key={i}>{item}</li>
+                    <li key={i}>{item.concern}{item.workaround && ` (${item.workaround})`}</li>
                   ))}
                 </ul>
               </div>
@@ -174,7 +193,7 @@ export function PropertyDetailModal({
                 <strong>Concerns:</strong>
                 <ul className="mt-1 list-disc list-inside">
                   {aiAnalysis.red_flags.map((item, i) => (
-                    <li key={i}>{item}</li>
+                    <li key={i}>{item.concern}</li>
                   ))}
                 </ul>
               </div>
