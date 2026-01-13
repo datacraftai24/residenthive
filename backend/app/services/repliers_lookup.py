@@ -6,11 +6,12 @@ Used to standardize user input to exact API-expected values.
 
 This module provides:
 - standardize_style(): Map user homeType to valid API style
-- parse_multi_city_location(): Parse "X or Y" location patterns
+- parse_multi_city_location(): Parse multi-city and region location patterns
+- format_location_display(): Format city list for UI display
 """
 
 import re
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 # Valid style values from Repliers Aggregates API
 # Source: GET /listings?aggregates=details.style&listings=false&type=Sale
@@ -82,6 +83,52 @@ STYLE_ALIASES = {
 }
 
 
+# Massachusetts region definitions for multi-city expansion
+# Source: Common real estate market areas
+# Last updated: 2025-01-12
+MA_REGIONS = {
+    # South Shore
+    "south shore": ["Quincy", "Braintree", "Weymouth", "Hingham", "Cohasset",
+                    "Scituate", "Marshfield", "Duxbury", "Norwell", "Hanover",
+                    "Rockland", "Abington", "Whitman", "Hull"],
+    "south shore ma": ["Quincy", "Braintree", "Weymouth", "Hingham", "Cohasset",
+                       "Scituate", "Marshfield", "Duxbury", "Norwell", "Hanover"],
+
+    # North Shore
+    "north shore": ["Salem", "Beverly", "Marblehead", "Swampscott", "Lynn",
+                    "Peabody", "Danvers", "Gloucester", "Rockport", "Manchester",
+                    "Melrose", "Wakefield", "Stoneham", "Reading", "Woburn"],
+    "north shore ma": ["Salem", "Beverly", "Marblehead", "Swampscott", "Lynn",
+                       "Peabody", "Danvers", "Gloucester", "Rockport"],
+
+    # Greater Boston / Metro
+    "greater boston": ["Boston", "Cambridge", "Somerville", "Brookline",
+                       "Newton", "Quincy", "Medford", "Malden", "Everett"],
+    "metro boston": ["Boston", "Cambridge", "Somerville", "Brookline", "Newton"],
+    "metro west": ["Framingham", "Natick", "Wellesley", "Needham", "Newton",
+                   "Waltham", "Watertown", "Weston", "Wayland", "Sudbury"],
+
+    # Cape Cod
+    "cape cod": ["Barnstable", "Falmouth", "Sandwich", "Mashpee", "Bourne",
+                 "Yarmouth", "Dennis", "Brewster", "Chatham", "Orleans",
+                 "Eastham", "Wellfleet", "Truro", "Provincetown"],
+    "the cape": ["Barnstable", "Falmouth", "Sandwich", "Mashpee", "Bourne",
+                 "Yarmouth", "Dennis", "Brewster", "Chatham", "Orleans"],
+
+    # Worcester Area
+    "greater worcester": ["Worcester", "Shrewsbury", "Westborough", "Northborough",
+                          "Grafton", "Millbury", "Auburn", "Holden", "Leicester"],
+    "worcester area": ["Worcester", "Shrewsbury", "Westborough", "Northborough",
+                       "Grafton", "Millbury", "Auburn"],
+
+    # Specific combos
+    "boston area": ["Boston", "Cambridge", "Somerville", "Brookline", "Newton"],
+    "quincy area": ["Quincy", "Braintree", "Weymouth", "Milton"],
+    "boston and quincy areas": ["Boston", "Cambridge", "Brookline", "Quincy",
+                                 "Braintree", "Weymouth", "Milton"],
+}
+
+
 def standardize_style(user_input: str) -> Optional[str]:
     """
     Map user-provided homeType to valid Repliers API style value.
@@ -134,13 +181,17 @@ def standardize_style(user_input: str) -> Optional[str]:
 
 def parse_multi_city_location(location: str) -> List[str]:
     """
-    Parse location string that may contain multiple cities.
+    Parse location string that may contain multiple cities or regions.
 
-    Handles various formats:
-    - "Westborough or Shrewsbury" → ["Westborough", "Shrewsbury"]
-    - "Worcester, MA" → ["Worcester"]
+    Supported formats:
     - "Boston" → ["Boston"]
-    - "Newton and Cambridge" → ["Newton", "Cambridge"]
+    - "Worcester, MA" → ["Worcester"]
+    - "Boston or Quincy" → ["Boston", "Quincy"]
+    - "Boston and Quincy" → ["Boston", "Quincy"]
+    - "Boston, Quincy, Brookline" → ["Boston", "Quincy", "Brookline"]
+    - "Boston MA, Quincy MA" → ["Boston", "Quincy"]
+    - "South Shore MA" → [region cities...]
+    - "Greater Boston" → [metro cities...]
 
     Args:
         location: User's location input
@@ -151,20 +202,45 @@ def parse_multi_city_location(location: str) -> List[str]:
     if not location:
         return []
 
+    normalized = location.strip().lower()
+
+    # Step 1: Check for region match first
+    # Only match if input is exactly the region or contains the full region name
+    for region_key, region_cities in MA_REGIONS.items():
+        # Exact match or input contains the full region key
+        if normalized == region_key or region_key in normalized:
+            print(f"[LOCATION PARSER] Matched region '{region_key}' → {len(region_cities)} cities")
+            return region_cities
+
+    # Step 2: Strip common suffixes for cleaner parsing
+    # "boston and quincy areas" → "boston and quincy"
+    normalized = re.sub(r'\s+(areas?|region|metro|greater)\s*$', '', normalized, flags=re.IGNORECASE)
+
     cities = []
 
-    # Pattern: "City1 or City2" or "City1 and City2" (case insensitive)
-    if re.search(r'\s+(or|and)\s+', location, re.IGNORECASE):
-        parts = re.split(r'\s+(?:or|and)\s+', location, flags=re.IGNORECASE)
+    # Step 3: Check for "or" / "and" / "&" connectors
+    if re.search(r'\s+(or|and|&)\s+', normalized, re.IGNORECASE):
+        parts = re.split(r'\s+(?:or|and|&)\s+', normalized, flags=re.IGNORECASE)
         for part in parts:
             city = _extract_city(part.strip())
             if city:
                 cities.append(city)
-    else:
-        # Single city
-        city = _extract_city(location)
-        if city:
-            cities.append(city)
+        return cities
+
+    # Step 4: Check for comma-separated cities
+    # "Boston, Quincy, Brookline" or "Boston MA, Quincy MA"
+    if "," in normalized:
+        parts = normalized.split(",")
+        for part in parts:
+            city = _extract_city(part.strip())
+            if city:
+                cities.append(city)
+        return cities
+
+    # Step 5: Single city
+    city = _extract_city(location)
+    if city:
+        cities.append(city)
 
     return cities
 
@@ -178,26 +254,87 @@ def _extract_city(loc: str) -> str:
     - "Boston Massachusetts" → "Boston"
     - "Boston MA" → "Boston"
     - "Worcester" → "Worcester"
+    - "new york" → "New York" (title cased)
 
     Args:
         loc: Location string in various formats
 
     Returns:
-        Extracted city name, or empty string if not parseable
+        Extracted city name (title cased), or empty string if not parseable
     """
     if not loc:
         return ""
 
     loc = loc.strip()
 
+    # Remove "area/areas" suffix
+    loc = re.sub(r'\s+areas?\s*$', '', loc, flags=re.IGNORECASE)
+
     # Format 1: Comma-separated (e.g., "Worcester, MA" or "Boston, Massachusetts")
     if "," in loc:
-        return loc.split(",")[0].strip()
+        return loc.split(",")[0].strip().title()
 
-    # Format 2: Space + 2-letter state code at end (e.g., "Boston MA")
+    # Format 2: Full state name at end (e.g., "Boston Massachusetts")
+    state_pattern = r'\s+(massachusetts|california|texas|florida|new york|connecticut|rhode island|new hampshire|maine|vermont)\s*$'
+    match = re.search(state_pattern, loc, re.IGNORECASE)
+    if match:
+        return loc[:match.start()].strip().title()
+
+    # Format 3: Space + 2-letter state code at end (e.g., "Boston MA")
     parts = loc.split()
     if len(parts) >= 2 and len(parts[-1]) == 2 and parts[-1].isalpha():
-        return " ".join(parts[:-1]).strip()
+        return " ".join(parts[:-1]).strip().title()
 
-    # Format 3: Single word or multi-word city (e.g., "Boston" or "New York")
-    return loc
+    # Format 4: Single word or multi-word city (e.g., "Boston" or "New York")
+    return loc.strip().title()
+
+
+def format_location_display(cities: List[str]) -> str:
+    """
+    Format city list for display in UI.
+
+    Examples:
+    - ["Boston"] → "Boston"
+    - ["Boston", "Quincy"] → "Boston & Quincy"
+    - ["Boston", "Quincy", "Brookline"] → "Boston, Quincy & Brookline"
+    - 5+ cities → "Boston, Quincy + 3 more"
+
+    Args:
+        cities: List of city names
+
+    Returns:
+        Formatted string for display
+    """
+    if not cities:
+        return ""
+    if len(cities) == 1:
+        return cities[0]
+    if len(cities) == 2:
+        return f"{cities[0]} & {cities[1]}"
+    if len(cities) <= 4:
+        return f"{', '.join(cities[:-1])} & {cities[-1]}"
+    return f"{', '.join(cities[:2])} + {len(cities) - 2} more"
+
+
+def get_region_suggestions(partial: str) -> List[Dict[str, Any]]:
+    """
+    Get region suggestions for autocomplete (future enhancement).
+    Returns matching regions with their city counts.
+
+    Args:
+        partial: Partial region name to match
+
+    Returns:
+        List of matching region suggestions
+    """
+    suggestions = []
+    partial_lower = partial.lower()
+    for region, cities in MA_REGIONS.items():
+        if partial_lower in region:
+            suggestions.append({
+                "region": region.title(),
+                "cities": cities,
+                "city_count": len(cities),
+                "display": f"{region.title()} ({len(cities)} cities)"
+            })
+    return suggestions

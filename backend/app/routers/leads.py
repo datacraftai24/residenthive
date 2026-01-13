@@ -536,7 +536,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: City/neighborhood/address if named
+- location: ALL cities/neighborhoods mentioned, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -614,7 +614,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: City/neighborhood if named (use "{property_city}" if they mentioned this property)
+- location: ALL cities/neighborhoods mentioned, comma-separated. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned

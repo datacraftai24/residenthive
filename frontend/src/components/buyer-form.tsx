@@ -499,10 +499,13 @@ export default function BuyerForm({
                   name="location"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Location/City</FormLabel>
+                      <FormLabel>Search Location(s)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Austin, TX" {...field} />
+                        <Input placeholder="Boston, Quincy or South Shore MA" {...field} />
                       </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter a city, multiple cities (Boston, Quincy, Brookline), or a region (South Shore, Greater Boston)
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
