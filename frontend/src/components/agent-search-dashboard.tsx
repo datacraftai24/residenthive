@@ -128,13 +128,14 @@ export function AgentSearchDashboard() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="location">Location(s)</Label>
               <Input
                 id="location"
                 value={filters.location}
                 onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-                placeholder="City, State"
+                placeholder="Boston, Quincy or South Shore"
               />
+              <p className="text-xs text-muted-foreground">Multiple cities or regions</p>
             </div>
             
             <div className="space-y-2">

@@ -311,9 +311,25 @@ If none, return null.
 ---------------------------------------------------
 LOCATION EXTRACTION
 ---------------------------------------------------
-Extract primary location (first city mentioned).
-If multiple cities mentioned, use the first one for "location".
-If state not mentioned, infer from context.
+The buyer is searching in Massachusetts. Use your knowledge of MA cities,
+towns, and real estate regions to extract locations.
+
+Extract ALL locations/cities mentioned by the buyer.
+Return as comma-separated string: "Melrose, Wakefield, Stoneham"
+
+IMPORTANT:
+• Correct common misspellings using MA city knowledge (e.g., "Melorse" → "Melrose")
+• Preserve region names if mentioned: "South Shore", "North Shore", "Greater Boston", "Cape Cod", "Metro West"
+• If buyer says "X area" or "X areas", keep as region format
+
+Examples:
+• "looking in Melrose, Wakefield, and Stoneham" → "Melrose, Wakefield, Stoneham"
+• "South Shore area" → "South Shore"
+• "Boston or Quincy" → "Boston, Quincy"
+• "Greater Boston" → "Greater Boston"
+• "Melorse and Wakfeild" → "Melrose, Wakefield" (corrected spellings)
+
+If state not mentioned, infer from context (assume MA for Boston-area cities).
 
 ---------------------------------------------------
 HOME TYPE INFERENCE
