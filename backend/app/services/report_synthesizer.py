@@ -13,7 +13,12 @@ import json
 import os
 from typing import Dict, Any, List
 from openai import OpenAI
-from .requirements_analyzer import compute_requirements_checklist, compute_category_winners, compute_display_requirements
+from .requirements_analyzer import (
+    compute_requirements_checklist,
+    compute_category_winners,
+    compute_display_requirements,
+    compute_rich_comparison,
+)
 
 
 def generate_report_synthesis(
@@ -347,6 +352,10 @@ Return JSON only, no extra commentary.
         )
         synthesis["category_winners"] = category_winners
 
+        # Add rich comparison data for enhanced comparison table
+        rich_comparison = compute_rich_comparison(profile, listings)
+        synthesis["rich_comparison"] = rich_comparison
+
         # Include lead_context in synthesis for frontend rendering
         if lead_context:
             synthesis["lead_context"] = lead_context
@@ -404,5 +413,7 @@ def _generate_fallback_synthesis(
             listings,
             ranked_picks=synthesis.get("ranked_picks", [])
         )
+        # Add rich comparison data
+        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings)
 
     return synthesis
