@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -757,6 +757,16 @@ interface LocationAnalysisResponse {
   error?: string;
 }
 
+// Response type for existing search check
+interface ExistingSearchResponse {
+  hasSearch: boolean;
+  reason?: string;
+  searchId?: string;
+  searchAt?: string;
+  contextValid?: boolean;
+  searchData?: AgentSearchResponse;
+}
+
 export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [activeView, setActiveView] = useState<'view1' | 'view2' | 'view3'>('view1');
@@ -766,8 +776,45 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
   const [buyerReportShareId, setBuyerReportShareId] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
+  const [restoredSearch, setRestoredSearch] = useState<AgentSearchResponse | null>(null);
+  const [isRestoringSearch, setIsRestoringSearch] = useState(true);
+  const [skipFetch, setSkipFetch] = useState(true); // Skip fetch until user clicks search
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Check for existing search on mount
+  useEffect(() => {
+    const checkExistingSearch = async () => {
+      try {
+        const response = await fetch(`/api/agent-search/${profile.id}`);
+        if (response.ok) {
+          const data: ExistingSearchResponse = await response.json();
+          if (data.hasSearch && data.searchData) {
+            console.log('[SEARCH RESTORE] Found existing search:', {
+              searchId: data.searchId,
+              searchAt: data.searchAt,
+              contextValid: data.contextValid
+            });
+            setRestoredSearch(data.searchData);
+            setHasSearched(true);
+            if (!data.contextValid) {
+              // Context expired but we have cached results
+              toast({
+                title: 'Search restored',
+                description: 'Previous search restored. Photo/location analysis may need to re-run.',
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.log('[SEARCH RESTORE] No existing search or error:', error);
+      } finally {
+        setIsRestoringSearch(false);
+      }
+    };
+
+    checkExistingSearch();
+  }, [profile.id, toast]);
 
   // Mutation to save multiple properties
   const savePropertiesMutation = useMutation({
@@ -797,10 +844,15 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     }
   });
 
-  // Search query with reactive search enabled - NO CACHING
-  const { data: searchResults, isLoading, refetch } = useQuery<AgentSearchResponse>({
+  // Search query with reactive search enabled
+  // Uses restored search as initial data if available
+  const { data: searchResults, isLoading, refetch, isFetching } = useQuery<AgentSearchResponse>({
     queryKey: ['/api/agent-search', profile.id, forceEnhanced], // Stable query key
     queryFn: async () => {
+      console.log('[SEARCH QUERY] queryFn called, fetching from API...');
+      // Clear restored search when running new search
+      setRestoredSearch(null);
+
       const response = await fetch('/api/agent-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -815,17 +867,20 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
         throw new Error('Search failed');
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log('[SEARCH QUERY] Got response:', { searchId: data.searchId, listingsCount: data.initialSearch?.view2?.listings?.length });
+      return data;
     },
-    enabled: hasSearched,
-    staleTime: 0, // Never use cache - always fetch fresh
+    enabled: hasSearched && !skipFetch, // Only fetch when user explicitly clicks search
+    initialData: restoredSearch || undefined, // Use restored search as initial data
+    staleTime: 0, // Always refetch on demand
     gcTime: 0, // Don't keep in cache
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     retry: false, // Don't retry on failure to avoid loops
   });
 
-  // Photo Analysis query - fetches after search completes and we have a searchId
+  // Photo Analysis query - starts immediately when search completes (runs in background)
   const { data: photoAnalysis, isLoading: isLoadingPhotos, refetch: refetchPhotos } = useQuery<PhotoAnalysisResponse>({
     queryKey: ['/api/agent-search/photos', searchResults?.searchId],
     queryFn: async () => {
@@ -842,10 +897,9 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
         propertiesWithPhotos: Object.keys(data.photo_analysis || {}).length,
         timestamp: new Date().toISOString()
       });
-      console.log('[PHOTO ANALYSIS] MLS numbers in photo_analysis:', Object.keys(data.photo_analysis || {}));
       return data;
     },
-    enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
+    enabled: !!searchResults?.searchId, // Start immediately when search completes
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
     // Poll every 10 seconds until we have photo data, then stop
@@ -855,7 +909,7 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     },
   });
 
-  // Location Analysis query - fetches after search completes and we have a searchId
+  // Location Analysis query - starts immediately when search completes (runs in background)
   const { data: locationAnalysis, isLoading: isLoadingLocation } = useQuery<LocationAnalysisResponse>({
     queryKey: ['/api/agent-search/location', searchResults?.searchId],
     queryFn: async () => {
@@ -872,10 +926,9 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
         propertiesWithLocation: Object.keys(data.location_analysis || {}).length,
         timestamp: new Date().toISOString()
       });
-      console.log('[LOCATION ANALYSIS] MLS numbers in location_analysis:', Object.keys(data.location_analysis || {}));
       return data;
     },
-    enabled: !!searchResults?.searchId && activeView === 'view2', // Only fetch when viewing AI recommendations
+    enabled: !!searchResults?.searchId, // Start immediately when search completes
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchOnWindowFocus: false,
     // Poll every 10 seconds until we have location data, then stop
@@ -977,20 +1030,70 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
     }
   };
 
-  const handleSearch = () => {
-    // Clear cache to ensure fresh results
-    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
+  // Manual search state for immediate feedback
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = async () => {
+    console.log('[SEARCH] handleSearch clicked');
+    setIsSearching(true);
+    setRestoredSearch(null);
     setHasSearched(true);
-    setForceEnhanced(false); // Reset force enhanced
-    setBuyerReportShareId(null); // Clear any existing report
-    refetch();
+    setForceEnhanced(false);
+    setBuyerReportShareId(null);
+
+    try {
+      // Direct API call for immediate feedback
+      const response = await fetch('/api/agent-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: profile.id,
+          useReactive: true,
+          forceEnhanced: false
+        })
+      });
+
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      console.log('[SEARCH] Got response:', { searchId: data.searchId });
+
+      // Update query cache with new data
+      queryClient.setQueryData(['/api/agent-search', profile.id, false], data);
+      setSkipFetch(false); // Allow future auto-fetches
+    } catch (error) {
+      console.error('[SEARCH] Error:', error);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const handleEnhancedSearch = () => {
-    // Clear cache for enhanced search too
-    queryClient.invalidateQueries({ queryKey: ['/api/agent-search', profile.id] });
+  const handleEnhancedSearch = async () => {
+    console.log('[SEARCH] handleEnhancedSearch clicked');
+    setIsSearching(true);
+    setRestoredSearch(null);
     setForceEnhanced(true);
-    refetch();
+
+    try {
+      const response = await fetch('/api/agent-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: profile.id,
+          useReactive: true,
+          forceEnhanced: true
+        })
+      });
+
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+
+      queryClient.setQueryData(['/api/agent-search', profile.id, true], data);
+      setSkipFetch(false);
+    } catch (error) {
+      console.error('[SEARCH] Error:', error);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -1041,18 +1144,33 @@ export function AgentDualViewSearch({ profile }: AgentDualViewSearchProps) {
             </div>
           </div>
           
-          <Button 
-            onClick={handleSearch} 
-            disabled={isLoading} 
+          <Button
+            onClick={handleSearch}
+            disabled={isSearching || isRestoringSearch}
             className="w-full md:w-auto"
           >
-            {isLoading ? 'Searching Properties...' : hasSearched ? 'Refresh Search' : 'Search Properties'}
+            {isRestoringSearch ? 'Loading...' : isSearching ? 'Searching Properties...' : (hasSearched || restoredSearch) ? 'Run New Search' : 'Search Properties'}
           </Button>
+          {restoredSearch && (
+            <span className="ml-2 text-sm text-green-600">
+              ✓ Previous search restored
+            </span>
+          )}
         </CardContent>
       </Card>
 
       {/* Search Results */}
-      {isLoading && (
+      {isRestoringSearch && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
+              <p className="mt-2 text-gray-600">Checking for previous search...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {isLoading && !isRestoringSearch && (
         <Card>
           <CardContent className="p-6">
             <div className="text-center">

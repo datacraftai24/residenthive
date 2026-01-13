@@ -22,9 +22,14 @@ from ..services.photo_analyzer import analyze_property_photos
 from ..services.property_analyzer import _generate_agent_take
 from ..db import get_conn, fetchone_dict
 from ..auth import get_current_agent_id
+import json
 
 
 router = APIRouter(prefix="/api")
+
+
+# Search persistence TTL - searches older than this are considered expired
+SEARCH_PERSISTENCE_HOURS = 4
 logger = logging.getLogger(__name__)
 
 
@@ -163,7 +168,90 @@ def agent_search(req: AgentSearchRequest, agent_id: int = Depends(get_current_ag
     }
     if req.useReactive and req.forceEnhanced:
         response["enhancedSearch"] = {"triggered": True, "reason": "Requested enhanced search", "view1": view1, "adjustments": [], "adjustmentSummary": "", "clientSummary": ""}
+
+    # Persist search to database for resume functionality
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE buyer_profiles
+                    SET last_search_id = %s,
+                        last_search_at = NOW(),
+                        last_search_data = %s
+                    WHERE id = %s
+                """, (search_id, json.dumps(response), req.profileId))
+        logger.info(f"[AGENT SEARCH] Persisted search to profile {req.profileId}, searchId={search_id}")
+    except Exception as e:
+        logger.warning(f"[AGENT SEARCH] Failed to persist search to database: {e}")
+        # Non-blocking - search still works, just won't be resumable
+
     return response
+
+
+@router.get("/agent-search/{profile_id}")
+def get_agent_search(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Get the last search for a buyer profile.
+
+    Returns the cached search if:
+    - Search exists and is within TTL (4 hours)
+    - In-memory context still valid
+
+    Otherwise returns status indicating search needs to be re-run.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT last_search_id, last_search_at, last_search_data
+                FROM buyer_profiles
+                WHERE id = %s AND agent_id = %s
+            """, (profile_id, agent_id))
+            row = fetchone_dict(cur)
+
+    if not row or not row.get('last_search_id'):
+        return {
+            "hasSearch": False,
+            "reason": "no_previous_search"
+        }
+
+    search_id = row['last_search_id']
+    search_at = row['last_search_at']
+    search_data = row.get('last_search_data')
+
+    # Check if search is within TTL
+    from datetime import timedelta
+    if search_at and (datetime.utcnow() - search_at) > timedelta(hours=SEARCH_PERSISTENCE_HOURS):
+        return {
+            "hasSearch": False,
+            "reason": "search_expired",
+            "expiredAt": search_at.isoformat() if search_at else None
+        }
+
+    # Check if in-memory context is still valid (needed for photo/location analysis)
+    context = get_search_context(search_id)
+    context_valid = context is not None
+
+    # Parse search data
+    if isinstance(search_data, str):
+        try:
+            search_data = json.loads(search_data)
+        except json.JSONDecodeError:
+            search_data = None
+
+    if not search_data:
+        return {
+            "hasSearch": False,
+            "reason": "search_data_missing"
+        }
+
+    # Return the cached search with context validity status
+    return {
+        "hasSearch": True,
+        "searchId": search_id,
+        "searchAt": search_at.isoformat() if search_at else None,
+        "contextValid": context_valid,  # If False, photo/location analysis won't work
+        "searchData": search_data
+    }
 
 
 @router.post("/agent-search/enhanced-only")
