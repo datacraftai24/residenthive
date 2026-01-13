@@ -188,72 +188,6 @@ def agent_search(req: AgentSearchRequest, agent_id: int = Depends(get_current_ag
     return response
 
 
-@router.get("/agent-search/{profile_id}")
-def get_agent_search(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
-    """
-    Get the last search for a buyer profile.
-
-    Returns the cached search if:
-    - Search exists and is within TTL (4 hours)
-    - In-memory context still valid
-
-    Otherwise returns status indicating search needs to be re-run.
-    """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT last_search_id, last_search_at, last_search_data
-                FROM buyer_profiles
-                WHERE id = %s AND agent_id = %s
-            """, (profile_id, agent_id))
-            row = fetchone_dict(cur)
-
-    if not row or not row.get('last_search_id'):
-        return {
-            "hasSearch": False,
-            "reason": "no_previous_search"
-        }
-
-    search_id = row['last_search_id']
-    search_at = row['last_search_at']
-    search_data = row.get('last_search_data')
-
-    # Check if search is within TTL
-    from datetime import timedelta
-    if search_at and (datetime.utcnow() - search_at) > timedelta(hours=SEARCH_PERSISTENCE_HOURS):
-        return {
-            "hasSearch": False,
-            "reason": "search_expired",
-            "expiredAt": search_at.isoformat() if search_at else None
-        }
-
-    # Check if in-memory context is still valid (needed for photo/location analysis)
-    context = get_search_context(search_id)
-    context_valid = context is not None
-
-    # Parse search data
-    if isinstance(search_data, str):
-        try:
-            search_data = json.loads(search_data)
-        except json.JSONDecodeError:
-            search_data = None
-
-    if not search_data:
-        return {
-            "hasSearch": False,
-            "reason": "search_data_missing"
-        }
-
-    # Return the cached search with context validity status
-    return {
-        "hasSearch": True,
-        "searchId": search_id,
-        "searchAt": search_at.isoformat() if search_at else None,
-        "contextValid": context_valid,  # If False, photo/location analysis won't work
-        "searchData": search_data
-    }
-
-
 @router.post("/agent-search/enhanced-only")
 def agent_search_enhanced_only(req: AgentSearchRequest):
     from .listings import listings_search
@@ -295,6 +229,8 @@ def agent_search_photos(searchId: str = Query(..., description="Search ID from a
             }
         }
     """
+    logger.info(f"[PHOTO ANALYSIS] Request received for searchId={searchId}")
+
     # Check if photo analysis results are already cached
     cached_results = get_photo_analysis_results(searchId)
     if cached_results is not None:
@@ -534,4 +470,72 @@ async def agent_search_location(searchId: str = Query(..., description="Search I
     return {
         "searchId": searchId,
         "location_analysis": location_analysis
+    }
+
+
+# NOTE: This route MUST be defined AFTER /photos and /location routes
+# because FastAPI matches routes in order, and {profile_id} would match "photos" or "location"
+@router.get("/agent-search/{profile_id}")
+def get_agent_search(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
+    """
+    Get the last search for a buyer profile.
+
+    Returns the cached search if:
+    - Search exists and is within TTL (4 hours)
+    - In-memory context still valid
+
+    Otherwise returns status indicating search needs to be re-run.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT last_search_id, last_search_at, last_search_data
+                FROM buyer_profiles
+                WHERE id = %s AND agent_id = %s
+            """, (profile_id, agent_id))
+            row = fetchone_dict(cur)
+
+    if not row or not row.get('last_search_id'):
+        return {
+            "hasSearch": False,
+            "reason": "no_previous_search"
+        }
+
+    search_id = row['last_search_id']
+    search_at = row['last_search_at']
+    search_data = row.get('last_search_data')
+
+    # Check if search is within TTL
+    from datetime import timedelta
+    if search_at and (datetime.utcnow() - search_at) > timedelta(hours=SEARCH_PERSISTENCE_HOURS):
+        return {
+            "hasSearch": False,
+            "reason": "search_expired",
+            "expiredAt": search_at.isoformat() if search_at else None
+        }
+
+    # Check if in-memory context is still valid (needed for photo/location analysis)
+    context = get_search_context(search_id)
+    context_valid = context is not None
+
+    # Parse search data
+    if isinstance(search_data, str):
+        try:
+            search_data = json.loads(search_data)
+        except json.JSONDecodeError:
+            search_data = None
+
+    if not search_data:
+        return {
+            "hasSearch": False,
+            "reason": "search_data_missing"
+        }
+
+    # Return the cached search with context validity status
+    return {
+        "hasSearch": True,
+        "searchId": search_id,
+        "searchAt": search_at.isoformat() if search_at else None,
+        "contextValid": context_valid,  # If False, photo/location analysis won't work
+        "searchData": search_data
     }
