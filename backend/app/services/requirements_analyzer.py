@@ -702,3 +702,387 @@ def compute_category_winners(
         winners["best_price"] = winner.get("mlsNumber")
 
     return winners  # Max 3 entries, no duplicates
+
+
+# =============================================================================
+# RICH COMPARISON TABLE (New - for visual comparison)
+# =============================================================================
+
+def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Generate rich comparison data with actual values, not just pass/fail flags.
+
+    Returns data structure optimized for visual comparison table:
+    - Actual values ($949,000, not just ✅)
+    - Best-in-category highlighting (⭐)
+    - Property thumbnails in headers
+    - Progress bars for match scores
+    """
+    if not listings:
+        return {"rows": [], "listings": []}
+
+    rows = []
+
+    # Helper to safely get numeric value
+    def safe_float(value, default=0.0):
+        try:
+            return float(value) if value else default
+        except (ValueError, TypeError):
+            return default
+
+    def safe_int(value, default=0):
+        try:
+            return int(value) if value else default
+        except (ValueError, TypeError):
+            return default
+
+    # 1. Match Score (always show)
+    # fitScore can be decimal (0.9 = 90%) or already percentage (90 = 90%)
+    def normalize_score(score):
+        """Normalize fitScore to percentage value (0-100)"""
+        if score > 100:
+            return 100  # Cap at 100% (defensive check)
+        if score > 1:
+            return score  # Already a percentage (e.g., 90)
+        return score * 100  # Decimal, convert to percentage (e.g., 0.9 → 90)
+
+    rows.append({
+        "id": "match_score",
+        "label": "Match Score",
+        "icon": "trophy",
+        "type": "percentage",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": normalize_score(safe_float(l.get("fitScore", l.get("finalScore", 0)))),
+                "display": f"{int(normalize_score(safe_float(l.get('fitScore', l.get('finalScore', 0)))))}%",
+                "is_best": False
+            }
+            for l in listings
+        },
+        "best_is": "highest"
+    })
+
+    # 2. Price (always show)
+    budget_max = safe_float(profile.get("budgetMax"), 0)
+    rows.append({
+        "id": "price",
+        "label": "Price",
+        "icon": "dollar-sign",
+        "type": "currency",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": safe_float(l.get("listPrice"), 0),
+                "display": f"${safe_int(l.get('listPrice', 0)):,}",
+                "subtext": (
+                    f"({int((budget_max - safe_float(l.get('listPrice', 0))) / budget_max * 100)}% under max)"
+                    if budget_max > 0 and safe_float(l.get('listPrice', 0)) < budget_max
+                    else None
+                ),
+                "is_best": False
+            }
+            for l in listings
+        },
+        "best_is": "lowest"
+    })
+
+    # 3. Bedrooms (always show)
+    rows.append({
+        "id": "bedrooms",
+        "label": "Bedrooms",
+        "icon": "bed",
+        "type": "number",
+        "best_is": "highest",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": safe_int(l.get("bedrooms"), 0),
+                "display": f"{safe_int(l.get('bedrooms', 0))} beds",
+                "is_best": False
+            }
+            for l in listings
+        }
+    })
+
+    # 4. Bathrooms (always show)
+    rows.append({
+        "id": "bathrooms",
+        "label": "Bathrooms",
+        "icon": "bath",
+        "type": "number",
+        "best_is": "highest",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": safe_float(l.get("bathrooms"), 0),
+                "display": f"{l.get('bathrooms', 0)} baths",
+                "is_best": False
+            }
+            for l in listings
+        }
+    })
+
+    # 5. Size + Price/sqft (always show)
+    rows.append({
+        "id": "size",
+        "label": "Size",
+        "icon": "maximize",
+        "type": "number",
+        "best_is": "highest",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": safe_int(l.get("sqft"), 0),
+                "display": f"{safe_int(l.get('sqft', 0)):,} sqft",
+                "subtext": (
+                    f"${int(safe_float(l.get('listPrice', 0)) / safe_float(l.get('sqft', 1))):,}/sqft"
+                    if safe_float(l.get("sqft"), 0) > 0
+                    else None
+                ),
+                "is_best": False
+            }
+            for l in listings
+        }
+    })
+
+    # 6. Commute (show if work_address exists)
+    if profile.get("work_address"):
+        max_commute = safe_int(profile.get("max_commute_mins"), 35)
+        rows.append({
+            "id": "commute",
+            "label": "Commute",
+            "icon": "car",
+            "type": "duration",
+            "best_is": "lowest",
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": safe_int(l.get("commute_mins"), 999),
+                    "display": (
+                        f"{l.get('commute_mins')} min"
+                        if l.get("commute_mins") is not None
+                        else "Unknown"
+                    ),
+                    "flag": (
+                        "warning"
+                        if l.get("commute_mins") is not None and safe_int(l.get("commute_mins"), 0) > max_commute
+                        else None
+                    ),
+                    "is_best": False
+                }
+                for l in listings
+            }
+        })
+
+    # 7. Schools (show if any listing has data or buyer has kids)
+    has_school_data = any(l.get("nearby_schools_count") is not None for l in listings)
+    if has_school_data or profile.get("has_kids"):
+        rows.append({
+            "id": "schools",
+            "label": "Schools Nearby",
+            "icon": "graduation-cap",
+            "type": "number",
+            "best_is": "highest",
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": safe_int(l.get("nearby_schools_count"), 0),
+                    "display": (
+                        f"{l.get('nearby_schools_count')} nearby"
+                        if l.get("nearby_schools_count") is not None
+                        else "Unknown"
+                    ),
+                    "is_best": False
+                }
+                for l in listings
+            }
+        })
+
+    # 8. Lot Size (show if meaningful variation)
+    lot_sizes = [safe_float(l.get("lotAcres"), 0) for l in listings if l.get("lotAcres")]
+    if lot_sizes and max(lot_sizes) > 0.1:
+        rows.append({
+            "id": "lot_size",
+            "label": "Lot Size",
+            "icon": "trees",
+            "type": "area",
+            "best_is": "highest",
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": safe_float(l.get("lotAcres"), 0),
+                    "display": (
+                        f"{safe_float(l.get('lotAcres'), 0):.2f} acres"
+                        if l.get("lotAcres")
+                        else "Unknown"
+                    ),
+                    "is_best": False
+                }
+                for l in listings
+            }
+        })
+
+    # 9. Year Built (show if data exists)
+    has_year_data = any(l.get("yearBuilt") for l in listings)
+    if has_year_data:
+        rows.append({
+            "id": "year_built",
+            "label": "Year Built",
+            "icon": "calendar",
+            "type": "number",
+            "best_is": "highest",  # Newer is better
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": safe_int(l.get("yearBuilt"), 0),
+                    "display": str(l.get("yearBuilt", "Unknown")),
+                    "is_best": False
+                }
+                for l in listings
+            }
+        })
+
+    # 10. Concerns (always show)
+    rows.append({
+        "id": "concerns",
+        "label": "Concerns",
+        "icon": "alert-triangle",
+        "type": "list",
+        "best_is": "lowest",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": len((l.get("aiAnalysis") or {}).get("red_flags", [])),
+                "display": (
+                    ", ".join(
+                        rf.get("concern", str(rf)) if isinstance(rf, dict) else str(rf)
+                        for rf in ((l.get("aiAnalysis") or {}).get("red_flags", [])[:2])
+                    )
+                    or "None detected"
+                ),
+                "is_best": False
+            }
+            for l in listings
+        }
+    })
+
+    # 11. Unique Strength (always show)
+    rows.append({
+        "id": "unique_strength",
+        "label": "Unique Strength",
+        "icon": "star",
+        "type": "text",
+        "values": {
+            l.get("mlsNumber"): {
+                "value": 0,
+                "display": _compute_unique_strength(l, listings),
+                "is_best": True  # All are best in their own way
+            }
+            for l in listings
+        }
+    })
+
+    # Mark best values in each row
+    for row in rows:
+        if row.get("best_is"):
+            _mark_best_values(row)
+
+    return {
+        "rows": rows,
+        "listings": [
+            {
+                "mlsNumber": l.get("mlsNumber"),
+                "address": l.get("address"),
+                "city": l.get("city"),
+                "image": (l.get("images") or [None])[0] if l.get("images") else None,
+                "rank": idx + 1,
+                "label": _get_rank_label(idx)
+            }
+            for idx, l in enumerate(listings)
+        ]
+    }
+
+
+def _mark_best_values(row: Dict[str, Any]) -> None:
+    """Mark the best value(s) in a row based on best_is criteria."""
+    values = row.get("values", {})
+    best_is = row.get("best_is")
+
+    if not values or not best_is:
+        return
+
+    # Extract numeric values
+    numeric_values = []
+    for mls, v in values.items():
+        val = v.get("value")
+        if val is not None and isinstance(val, (int, float)):
+            numeric_values.append((mls, val))
+
+    if not numeric_values:
+        return
+
+    # Find best value
+    if best_is == "highest":
+        best_val = max(v[1] for v in numeric_values)
+    elif best_is == "lowest":
+        # Exclude 0/unknown values for "lowest" comparisons
+        positive_values = [v for v in numeric_values if v[1] > 0]
+        if not positive_values:
+            return
+        best_val = min(v[1] for v in positive_values)
+    else:
+        return
+
+    # Mark all with best value
+    for mls, val in numeric_values:
+        if val == best_val:
+            values[mls]["is_best"] = True
+
+
+def _compute_unique_strength(listing: Dict[str, Any], all_listings: List[Dict[str, Any]]) -> str:
+    """Compute what makes this listing uniquely strong compared to others."""
+    strengths = []
+
+    def safe_float(value, default=0.0):
+        try:
+            return float(value) if value else default
+        except (ValueError, TypeError):
+            return default
+
+    def safe_int(value, default=0):
+        try:
+            return int(value) if value else default
+        except (ValueError, TypeError):
+            return default
+
+    # Check if best in each category
+    commute_values = [safe_int(l.get("commute_mins"), 999) for l in all_listings if l.get("commute_mins")]
+    if commute_values and listing.get("commute_mins"):
+        if safe_int(listing.get("commute_mins"), 999) == min(commute_values):
+            strengths.append("Shortest commute")
+
+    price_values = [safe_float(l.get("listPrice"), float('inf')) for l in all_listings]
+    if price_values:
+        if safe_float(listing.get("listPrice"), float('inf')) == min(price_values):
+            strengths.append("Best price")
+
+    sqft_values = [safe_int(l.get("sqft"), 0) for l in all_listings]
+    if sqft_values:
+        if safe_int(listing.get("sqft"), 0) == max(sqft_values):
+            strengths.append("Most space")
+
+    lot_values = [safe_float(l.get("lotAcres"), 0) for l in all_listings]
+    if lot_values and max(lot_values) > 0:
+        if safe_float(listing.get("lotAcres"), 0) == max(lot_values):
+            strengths.append("Biggest lot")
+
+    bed_values = [safe_int(l.get("bedrooms"), 0) for l in all_listings]
+    if bed_values:
+        if safe_int(listing.get("bedrooms"), 0) == max(bed_values):
+            strengths.append("Most bedrooms")
+
+    # Add from AI analysis headline if available
+    ai_analysis = listing.get("aiAnalysis") or {}
+    headline = ai_analysis.get("headline")
+    if headline and not strengths:
+        # Take first 30 chars of headline as fallback
+        strengths.append(headline[:30])
+
+    return " + ".join(strengths[:2]) or "Well-rounded option"
+
+
+def _get_rank_label(idx: int) -> str:
+    """Get display label for rank position."""
+    labels = ["TOP PICK", "ALTERNATIVE", "OPTION", "OPTION"]
+    return labels[idx] if idx < len(labels) else "OPTION"

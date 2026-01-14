@@ -61,6 +61,12 @@ class BuyerReportResponse(BaseModel):
     profileId: Optional[int] = None  # For chatbot integration
     agentId: Optional[int] = None  # For chatbot integration
     leadContext: Optional[LeadContextResponse] = None  # For chatbot lead awareness
+    buyerNotes: Optional[str] = None  # Notes from buyer, synced to agent dashboard
+    buyerNotesUpdatedAt: Optional[str] = None  # When buyer notes were last updated
+
+
+class UpdateBuyerNotesRequest(BaseModel):
+    notes: str
 
 
 class OutreachDraftResponse(BaseModel):
@@ -94,10 +100,11 @@ def get_buyer_report(share_id: str):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Get report metadata including buyer prefs for email
+            # Get report metadata including buyer prefs for email and buyer notes
             cur.execute(
                 """
-                SELECT br.*, bp.name as buyer_name, bp.location, bp.budget, bp.budget_min, bp.budget_max, bp.bedrooms
+                SELECT br.*, bp.name as buyer_name, bp.location, bp.budget, bp.budget_min, bp.budget_max, bp.bedrooms,
+                       br.buyer_notes, br.buyer_notes_updated_at
                 FROM buyer_reports br
                 JOIN buyer_profiles bp ON br.profile_id = bp.id
                 WHERE br.share_id = %s
@@ -164,6 +171,27 @@ def get_buyer_report(share_id: str):
                     listing['aiAnalysis']['location_flags'] = location_analysis[mls].get('location_flags')
                     listing['aiAnalysis']['location_summary'] = location_analysis[mls].get('location_summary')
             print(f"[BUYER REPORT] Merged location analysis for {len(location_analysis)} listings")
+
+        # Merge remarks from snapshots if missing from search context
+        # (Search context may not have description, but snapshots do)
+        if synthesis and synthesis.get('listing_snapshots'):
+            snapshots_by_mls = {str(s.get('mlsNumber')): s for s in synthesis.get('listing_snapshots', [])}
+            for listing in ordered_listings:
+                mls = str(listing.get('mlsNumber', ''))
+                if mls in snapshots_by_mls:
+                    snapshot = snapshots_by_mls[mls]
+                    # Fill in remarks if missing
+                    if not listing.get('remarks') and snapshot.get('remarks'):
+                        listing['remarks'] = snapshot['remarks']
+                    # Fill in other MLS fields if missing
+                    if not listing.get('yearBuilt') and snapshot.get('yearBuilt'):
+                        listing['yearBuilt'] = snapshot['yearBuilt']
+                    if not listing.get('lotSize') and snapshot.get('lotSize'):
+                        listing['lotSize'] = snapshot['lotSize']
+                    if not listing.get('garageSpaces') and snapshot.get('garageSpaces'):
+                        listing['garageSpaces'] = snapshot['garageSpaces']
+                    if not listing.get('daysOnMarket') and snapshot.get('daysOnMarket'):
+                        listing['daysOnMarket'] = snapshot['daysOnMarket']
 
     else:
         # DATABASE FALLBACK: Search context expired, use persisted snapshots
@@ -275,7 +303,9 @@ def get_buyer_report(share_id: str):
         defaultEmailBody=default_email_body,
         profileId=report_row.get('profile_id'),
         agentId=report_row.get('agent_id'),
-        leadContext=lead_context
+        leadContext=lead_context,
+        buyerNotes=report_row.get('buyer_notes'),
+        buyerNotesUpdatedAt=report_row['buyer_notes_updated_at'].isoformat() if report_row.get('buyer_notes_updated_at') else None
     )
 
 
@@ -442,7 +472,13 @@ def create_buyer_report(
             "images": listing.get("images", [])[:10],  # Limit to 10 images
             "finalScore": listing.get("finalScore"),
             "fitScore": listing.get("fitScore"),
-            "aiAnalysis": listing.get("aiAnalysis", {})
+            "aiAnalysis": listing.get("aiAnalysis", {}),
+            # MLS details for Property Details tab
+            "remarks": listing.get("description") or listing.get("remarks"),
+            "yearBuilt": listing.get("yearBuilt"),
+            "lotSize": listing.get("lotSize"),
+            "garageSpaces": listing.get("garageSpaces"),
+            "daysOnMarket": listing.get("daysOnMarket"),
         }
         listing_snapshots.append(snapshot)
     synthesis["listing_snapshots"] = listing_snapshots
@@ -455,12 +491,11 @@ def create_buyer_report(
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT name, email, phone FROM agents WHERE id = %s", (agent_id,))
+                cur.execute("SELECT first_name || ' ' || last_name AS name, email FROM agents WHERE id = %s", (agent_id,))
                 agent_row = cur.fetchone()
                 if agent_row:
                     agent_name = agent_row[0]
                     agent_email = agent_row[1]
-                    agent_phone = agent_row[2]
     except Exception as e:
         print(f"[BUYER REPORT] Could not load agent info: {e}")
 
@@ -1063,3 +1098,161 @@ def send_buyer_report_email(
     logger.info(f"[REPORT_EMAIL_SENT] share_id={share_id} to={payload.to_email} agent_id={agent_id}")
 
     return {"status": "sent", "to": payload.to_email}
+
+
+@router.put("/{share_id}/notes")
+def update_buyer_notes(
+    share_id: str,
+    payload: UpdateBuyerNotesRequest
+):
+    """
+    PUBLIC endpoint - Update buyer notes on a report.
+    No authentication required (buyers access this via shared link).
+    Notes are synced to agent dashboard for visibility.
+    """
+    logger.info(f"[BUYER_NOTES] Updating notes for share_id={share_id}")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Verify report exists
+            cur.execute(
+                "SELECT share_id, agent_id, profile_id FROM buyer_reports WHERE share_id = %s",
+                (share_id,)
+            )
+            report_row = fetchone_dict(cur)
+
+            if not report_row:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # Update notes with timestamp
+            cur.execute(
+                """
+                UPDATE buyer_reports
+                SET buyer_notes = %s,
+                    buyer_notes_updated_at = NOW()
+                WHERE share_id = %s
+                RETURNING buyer_notes_updated_at
+                """,
+                (payload.notes, share_id)
+            )
+            result = cur.fetchone()
+
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to update notes")
+
+            updated_at = result[0].isoformat() if result[0] else None
+
+    logger.info(f"[BUYER_NOTES] Updated notes for share_id={share_id}, agent_id={report_row['agent_id']}")
+
+    return {
+        "success": True,
+        "updatedAt": updated_at
+    }
+
+
+# --- Per-Property Notes (Hybrid Approach) ---
+
+class PropertyNoteResponse(BaseModel):
+    listingId: str
+    noteText: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+
+class UpdatePropertyNoteRequest(BaseModel):
+    note: str
+
+
+@router.get("/{share_id}/property-notes", response_model=List[PropertyNoteResponse])
+def get_property_notes(share_id: str):
+    """
+    PUBLIC endpoint - Get all property notes for a buyer report.
+    Returns notes for all listings in the report.
+    """
+    logger.info(f"[PROPERTY_NOTES] Getting notes for share_id={share_id}")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Verify report exists
+            cur.execute(
+                "SELECT share_id FROM buyer_reports WHERE share_id = %s",
+                (share_id,)
+            )
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # Get all property notes for this report
+            cur.execute(
+                """
+                SELECT listing_id, note_text, updated_at
+                FROM buyer_report_property_notes
+                WHERE report_share_id = %s
+                ORDER BY updated_at DESC
+                """,
+                (share_id,)
+            )
+            notes_rows = fetchall_dicts(cur)
+
+    return [
+        PropertyNoteResponse(
+            listingId=row['listing_id'],
+            noteText=row.get('note_text'),
+            updatedAt=row['updated_at'].isoformat() if row.get('updated_at') else None
+        )
+        for row in notes_rows
+    ]
+
+
+@router.put("/{share_id}/property-notes/{listing_id}")
+def update_property_note(
+    share_id: str,
+    listing_id: str,
+    payload: UpdatePropertyNoteRequest
+):
+    """
+    PUBLIC endpoint - Update note for a specific property in a buyer report.
+    Creates note if it doesn't exist (upsert).
+    """
+    logger.info(f"[PROPERTY_NOTES] Updating note for share_id={share_id}, listing_id={listing_id}")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Verify report exists and listing is in report
+            cur.execute(
+                "SELECT share_id, included_listing_ids FROM buyer_reports WHERE share_id = %s",
+                (share_id,)
+            )
+            report_row = fetchone_dict(cur)
+
+            if not report_row:
+                raise HTTPException(status_code=404, detail="Report not found")
+
+            # Verify listing is in report's included listings
+            included_ids = report_row.get('included_listing_ids', [])
+            if str(listing_id) not in [str(lid) for lid in included_ids]:
+                raise HTTPException(status_code=404, detail="Property not found in this report")
+
+            # Upsert the property note
+            cur.execute(
+                """
+                INSERT INTO buyer_report_property_notes (report_share_id, listing_id, note_text)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (report_share_id, listing_id)
+                DO UPDATE SET note_text = EXCLUDED.note_text, updated_at = NOW()
+                RETURNING updated_at
+                """,
+                (share_id, listing_id, payload.note)
+            )
+            result = cur.fetchone()
+
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to update property note")
+
+            updated_at = result[0].isoformat() if result[0] else None
+
+    logger.info(f"[PROPERTY_NOTES] Updated note for listing_id={listing_id} in report {share_id}")
+
+    return {
+        "success": True,
+        "listingId": listing_id,
+        "updatedAt": updated_at
+    }

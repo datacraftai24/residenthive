@@ -1805,6 +1805,12 @@ async def generate_lead_outreach(
             "aiAnalysis": listing.get("aiAnalysis", {}),
             # Include original lead analysis for rich frontend rendering
             "leadAnalysis": listing.get("leadAnalysis"),
+            # MLS details for Property Details tab
+            "remarks": listing.get("description") or listing.get("remarks"),
+            "yearBuilt": listing.get("yearBuilt"),
+            "lotSize": listing.get("lotSize"),
+            "garageSpaces": listing.get("garageSpaces"),
+            "daysOnMarket": listing.get("daysOnMarket"),
         }
         listing_snapshots.append(snapshot)
     synthesis["listing_snapshots"] = listing_snapshots

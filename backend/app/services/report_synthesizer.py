@@ -13,7 +13,12 @@ import json
 import os
 from typing import Dict, Any, List
 from openai import OpenAI
-from .requirements_analyzer import compute_requirements_checklist, compute_category_winners, compute_display_requirements
+from .requirements_analyzer import (
+    compute_requirements_checklist,
+    compute_category_winners,
+    compute_display_requirements,
+    compute_rich_comparison,
+)
 
 
 def generate_report_synthesis(
@@ -275,16 +280,31 @@ Properties I've selected (in order shown):
         beds = dto.get('beds', 0)
         baths = dto.get('baths', 0)
 
+        # Helper to extract text from whats_matching items (can be dict or string)
+        def get_match_text(m):
+            if isinstance(m, dict):
+                return m.get("requirement", str(m))
+            return str(m)
+
+        # Helper to extract text from whats_missing/concerns items (can be dict or string)
+        def get_concern_text(c):
+            if isinstance(c, dict):
+                return c.get("concern", str(c))
+            return str(c)
+
+        why_match_text = chr(10).join(f"• {get_match_text(m)}" for m in dto['why_match'])
+        what_know_text = chr(10).join(f"• {get_concern_text(c)}" for c in (dto['what_missing'] + dto['concerns']))
+
         user_prompt += f"""
 #{dto['number']}: {dto['address']}, {dto['city']}
 Price: ${price_int:,} | {beds} beds, {baths} baths, {sqft_int:,} sqft
 MLS: {dto['mlsNumber']}
 
 Why it matches:
-{chr(10).join(f"• {m}" for m in dto['why_match'])}
+{why_match_text}
 
 What you should know:
-{chr(10).join(f"• {c}" for c in (dto['what_missing'] + dto['concerns']))}
+{what_know_text}
 
 {f"My take: {dto['my_take']}" if dto['my_take'] else ""}
 
@@ -347,6 +367,10 @@ Return JSON only, no extra commentary.
         )
         synthesis["category_winners"] = category_winners
 
+        # Add rich comparison data for enhanced comparison table
+        rich_comparison = compute_rich_comparison(profile, listings)
+        synthesis["rich_comparison"] = rich_comparison
+
         # Include lead_context in synthesis for frontend rendering
         if lead_context:
             synthesis["lead_context"] = lead_context
@@ -404,5 +428,7 @@ def _generate_fallback_synthesis(
             listings,
             ranked_picks=synthesis.get("ranked_picks", [])
         )
+        # Add rich comparison data
+        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings)
 
     return synthesis
