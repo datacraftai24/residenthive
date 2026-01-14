@@ -353,6 +353,12 @@ export function BuyerReportPage() {
                 initialNotes={report.buyerNotes}
                 lastUpdated={report.buyerNotesUpdatedAt}
               />
+              {/* AI Assistant hint */}
+              <p className="text-sm text-gray-500 mt-3 flex items-center gap-1">
+                <span>Use the</span>
+                <span className="font-medium text-blue-600">AI Assistant</span>
+                <span>button below to ask questions about any property.</span>
+              </p>
             </section>
 
             {/* Property Grid - Visual First */}
