@@ -405,7 +405,7 @@ async def agent_search_location(searchId: str = Query(..., description="Search I
 
     # Run location analysis for each Top 5 listing
     location_analysis = {}
-    async with httpx.AsyncClient(timeout=90.0) as client:  # Increased for Google Maps + Gemini API calls
+    async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced: fast_mode skips Gemini (~3s vs ~20s)
         for listing in top5_listings:
             mls_number = listing.get("mls_number") or listing.get("mlsNumber") or listing.get("id")
             if not mls_number:
@@ -426,13 +426,15 @@ async def agent_search_location(searchId: str = Query(..., description="Search I
 
             print(f"[LOCATION ANALYSIS] Analyzing {mls_number}: {full_address}")
 
-            # Call location service
+            # Call location service with fast_mode for batch processing
+            # fast_mode skips Gemini LLM (~3s vs ~20s per property)
             try:
                 response = await client.post(
                     f"{location_service_url}/analyze",
                     json={
                         "address": full_address,
-                        "buyer_prefs": buyer_prefs
+                        "buyer_prefs": buyer_prefs,
+                        "fast_mode": True  # Use Maps API only for speed
                     }
                 )
                 response.raise_for_status()

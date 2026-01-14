@@ -737,6 +737,15 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             return default
 
     # 1. Match Score (always show)
+    # fitScore can be decimal (0.9 = 90%) or already percentage (90 = 90%)
+    def normalize_score(score):
+        """Normalize fitScore to percentage value (0-100)"""
+        if score > 100:
+            return 100  # Cap at 100% (defensive check)
+        if score > 1:
+            return score  # Already a percentage (e.g., 90)
+        return score * 100  # Decimal, convert to percentage (e.g., 0.9 → 90)
+
     rows.append({
         "id": "match_score",
         "label": "Match Score",
@@ -744,8 +753,8 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
         "type": "percentage",
         "values": {
             l.get("mlsNumber"): {
-                "value": safe_float(l.get("fitScore", l.get("finalScore", 0))) * 100,
-                "display": f"{int(safe_float(l.get('fitScore', l.get('finalScore', 0))) * 100)}%",
+                "value": normalize_score(safe_float(l.get("fitScore", l.get("finalScore", 0)))),
+                "display": f"{int(normalize_score(safe_float(l.get('fitScore', l.get('finalScore', 0)))))}%",
                 "is_best": False
             }
             for l in listings
@@ -936,7 +945,10 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             l.get("mlsNumber"): {
                 "value": len((l.get("aiAnalysis") or {}).get("red_flags", [])),
                 "display": (
-                    ", ".join((l.get("aiAnalysis") or {}).get("red_flags", [])[:2])
+                    ", ".join(
+                        rf.get("concern", str(rf)) if isinstance(rf, dict) else str(rf)
+                        for rf in ((l.get("aiAnalysis") or {}).get("red_flags", [])[:2])
+                    )
                     or "None detected"
                 ),
                 "is_best": False

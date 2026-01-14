@@ -10,6 +10,7 @@ import { PropertyDetailModal } from '@/components/PropertyDetailModal';
 import { ComparisonTable } from '@/components/ComparisonTable';
 import { AIInsightsPanel } from '@/components/AIInsightsPanel';
 import { FloatingChatButton } from '@/components/FloatingChatButton';
+import { BuyerNotes } from '@/components/BuyerNotes';
 import { Home, Mail, Phone, Loader2, Scale } from 'lucide-react';
 
 interface RankedPick {
@@ -114,9 +115,16 @@ interface Listing {
   location_summary?: string;
   propertyUrl?: string;
   fitScore?: number;
+  // Additional MLS fields
+  yearBuilt?: number;
+  lotSize?: number;
+  garageSpaces?: number;
+  daysOnMarket?: number;
+  propertyType?: string;
   aiAnalysis?: {
     headline?: string;
     why_its_a_fit?: string;
+    summary_for_buyer?: string;
     whats_matching?: Array<{ requirement: string; evidence: string; source: string }>;
     whats_missing?: Array<{ concern: string; severity: string; workaround?: string }>;
     red_flags?: Array<{ concern: string; quote?: string; risk_level: string; follow_up?: string }>;
@@ -144,6 +152,14 @@ interface BuyerReportData {
     propertyListPrice?: number;
     source?: string;
   };
+  buyerNotes?: string;
+  buyerNotesUpdatedAt?: string;
+}
+
+interface PropertyNote {
+  listingId: string;
+  noteText?: string;
+  updatedAt?: string;
 }
 
 export function BuyerReportPage() {
@@ -157,6 +173,17 @@ export function BuyerReportPage() {
       if (!response.ok) {
         throw new Error('Report not found');
       }
+      return response.json();
+    },
+    enabled: !!shareId,
+  });
+
+  // Fetch property notes for this report
+  const { data: propertyNotes = [] } = useQuery<PropertyNote[]>({
+    queryKey: ['property-notes', shareId],
+    queryFn: async () => {
+      const response = await fetch(`/api/buyer-reports/${shareId}/property-notes`);
+      if (!response.ok) return [];
       return response.json();
     },
     enabled: !!shareId,
@@ -312,6 +339,22 @@ export function BuyerReportPage() {
               </Card>
             )}
 
+            {/* AI Insights - Agent's Analysis (moved to top for prominence) */}
+            {report.synthesis && (
+              <section className="mb-8">
+                <AIInsightsPanel synthesis={report.synthesis} />
+              </section>
+            )}
+
+            {/* Buyer Notes - Auto-sync to agent dashboard */}
+            <section className="mb-8">
+              <BuyerNotes
+                shareId={report.shareId}
+                initialNotes={report.buyerNotes}
+                lastUpdated={report.buyerNotesUpdatedAt}
+              />
+            </section>
+
             {/* Property Grid - Visual First */}
             <section className="mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -328,13 +371,6 @@ export function BuyerReportPage() {
                 ))}
               </div>
             </section>
-
-            {/* AI Insights - Collapsible */}
-            {report.synthesis && (
-              <section className="mb-8">
-                <AIInsightsPanel synthesis={report.synthesis} />
-              </section>
-            )}
 
             {/* Rich Comparison Table */}
             {report.synthesis?.rich_comparison && report.synthesis.rich_comparison.rows.length > 0 && (
@@ -421,6 +457,8 @@ export function BuyerReportPage() {
             setSelectedListing(null);
           }
         }}
+        shareId={shareId}
+        propertyNotes={propertyNotes}
       />
 
       {/* Floating Chat Button */}

@@ -76,6 +76,10 @@ class LocationRequest(BaseModel):
     """Request to analyze a property location"""
     address: str = Field(..., description="Full property address to analyze")
     buyer_prefs: Optional[BuyerLocationPrefs] = Field(None, description="Buyer preferences for tailored analysis")
+    fast_mode: bool = Field(
+        default=False,
+        description="Fast mode: Skip Gemini LLM, use Maps API data only. ~3s vs ~20s per property."
+    )
 
 
 # Response Models

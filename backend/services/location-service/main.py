@@ -8,11 +8,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from typing import Optional, Dict, Any
 from models import (
     LocationRequest,
     LocationAnalysis,
     LocationError,
-    BuyerLocationPrefs
+    BuyerLocationPrefs,
+    # Fast mode models
+    CommuteAnalysis,
+    StreetContext,
+    AmenitiesProximity,
+    WalkabilityScore,
+    FamilyIndicators,
+    LocationFlag,
+    AnalysisMetadata,
+    StreetType,
+    TrafficLevel,
+    NoiseRisk,
+    RouteType,
+    FlagLevel,
+    FlagCategory
 )
 from gemini_client import analyze_location_with_gemini
 from maps_client import get_commute_data, get_amenity_drive_times, get_geocoding
@@ -32,6 +47,162 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def _build_fast_mode_analysis(
+    address: str,
+    hard_data: Dict[str, Any],
+    buyer_prefs: Optional[BuyerLocationPrefs]
+) -> LocationAnalysis:
+    """
+    Build LocationAnalysis from Maps API hard data only (no Gemini).
+
+    Used for batch operations like buyer report generation where speed matters
+    more than detailed analysis. Provides:
+    - Commute times (peak/off-peak)
+    - Basic street context (derived from traffic ratio)
+    - Amenity distances (grocery, pharmacy)
+    - Simple flags (commute over max, high traffic)
+
+    Does NOT provide (requires Gemini):
+    - Walkability scoring
+    - Family indicators (playground/park counts)
+    - Detailed noise risk analysis
+    """
+    # Extract commute data
+    commute = None
+    commute_data = hard_data.get('commute', {})
+    if commute_data:
+        route_type = None
+        if hard_data.get('traffic_analysis', {}).get('used_highway'):
+            route_type = RouteType.HIGHWAY_MAJORITY
+        commute = CommuteAnalysis(
+            work_address=commute_data.get('work_address'),
+            drive_peak_mins=commute_data.get('drive_peak_mins'),
+            drive_offpeak_mins=commute_data.get('drive_offpeak_mins'),
+            distance_miles=commute_data.get('distance_miles'),
+            route_type=route_type
+        )
+
+    # Determine traffic level from traffic_ratio
+    # traffic_ratio = peak_duration / static_duration
+    # >= 1.4 means 40%+ slower in traffic = high traffic area
+    traffic_analysis = hard_data.get('traffic_analysis', {})
+    traffic_ratio = traffic_analysis.get('traffic_ratio')
+    traffic_level = TrafficLevel.MODERATE  # default
+    noise_risk = NoiseRisk.MODERATE  # default
+
+    if traffic_ratio:
+        if traffic_ratio >= 1.4:
+            traffic_level = TrafficLevel.HIGH
+            noise_risk = NoiseRisk.HIGH
+        elif traffic_ratio < 1.15:
+            traffic_level = TrafficLevel.LOW
+            noise_risk = NoiseRisk.LOW
+
+    # Determine street type from geocoding data
+    geocoding = hard_data.get('geocoding', {})
+    is_cul_de_sac = geocoding.get('is_cul_de_sac', False)
+    street_type = StreetType.RESIDENTIAL_SIDE_STREET  # default
+
+    if traffic_analysis.get('used_highway'):
+        street_type = StreetType.HIGHWAY_ADJACENT
+
+    street_context = StreetContext(
+        street_type=street_type,
+        traffic_level=traffic_level,
+        near_major_road_meters=None,  # Requires additional API call
+        noise_risk=noise_risk,
+        is_cul_de_sac=is_cul_de_sac
+    )
+
+    # Extract amenity data from Maps API
+    amenity_data = hard_data.get('amenities', {})
+    amenities = AmenitiesProximity(
+        grocery_drive_mins=amenity_data.get('grocery_drive_mins'),
+        pharmacy_drive_mins=amenity_data.get('pharmacy_drive_mins'),
+        cafes_drive_mins=None,  # Not fetched in fast mode
+        primary_school_drive_mins=None,
+        train_station_drive_mins=None
+    )
+
+    # Walkability requires Gemini - set to null in fast mode
+    walkability = WalkabilityScore(
+        sidewalks_present=None,
+        closest_park_walk_mins=None,
+        closest_playground_walk_mins=None,
+        overall_walkability_label=None,
+        walk_score_estimate=None
+    )
+
+    # Family indicators require Gemini POI counting - set to 0 in fast mode
+    family_indicators = FamilyIndicators(
+        nearby_playgrounds_count=0,
+        nearby_parks_count=0,
+        nearby_schools_count=0
+    )
+
+    # Build flags based on hard data
+    flags = []
+
+    # Commute flags
+    if buyer_prefs and commute and commute.drive_peak_mins:
+        max_commute = buyer_prefs.max_commute_mins
+        peak_mins = commute.drive_peak_mins
+
+        if peak_mins > max_commute + 10:
+            flags.append(LocationFlag(
+                level=FlagLevel.RED,
+                code="COMMUTE_OVER_MAX",
+                message=f"Peak commute ({peak_mins} min) exceeds your max ({max_commute} min) by {peak_mins - max_commute} min",
+                category=FlagCategory.COMMUTE
+            ))
+        elif peak_mins > max_commute:
+            flags.append(LocationFlag(
+                level=FlagLevel.YELLOW,
+                code="COMMUTE_SLIGHTLY_OVER_MAX",
+                message=f"Peak commute ({peak_mins} min) is {peak_mins - max_commute} min over your {max_commute} min max",
+                category=FlagCategory.COMMUTE
+            ))
+        else:
+            flags.append(LocationFlag(
+                level=FlagLevel.GREEN,
+                code="COMMUTE_WITHIN_MAX",
+                message=f"Peak commute ({peak_mins} min) is within your {max_commute} min limit",
+                category=FlagCategory.COMMUTE
+            ))
+
+    # Traffic/noise flags
+    if traffic_level == TrafficLevel.HIGH:
+        flags.append(LocationFlag(
+            level=FlagLevel.YELLOW,
+            code="HIGH_TRAFFIC_AREA",
+            message="Area shows high traffic congestion patterns",
+            category=FlagCategory.NOISE
+        ))
+
+    # Cul-de-sac flag (positive)
+    if is_cul_de_sac:
+        flags.append(LocationFlag(
+            level=FlagLevel.GREEN,
+            code="QUIET_CUL_DE_SAC",
+            message="Cul-de-sac location - quiet with minimal through traffic",
+            category=FlagCategory.NOISE
+        ))
+
+    return LocationAnalysis(
+        address=address,
+        commute=commute,
+        street_context=street_context,
+        amenities=amenities,
+        walkability=walkability,
+        family_indicators=family_indicators,
+        flags=flags,
+        metadata=AnalysisMetadata(
+            cache_hit=False,
+            gemini_model="fast_mode_maps_only"
+        )
+    )
 
 
 # Lifespan context manager for startup/shutdown
@@ -148,25 +319,36 @@ async def analyze_location(request: LocationRequest):
         # Add geocoding data for street context interpretation
         hard_data['geocoding'] = geocoding_data
 
-        # Step 2: Pass hard data to Gemini for contextual analysis
-        logger.info(f"Analyzing with Gemini (with hard data)...")
-        analysis = await analyze_location_with_gemini(
-            address=request.address,
-            buyer_prefs=request.buyer_prefs,
-            hard_data=hard_data if hard_data else None,
-            timeout=10.0
-        )
-
-        if not analysis:
-            logger.error(f"Gemini analysis failed for: {request.address}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "address": request.address,
-                    "error": "LOCATION_UNAVAILABLE",
-                    "message": "Failed to analyze location. Please try again later."
-                }
+        # Step 2: Build analysis (fast mode vs full Gemini mode)
+        if request.fast_mode:
+            # Fast mode: Skip Gemini LLM, use only Maps API data
+            # ~3s per property vs ~20s with Gemini
+            logger.info(f"FAST MODE: Building analysis from Maps API data only")
+            analysis = _build_fast_mode_analysis(
+                address=request.address,
+                hard_data=hard_data,
+                buyer_prefs=request.buyer_prefs
             )
+        else:
+            # Full mode: Pass hard data to Gemini for contextual analysis
+            logger.info(f"FULL MODE: Analyzing with Gemini (with hard data)...")
+            analysis = await analyze_location_with_gemini(
+                address=request.address,
+                buyer_prefs=request.buyer_prefs,
+                hard_data=hard_data if hard_data else None,
+                timeout=10.0
+            )
+
+            if not analysis:
+                logger.error(f"Gemini analysis failed for: {request.address}")
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "address": request.address,
+                        "error": "LOCATION_UNAVAILABLE",
+                        "message": "Failed to analyze location. Please try again later."
+                    }
+                )
 
         # Step 3: Enhance with scoring and flags (if buyer_prefs provided)
         if request.buyer_prefs:
