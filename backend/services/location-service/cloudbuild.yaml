@@ -1,12 +1,11 @@
 # Cloud Build configuration for Location Intelligence Service
+# Note: This file is kept for reference but deploy script uses simpler --tag approach
 
 steps:
   # Build Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/location-service:$SHORT_SHA'
       - '-t'
       - 'gcr.io/$PROJECT_ID/location-service:latest'
       - '.'
@@ -15,34 +14,10 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/location-service:$SHORT_SHA'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
       - 'gcr.io/$PROJECT_ID/location-service:latest'
 
-  # Deploy to Cloud Run
-  - name: 'gcr.io/cloud-builders/gcloud'
-    args:
-      - 'run'
-      - 'deploy'
-      - 'location-service'
-      - '--image=gcr.io/$PROJECT_ID/location-service:$SHORT_SHA'
-      - '--platform=managed'
-      - '--region=${_REGION}'
-      - '--allow-unauthenticated'
-      - '--vpc-connector=${_VPC_CONNECTOR}'
-      - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest,REDIS_URL=REDIS_URL:latest'
-      - '--set-env-vars=GEMINI_MODEL_LOCATION=gemini-2.5-flash'
-      - '--memory=512Mi'
-      - '--cpu=1'
-      - '--max-instances=10'
-      - '--timeout=30s'
-
-substitutions:
-  _REGION: 'us-central1'
-  _VPC_CONNECTOR: 'residenthive-connector'
+images:
+  - 'gcr.io/$PROJECT_ID/location-service:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
