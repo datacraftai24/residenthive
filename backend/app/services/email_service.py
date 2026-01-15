@@ -22,7 +22,7 @@ class EmailProvider(ABC):
 
     @abstractmethod
     def send(self, to_email: str, from_email: str, from_name: str,
-             subject: str, body: str, reply_to: str = None) -> bool:
+             subject: str, body: str, reply_to: str = None, html_body: str = None) -> bool:
         pass
 
 
@@ -38,7 +38,7 @@ class MailjetProvider(EmailProvider):
         self.client = MailjetClient(auth=(api_key, api_secret), version='v3.1')
 
     def send(self, to_email: str, from_email: str, from_name: str,
-             subject: str, body: str, reply_to: str = None) -> bool:
+             subject: str, body: str, reply_to: str = None, html_body: str = None) -> bool:
         data = {
             'Messages': [{
                 'From': {'Email': from_email, 'Name': from_name},
@@ -47,6 +47,8 @@ class MailjetProvider(EmailProvider):
                 'TextPart': body,
             }]
         }
+        if html_body:
+            data['Messages'][0]['HTMLPart'] = html_body
         if reply_to:
             data['Messages'][0]['ReplyTo'] = {'Email': reply_to}
 
@@ -65,10 +67,12 @@ class ConsoleProvider(EmailProvider):
     """Dev/testing - logs email instead of sending."""
 
     def send(self, to_email: str, from_email: str, from_name: str,
-             subject: str, body: str, reply_to: str = None) -> bool:
+             subject: str, body: str, reply_to: str = None, html_body: str = None) -> bool:
         logger.info(f"[EMAIL] To: {to_email}, From: {from_email} <{from_name}>, Subject: {subject}")
         logger.info(f"[EMAIL] Reply-To: {reply_to}")
         logger.info(f"[EMAIL] Body:\n{body}")
+        if html_body:
+            logger.info(f"[EMAIL] HTML Body:\n{html_body}")
         return True
 
 
@@ -89,7 +93,8 @@ def send_email(
     subject: str = "",
     body: str = "",
     reply_to: str = None,
-    from_name: str = None
+    from_name: str = None,
+    html_body: str = None
 ) -> bool:
     """Send email via configured provider. Returns True on success."""
     provider = get_provider()
@@ -99,5 +104,6 @@ def send_email(
         from_name=from_name or DEFAULT_FROM_NAME,
         subject=subject,
         body=body,
-        reply_to=reply_to
+        reply_to=reply_to,
+        html_body=html_body
     )

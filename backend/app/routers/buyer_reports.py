@@ -235,7 +235,7 @@ def get_buyer_report(share_id: str):
 
     # Build default email for outreach modal (single source of truth)
     import os as _os
-    frontend_url = _os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    frontend_url = _os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
     buyer_prefs = {
@@ -958,6 +958,73 @@ def build_lead_email_body(
     return "\n".join(lines)
 
 
+def build_html_email(plain_text_body: str, report_url: str, agent_name: str) -> str:
+    """
+    Convert plain text email to HTML with a styled CTA button.
+    Preserves the email content while adding professional styling.
+    """
+    # Escape HTML special characters in the plain text
+    import html
+    escaped_body = html.escape(plain_text_body)
+
+    # Convert newlines to <br> for HTML display
+    html_body = escaped_body.replace('\n', '<br>\n')
+
+    # Replace the plain text URL with a styled button
+    # The URL appears in formats like "here: {url}" or "here: {url}"
+    url_patterns = [
+        f"here: {report_url}",
+        f"Full breakdown with photos and notes here: {report_url}",
+        f"You can see the full list and details here: {report_url}",
+    ]
+
+    button_html = f'''
+    <br><br>
+    <a href="{report_url}"
+       style="display: inline-block;
+              background-color: #2563eb;
+              color: #ffffff !important;
+              padding: 14px 28px;
+              text-decoration: none;
+              border-radius: 8px;
+              font-weight: 600;
+              font-size: 16px;">
+        View Your Property Report
+    </a>
+    <br><br>
+    '''
+
+    # Replace URL mention with button
+    for pattern in url_patterns:
+        escaped_pattern = html.escape(pattern)
+        if escaped_pattern in html_body:
+            html_body = html_body.replace(escaped_pattern, button_html)
+            break
+
+    # Wrap in full HTML email template
+    return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+             line-height: 1.6;
+             color: #333333;
+             max-width: 600px;
+             margin: 0 auto;
+             padding: 20px;">
+    <div style="background-color: #ffffff; padding: 30px; border-radius: 8px;">
+        {html_body}
+    </div>
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;
+                font-size: 12px; color: #6b7280; text-align: center;">
+        Sent via ResidenceHive
+    </div>
+</body>
+</html>'''
+
+
 @router.post("/{share_id}/send-email")
 def send_buyer_report_email(
     share_id: str,
@@ -994,7 +1061,7 @@ def send_buyer_report_email(
             agent_email = agent_row[1] if agent_row else None
 
     # 2. Build report URL
-    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
     # 3. Get listings from search context
@@ -1056,6 +1123,9 @@ def send_buyer_report_email(
             total_narrowed=len(listings)
         )
 
+    # Build HTML version with styled button
+    html_body = build_html_email(body, report_url, agent_name)
+
     # 6. Send via configured provider
     # Always use DEFAULT_FROM_EMAIL (must be verified in Mailjet)
     # Agent's email goes in reply_to so replies go to them
@@ -1066,7 +1136,8 @@ def send_buyer_report_email(
             from_email=DEFAULT_FROM_EMAIL,
             subject=subject,
             body=body,
-            reply_to=agent_email
+            reply_to=agent_email,
+            html_body=html_body
         )
         if not success:
             raise HTTPException(status_code=502, detail="Failed to send email")
