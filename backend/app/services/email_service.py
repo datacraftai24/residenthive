@@ -6,10 +6,10 @@ Default: Mailjet. Set EMAIL_PROVIDER=console for dev/testing.
 """
 
 import os
-import logging
 from abc import ABC, abstractmethod
+from ..logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Config
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "mailjet")  # mailjet | console
@@ -50,14 +50,48 @@ class MailjetProvider(EmailProvider):
         if reply_to:
             data['Messages'][0]['ReplyTo'] = {'Email': reply_to}
 
-        print(f"[MAILJET] Sending email to={to_email} from={from_email} subject={subject}", flush=True)
-        print(f"[MAILJET] Request data: {data}", flush=True)
+        logger.info(
+            "Sending email via Mailjet",
+            extra={
+                "action": "email_send_attempt",
+                "extra_data": {
+                    "provider": "mailjet",
+                    "to_email": to_email,
+                    "from_email": from_email,
+                    "subject": subject,
+                }
+            }
+        )
+
         result = self.client.send.create(data=data)
         response_json = result.json()
-        print(f"[MAILJET] Response status={result.status_code} body={response_json}", flush=True)
         success = result.status_code == 200
-        if not success:
-            print(f"[MAILJET] Error: {response_json}", flush=True)
+
+        if success:
+            logger.info(
+                "Email sent successfully",
+                extra={
+                    "action": "email_sent",
+                    "extra_data": {
+                        "provider": "mailjet",
+                        "to_email": to_email,
+                        "status_code": result.status_code,
+                    }
+                }
+            )
+        else:
+            logger.error(
+                f"Email send failed: {response_json}",
+                extra={
+                    "action": "email_send_failed",
+                    "extra_data": {
+                        "provider": "mailjet",
+                        "to_email": to_email,
+                        "status_code": result.status_code,
+                        "error": response_json,
+                    }
+                }
+            )
         return success
 
 
@@ -66,9 +100,21 @@ class ConsoleProvider(EmailProvider):
 
     def send(self, to_email: str, from_email: str, from_name: str,
              subject: str, body: str, reply_to: str = None) -> bool:
-        logger.info(f"[EMAIL] To: {to_email}, From: {from_email} <{from_name}>, Subject: {subject}")
-        logger.info(f"[EMAIL] Reply-To: {reply_to}")
-        logger.info(f"[EMAIL] Body:\n{body}")
+        logger.info(
+            "Email sent (console provider)",
+            extra={
+                "action": "email_sent",
+                "extra_data": {
+                    "provider": "console",
+                    "to_email": to_email,
+                    "from_email": from_email,
+                    "from_name": from_name,
+                    "subject": subject,
+                    "reply_to": reply_to,
+                    "body_preview": body[:200] + "..." if len(body) > 200 else body,
+                }
+            }
+        )
         return True
 
 
