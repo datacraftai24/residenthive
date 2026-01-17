@@ -1856,7 +1856,7 @@ async def generate_lead_outreach(
 
     # 6. Build report URL
     import os
-    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
     # 7. Send outreach email (only if send_email=true AND email is available)

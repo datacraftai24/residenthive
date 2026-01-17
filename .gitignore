@@ -106,4 +106,4 @@ FIX_PLAN.md
 /scripts/
 /__pycache__/
 .venv/
-*.pyc
+*.pyc.mcp.json

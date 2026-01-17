@@ -242,7 +242,7 @@ def get_buyer_report(share_id: str):
 
     # Build default email for outreach modal (single source of truth)
     import os as _os
-    frontend_url = _os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    frontend_url = _os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
     buyer_prefs = {
@@ -1009,7 +1009,7 @@ def send_buyer_report_email(
             agent_email = agent_row[1] if agent_row else None
 
     # 2. Build report URL
-    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residencehive.com")
+    frontend_url = os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
     # 3. Get listings from search context
