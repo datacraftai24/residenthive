@@ -75,6 +75,7 @@ interface InsightsResponse {
   stats: {
     messagesAnalyzed: number;
     propertiesSaved: number;
+    reportFeedbackCount?: number;
   };
 }
 
@@ -295,6 +296,7 @@ export default function BuyerInsights({ profileId }: BuyerInsightsProps) {
       <div className="flex items-center justify-between">
         <div className="text-sm text-slate-500">
           Based on {stats.messagesAnalyzed} messages · {stats.propertiesSaved} properties saved
+          {stats.reportFeedbackCount ? ` · ${stats.reportFeedbackCount} report feedback` : ""}
         </div>
         <Button
           variant="ghost"
