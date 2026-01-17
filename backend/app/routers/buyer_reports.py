@@ -11,9 +11,10 @@ from pydantic import BaseModel, EmailStr
 import os
 import json
 import uuid
-import logging
 
-logger = logging.getLogger(__name__)
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
@@ -96,7 +97,13 @@ def get_buyer_report(share_id: str):
     PUBLIC endpoint - Get buyer report data for shareable link.
     No authentication required (buyers access this).
     """
-    logger.info(f"[REPORT_VIEW] share_id={share_id}")
+    logger.info(
+        "Buyer report viewed",
+        extra={
+            "action": "report_view",
+            "extra_data": {"share_id": share_id}
+        }
+    )
 
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -1103,7 +1110,17 @@ def send_buyer_report_email(
             logger.error(f"[REPORT_EMAIL] Failed to update lead status: {e}")
 
     # 8. Log for analytics
-    logger.info(f"[REPORT_EMAIL_SENT] share_id={share_id} to={payload.to_email} agent_id={agent_id}")
+    logger.info(
+        "Report email sent successfully",
+        extra={
+            "action": "report_email_sent",
+            "extra_data": {
+                "share_id": share_id,
+                "to_email": payload.to_email,
+                "agent_id": agent_id,
+            }
+        }
+    )
 
     return {"status": "sent", "to": payload.to_email}
 

@@ -3,6 +3,8 @@ import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from .logging_config import setup_logging, get_logger
+from .middleware import LoggingMiddleware
 from .routers import health as health_router
 from .routers import profiles as profiles_router
 from .routers import share as share_router
@@ -22,6 +24,12 @@ from pathlib import Path
 
 
 def create_app() -> FastAPI:
+    # Setup structured JSON logging
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    setup_logging(level=log_level)
+    logger = get_logger(__name__)
+    logger.info("Starting ResidentHive Backend", extra={"action": "app_startup", "extra_data": {}})
+
     # Load environment variables for the backend.
     # Prefer a repo-root .env, but also load backend/.env if present to allow overrides.
     try:
@@ -76,6 +84,9 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
+    # Add logging middleware for request context (agent_id, request_id)
+    app.add_middleware(LoggingMiddleware)
+
     # Routers
     app.include_router(health_router.router)
     app.include_router(profiles_router.router)
@@ -95,9 +106,20 @@ def create_app() -> FastAPI:
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
-        # Always log for debugging
-        print(f"ERROR: {exc}")
-        print(f"Traceback: {traceback.format_exc()}")
+        # Log with structured format for debugging
+        logger.error(
+            f"Unhandled exception: {exc}",
+            extra={
+                "action": "unhandled_exception",
+                "extra_data": {
+                    "path": str(request.url.path),
+                    "method": request.method,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                }
+            },
+            exc_info=True
+        )
 
         # Only return detailed errors in development
         if os.getenv("NODE_ENV") == "production":
