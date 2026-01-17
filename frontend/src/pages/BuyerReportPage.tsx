@@ -238,7 +238,7 @@ export function BuyerReportPage() {
                 Property Recommendations for {report.buyerName}
               </h1>
               <p className="text-gray-600">
-                Curated by {report.agentName}
+                Curated by {report.agentName?.trim() || 'Your Agent'}
               </p>
               {report.location && (
                 <p className="text-sm text-gray-500 mt-1">

@@ -484,14 +484,22 @@ def create_buyer_report(
     synthesis["listing_snapshots"] = listing_snapshots
     logger.info(f"[BUYER REPORT] Persisted {len(listing_snapshots)} listing snapshots for database fallback")
 
-    # Get agent info
+    # Get agent info - handle empty first_name/last_name gracefully
     agent_name = None
     agent_email = None
     agent_phone = None
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT first_name || ' ' || last_name AS name, email FROM agents WHERE id = %s", (agent_id,))
+                cur.execute("""
+                    SELECT
+                        COALESCE(
+                            NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+                            'Your Agent'
+                        ) AS name,
+                        email
+                    FROM agents WHERE id = %s
+                """, (agent_id,))
                 agent_row = cur.fetchone()
                 if agent_row:
                     agent_name = agent_row[0]

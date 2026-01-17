@@ -1816,14 +1816,19 @@ async def generate_lead_outreach(
     synthesis["listing_snapshots"] = listing_snapshots
     synthesis["lead_context"] = lead_context  # Persist for email template
 
-    # Get agent info
+    # Get agent info - handle empty first_name/last_name gracefully
     agent_name = None
     agent_email = None
     agent_phone = None  # Not in agents table yet
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT first_name || ' ' || last_name AS name, email
+                SELECT
+                    COALESCE(
+                        NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+                        'Your Agent'
+                    ) AS name,
+                    email
                 FROM agents WHERE id = %s
             """, (agent_id,))
             agent_row = cur.fetchone()
