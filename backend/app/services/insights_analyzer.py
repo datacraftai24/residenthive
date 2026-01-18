@@ -11,6 +11,8 @@ Data Sources:
 - property_interactions (saved properties)
 - repliers_listings (property details)
 - buyer_profiles (buyer preferences)
+- buyer_reports (reports sent to buyer, including buyer_notes feedback)
+- buyer_report_property_notes (per-property notes from buyer on shared reports)
 """
 
 import os
@@ -134,13 +136,49 @@ def fetch_report_data(profile_id: int) -> Dict[str, Any]:
                         except:
                             pass
                     memories.append(mem_content)
-    
+
+            # 6. Get buyer reports and feedback (report interactions)
+            cur.execute(
+                """
+                SELECT br.share_id, br.buyer_notes, br.buyer_notes_updated_at,
+                       br.created_at as report_created_at, br.included_listing_ids
+                FROM buyer_reports br
+                WHERE br.profile_id = %s
+                ORDER BY br.created_at DESC
+                LIMIT 5
+                """,
+                (profile_id,)
+            )
+            buyer_reports = fetchall_dicts(cur)
+
+            # 7. Get per-property notes from buyer reports
+            report_property_notes = []
+            if buyer_reports:
+                share_ids = [r.get("share_id") for r in buyer_reports if r.get("share_id")]
+                if share_ids:
+                    placeholders = ','.join(['%s'] * len(share_ids))
+                    cur.execute(
+                        f"""
+                        SELECT bpn.report_share_id, bpn.listing_id, bpn.note_text,
+                               bpn.updated_at, rl.address, rl.city
+                        FROM buyer_report_property_notes bpn
+                        LEFT JOIN repliers_listings rl ON bpn.listing_id = rl.id
+                        WHERE bpn.report_share_id IN ({placeholders})
+                        AND bpn.note_text IS NOT NULL AND bpn.note_text != ''
+                        ORDER BY bpn.updated_at DESC
+                        """,
+                        tuple(share_ids)
+                    )
+                    report_property_notes = fetchall_dicts(cur)
+
     return {
         "buyer_profile": buyer_profile,
         "client_identifier": client_identifier,
         "saved_properties": saved_properties,
         "messages": messages,
-        "memories": memories
+        "memories": memories,
+        "buyer_reports": buyer_reports,
+        "report_property_notes": report_property_notes
     }
 
 
@@ -177,6 +215,35 @@ def build_properties_text(properties: List[Dict]) -> str:
     return "\n".join(parts)
 
 
+def build_report_feedback_text(buyer_reports: List[Dict], property_notes: List[Dict]) -> str:
+    """Build report feedback text for LLM analysis - buyer's interaction with shared reports."""
+    if not buyer_reports:
+        return "No report feedback yet."
+
+    parts = []
+
+    # Overall buyer notes from reports
+    for report in buyer_reports:
+        buyer_notes = report.get("buyer_notes")
+        if buyer_notes and buyer_notes.strip():
+            updated_at = report.get("buyer_notes_updated_at", "")
+            updated_str = str(updated_at)[:16] if updated_at else "Unknown"
+            parts.append(f"BUYER FEEDBACK (Updated {updated_str}):\n\"{buyer_notes}\"")
+
+    # Per-property notes
+    if property_notes:
+        parts.append("\nPROPERTY-SPECIFIC FEEDBACK:")
+        for note in property_notes:
+            address = note.get("address", "Unknown property")
+            city = note.get("city", "")
+            note_text = note.get("note_text", "")
+            listing_id = note.get("listing_id", "")
+            if note_text:
+                parts.append(f"- {address}, {city} (ID: {listing_id}): \"{note_text}\"")
+
+    return "\n".join(parts) if parts else "No report feedback yet."
+
+
 def generate_prd_report(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate PRD-aligned agent report using LLM.
@@ -190,12 +257,21 @@ def generate_prd_report(data: Dict[str, Any]) -> Dict[str, Any]:
     properties = data.get("saved_properties", [])
     buyer_profile = data.get("buyer_profile", {})
     memories = data.get("memories", [])
-    
-    if not messages and not memories:
+    buyer_reports = data.get("buyer_reports", [])
+    report_property_notes = data.get("report_property_notes", [])
+
+    # Check if buyer has any report feedback (notes on the shared report)
+    has_report_feedback = any(
+        r.get("buyer_notes") and r.get("buyer_notes").strip()
+        for r in buyer_reports
+    ) or len(report_property_notes) > 0
+
+    if not messages and not memories and not has_report_feedback:
         return _generate_empty_report()
-    
+
     conversation_text = build_conversation_text(messages)
     properties_text = build_properties_text(properties)
+    report_feedback_text = build_report_feedback_text(buyer_reports, report_property_notes)
     
     # Build buyer context from profile
     buyer_context = ""
@@ -289,17 +365,21 @@ NEXT STEPS GUIDELINES (this is the MOST IMPORTANT section):
 
 Keep mustHaves to max 5, dealbreakers to max 3, nextSteps to max 4."""
 
-    user_prompt = f"""Analyze this buyer's chat history and saved properties to create an agent report.
+    user_prompt = f"""Analyze this buyer's chat history, saved properties, and report feedback to create an agent report.
 
 {buyer_context}
 
 SAVED PROPERTIES (Top 5):
 {properties_text}
 
+BUYER REPORT FEEDBACK (Notes buyer left on shared property reports - VERY IMPORTANT):
+{report_feedback_text}
+
 CONVERSATION HISTORY:
 {conversation_text}
 
-Generate the JSON report following the exact structure specified. Focus on actionable insights for the agent."""
+Generate the JSON report following the exact structure specified. Focus on actionable insights for the agent.
+Pay special attention to the BUYER REPORT FEEDBACK section - these are direct notes the buyer wrote about properties, which indicate their true preferences and concerns."""
 
     try:
         response = client.chat.completions.create(
@@ -476,20 +556,31 @@ def generate_buyer_insights(profile_id: int) -> Dict[str, Any]:
     
     # Fetch all data
     data = fetch_report_data(profile_id)
-    
-    # Check if we have any data
-    has_data = (
-        len(data.get("messages", [])) > 0 or 
-        len(data.get("memories", [])) > 0 or
-        len(data.get("saved_properties", [])) > 0
+
+    # Count report feedback (buyer notes on shared reports)
+    buyer_reports = data.get("buyer_reports", [])
+    report_property_notes = data.get("report_property_notes", [])
+    report_notes_count = sum(
+        1 for r in buyer_reports
+        if r.get("buyer_notes") and r.get("buyer_notes").strip()
     )
-    
+    property_notes_count = len(report_property_notes)
+    total_report_feedback = report_notes_count + property_notes_count
+
+    # Check if we have any data (including report feedback)
+    has_data = (
+        len(data.get("messages", [])) > 0 or
+        len(data.get("memories", [])) > 0 or
+        len(data.get("saved_properties", [])) > 0 or
+        total_report_feedback > 0
+    )
+
     # Generate report
     if has_data:
         report = generate_prd_report(data)
     else:
         report = _generate_empty_report()
-    
+
     # Build final response
     result = {
         "profileId": profile_id,
@@ -498,9 +589,10 @@ def generate_buyer_insights(profile_id: int) -> Dict[str, Any]:
         # Include raw counts for header
         "stats": {
             "messagesAnalyzed": len(data.get("messages", [])),
-            "propertiesSaved": len(data.get("saved_properties", []))
+            "propertiesSaved": len(data.get("saved_properties", [])),
+            "reportFeedbackCount": total_report_feedback
         }
     }
-    
-    print(f"[INSIGHTS] Report generated: {result['stats']['messagesAnalyzed']} messages, {result['stats']['propertiesSaved']} properties")
+
+    print(f"[INSIGHTS] Report generated: {result['stats']['messagesAnalyzed']} messages, {result['stats']['propertiesSaved']} properties, {total_report_feedback} report feedback items")
     return result
