@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
+import { ChatMarkdown } from '@/components/ui/chat-markdown';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Send, X, ChevronLeft, ChevronRight, Mail, Phone, Loader2, User, Bell, Calendar, AlertTriangle, HelpCircle } from 'lucide-react';
+import { MessageSquare, Send, X, Mail, Phone, Loader2, User, Bell, Calendar, AlertTriangle, HelpCircle } from 'lucide-react';
 
 interface ActionButton {
   label: string;
@@ -101,7 +100,6 @@ export function ChatWidget({
   leadContext,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -309,7 +307,11 @@ export function ChatWidget({
                           : 'bg-gray-100 text-gray-900'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      {msg.role === 'user' ? (
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        <ChatMarkdown content={msg.content} />
+                      )}
                     </div>
                     {/* Action buttons for assistant messages */}
                     {msg.role === 'assistant' && msg.actionButtons && msg.actionButtons.length > 0 && (
@@ -414,213 +416,135 @@ export function ChatWidget({
     );
   }
 
-  // Desktop: Fixed sidebar
+  // Desktop: Content only (header provided by FloatingChatButton)
   return (
-    <div
-      className={`hidden md:flex flex-col h-screen sticky top-0 border-l bg-white transition-all duration-300 ${
-        isCollapsed ? 'w-12' : 'w-[420px]'
-      }`}
-    >
-      {/* Collapse toggle */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -left-3 top-1/2 transform -translate-y-1/2 bg-white border rounded-full p-1 shadow-md hover:bg-gray-50 z-10"
-      >
-        {isCollapsed ? (
-          <ChevronLeft className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </button>
-
-      {isCollapsed ? (
-        <div className="flex flex-col items-center pt-4">
-          <MessageSquare className="h-6 w-6 text-blue-600" />
-        </div>
-      ) : (
-        <>
-          {/* Header */}
-          <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              <span className="font-semibold">AI Property Assistant</span>
-            </div>
-            <p className="text-xs text-blue-100 mt-1">
-              Ask questions about your {listings.length} recommended properties
-            </p>
-          </div>
-
-          {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-[95%] rounded-lg px-3 py-2 ${
-                      msg.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                  >
-                    {msg.role === 'user' ? (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    ) : (
-                      <div className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 overflow-x-auto">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            table: ({ children }) => (
-                              <div className="overflow-x-auto my-2">
-                                <table className="min-w-full border-collapse text-xs">{children}</table>
-                              </div>
-                            ),
-                            th: ({ children }) => (
-                              <th className="border border-gray-300 px-2 py-1 bg-gray-200 text-left font-semibold">{children}</th>
-                            ),
-                            td: ({ children }) => (
-                              <td className="border border-gray-300 px-2 py-1">{children}</td>
-                            ),
-                            p: ({ children }) => (
-                              <p className="my-1">{children}</p>
-                            ),
-                            ul: ({ children }) => (
-                              <ul className="list-disc list-inside my-1 pl-2">{children}</ul>
-                            ),
-                            ol: ({ children }) => (
-                              <ol className="list-decimal list-inside my-1 pl-2">{children}</ol>
-                            ),
-                            h1: ({ children }) => (
-                              <h1 className="text-lg font-bold my-2">{children}</h1>
-                            ),
-                            h2: ({ children }) => (
-                              <h2 className="text-base font-bold my-2">{children}</h2>
-                            ),
-                            h3: ({ children }) => (
-                              <h3 className="text-sm font-semibold my-1">{children}</h3>
-                            ),
-                            strong: ({ children }) => (
-                              <strong className="font-semibold">{children}</strong>
-                            ),
-                            code: ({ children }) => (
-                              <code className="bg-gray-200 px-1 rounded text-xs">{children}</code>
-                            ),
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                  {/* Action buttons for assistant messages */}
-                  {msg.role === 'assistant' && msg.actionButtons && msg.actionButtons.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2 max-w-[95%]">
-                      {msg.actionButtons.map((btn, btnIdx) => {
-                        // Replace generic label with agent name for notify_agent actions
-                        const buttonLabel = btn.action === 'notify_agent'
-                          ? `Send to ${agentName}`
-                          : btn.label;
-                        return (
-                          <Button
-                            key={btnIdx}
-                            variant="outline"
-                            size="sm"
-                            className="text-xs bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
-                            onClick={() => handleActionButtonClick(btn)}
-                          >
-                            {ACTION_BUTTON_ICONS[btn.icon] || <HelpCircle className="h-3 w-3" />}
-                            <span className="ml-1">{buttonLabel}</span>
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-lg px-3 py-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
-                  </div>
+    <div className="flex flex-col h-full bg-white">
+      {/* Messages */}
+      <ScrollArea className="flex-1 p-4">
+        <div className="space-y-4">
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+            >
+              <div
+                className={`max-w-[95%] rounded-lg px-3 py-2 ${
+                  msg.role === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                }`}
+              >
+                {msg.role === 'user' ? (
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                ) : (
+                  <ChatMarkdown content={msg.content} />
+                )}
+              </div>
+              {/* Action buttons for assistant messages */}
+              {msg.role === 'assistant' && msg.actionButtons && msg.actionButtons.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2 max-w-[95%]">
+                  {msg.actionButtons.map((btn, btnIdx) => {
+                    // Replace generic label with agent name for notify_agent actions
+                    const buttonLabel = btn.action === 'notify_agent'
+                      ? `Send to ${agentName}`
+                      : btn.label;
+                    return (
+                      <Button
+                        key={btnIdx}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
+                        onClick={() => handleActionButtonClick(btn)}
+                      >
+                        {ACTION_BUTTON_ICONS[btn.icon] || <HelpCircle className="h-3 w-3" />}
+                        <span className="ml-1">{buttonLabel}</span>
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
-          </ScrollArea>
-
-          {/* Quick actions - show only initially */}
-          {messages.length <= 1 && (
-            <div className="px-4 pb-2 border-t pt-2">
-              <p className="text-xs text-gray-500 mb-2">Quick questions:</p>
-              <div className="flex flex-col gap-1">
-                {QUICK_ACTIONS.map((action, idx) => (
-                  <Button
-                    key={idx}
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start text-xs h-auto py-1.5 text-left"
-                    onClick={() => sendMessage(action.message)}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
+          ))}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-100 rounded-lg px-3 py-2">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
+        </div>
+      </ScrollArea>
 
-          {/* Input */}
-          <div className="p-3 border-t">
-            <div className="flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about properties..."
-                disabled={isLoading}
-                className="flex-1 text-sm"
-              />
+      {/* Quick actions - show only initially */}
+      {messages.length <= 1 && (
+        <div className="px-4 pb-2 border-t pt-2">
+          <p className="text-xs text-gray-500 mb-2">Quick questions:</p>
+          <div className="flex flex-col gap-1">
+            {QUICK_ACTIONS.map((action, idx) => (
               <Button
-                onClick={() => sendMessage()}
-                disabled={isLoading || !input.trim()}
+                key={idx}
+                variant="ghost"
                 size="sm"
+                className="justify-start text-xs h-auto py-1.5 text-left"
+                onClick={() => sendMessage(action.message)}
               >
-                <Send className="h-4 w-4" />
+                {action.label}
               </Button>
-            </div>
+            ))}
           </div>
-
-          {/* Contact agent */}
-          <div className="p-3 pt-0 border-t bg-gray-50">
-            <p className="text-xs text-gray-500 mb-2">Questions? Contact {agentName}</p>
-            <div className="flex gap-2">
-              {agentEmail && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => window.open(`mailto:${agentEmail}`, '_blank')}
-                >
-                  <Mail className="h-3 w-3 mr-1" />
-                  Email
-                </Button>
-              )}
-              {agentPhone && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => window.open(`tel:${agentPhone}`, '_blank')}
-                >
-                  <Phone className="h-3 w-3 mr-1" />
-                  Call
-                </Button>
-              )}
-            </div>
-          </div>
-        </>
+        </div>
       )}
+
+      {/* Input */}
+      <div className="p-3 border-t">
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask about properties..."
+            disabled={isLoading}
+            className="flex-1 text-sm"
+          />
+          <Button
+            onClick={() => sendMessage()}
+            disabled={isLoading || !input.trim()}
+            size="sm"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Contact agent */}
+      <div className="p-3 pt-0 border-t bg-gray-50">
+        <p className="text-xs text-gray-500 mb-2">Questions? Contact {agentName}</p>
+        <div className="flex gap-2">
+          {agentEmail && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => window.open(`mailto:${agentEmail}`, '_blank')}
+            >
+              <Mail className="h-3 w-3 mr-1" />
+              Email
+            </Button>
+          )}
+          {agentPhone && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => window.open(`tel:${agentPhone}`, '_blank')}
+            >
+              <Phone className="h-3 w-3 mr-1" />
+              Call
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

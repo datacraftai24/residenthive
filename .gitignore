@@ -107,3 +107,6 @@ FIX_PLAN.md
 /__pycache__/
 .venv/
 *.pyc.mcp.json
+
+# Claude Code local configuration (auto-managed by claude-slack)
+.claude/
