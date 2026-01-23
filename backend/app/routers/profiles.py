@@ -6,6 +6,7 @@ from ..services.insights_analyzer import generate_buyer_insights
 from .nlp import _generate_complete_insights, _generate_vision_checklist
 from datetime import datetime
 import json
+import psycopg.errors
 from ..auth import get_current_agent_id
 
 
@@ -358,11 +359,25 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
         params.append(v)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"INSERT INTO buyer_profiles ({', '.join(columns)}) VALUES ({', '.join(values)}) RETURNING *",
-                tuple(params),
-            )
-            row = fetchone_dict(cur)
+            try:
+                cur.execute(
+                    f"INSERT INTO buyer_profiles ({', '.join(columns)}) VALUES ({', '.join(values)}) RETURNING *",
+                    tuple(params),
+                )
+                row = fetchone_dict(cur)
+            except psycopg.errors.UniqueViolation:
+                # Profile with same email already exists for this agent - return existing
+                conn.rollback()
+                email = data.get("email")
+                if email:
+                    cur.execute(
+                        "SELECT * FROM buyer_profiles WHERE agent_id = %s AND email = %s",
+                        (agent_id, email)
+                    )
+                    existing = fetchone_dict(cur)
+                    if existing:
+                        return BuyerProfile(**_row_to_profile(existing))
+                raise HTTPException(status_code=409, detail="Profile already exists for this email")
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create profile")
     return BuyerProfile(**_row_to_profile(row))
