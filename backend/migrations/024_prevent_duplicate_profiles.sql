@@ -102,6 +102,17 @@ FROM profile_duplicates pd WHERE profile_tags.profile_id = pd.duplicate_id;
 UPDATE property_analysis_cache SET profile_id = pd.keeper_id
 FROM profile_duplicates pd WHERE property_analysis_cache.profile_id = pd.duplicate_id;
 
+-- repliers_listings has unique constraint on (listing_id, profile_id)
+-- Delete duplicates that would conflict, then update the rest
+DELETE FROM repliers_listings rl
+USING profile_duplicates pd
+WHERE rl.profile_id = pd.duplicate_id
+AND EXISTS (
+    SELECT 1 FROM repliers_listings rl2
+    WHERE rl2.listing_id = rl.listing_id
+    AND rl2.profile_id = pd.keeper_id
+);
+
 UPDATE repliers_listings SET profile_id = pd.keeper_id
 FROM profile_duplicates pd WHERE repliers_listings.profile_id = pd.duplicate_id;
 
