@@ -49,6 +49,7 @@ from ..models import (
 )
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
+import psycopg.errors
 
 router = APIRouter(prefix="/api", tags=["leads"])
 logger = logging.getLogger(__name__)
@@ -1930,7 +1931,26 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
     """
     Internal helper to convert lead to profile.
     Extracted from convert_lead_to_profile endpoint for reuse.
+
+    Race condition protection:
+    - Re-checks converted_profile_id before inserting
+    - Handles UniqueViolation on parent_lead_id constraint gracefully
     """
+    # Race condition check: re-fetch lead to get latest converted_profile_id
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT converted_profile_id FROM leads WHERE id = %s AND agent_id = %s",
+                (lead_id, agent_id)
+            )
+            fresh_lead = fetchone_dict(cur)
+            if fresh_lead and fresh_lead.get("converted_profile_id"):
+                # Already converted by another concurrent request
+                return {
+                    "status": "already_converted",
+                    "profileId": fresh_lead["converted_profile_id"],
+                }
+
     # Infer buyer preferences from property data
     budget_min = lead_row.get("extracted_budget_min")
     budget_max = lead_row.get("extracted_budget_max")
@@ -1975,40 +1995,55 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO buyer_profiles (
-                    name, email, phone, location,
-                    budget, budget_min, budget_max,
-                    home_type, bedrooms, bathrooms,
-                    raw_input, input_method,
-                    agent_id, parent_lead_id, created_by_method,
-                    created_at
-                ) VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s,
-                    %s, 'lead',
-                    %s, %s, 'lead',
-                    NOW()
+            try:
+                cur.execute("""
+                    INSERT INTO buyer_profiles (
+                        name, email, phone, location,
+                        budget, budget_min, budget_max,
+                        home_type, bedrooms, bathrooms,
+                        raw_input, input_method,
+                        agent_id, parent_lead_id, created_by_method,
+                        created_at
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, 'lead',
+                        %s, %s, 'lead',
+                        NOW()
+                    )
+                    RETURNING id
+                """, (
+                    lead_row.get("extracted_name") or "Unknown",
+                    lead_row.get("extracted_email") or "",
+                    lead_row.get("extracted_phone"),
+                    location or "",
+                    budget_str,
+                    budget_min,
+                    budget_max,
+                    lead_row.get("extracted_home_type") or "",
+                    bedrooms,
+                    bathrooms,
+                    lead_row.get("raw_input"),
+                    agent_id,
+                    lead_id
+                ))
+                profile_result = fetchone_dict(cur)
+                profile_id = profile_result["id"]
+            except psycopg.errors.UniqueViolation:
+                # Race condition: another request already created profile for this lead
+                conn.rollback()
+                cur.execute(
+                    "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s",
+                    (lead_id,)
                 )
-                RETURNING id
-            """, (
-                lead_row.get("extracted_name") or "Unknown",
-                lead_row.get("extracted_email") or "",
-                lead_row.get("extracted_phone"),
-                location or "",
-                budget_str,
-                budget_min,
-                budget_max,
-                lead_row.get("extracted_home_type") or "",
-                bedrooms,
-                bathrooms,
-                lead_row.get("raw_input"),
-                agent_id,
-                lead_id
-            ))
-            profile_result = fetchone_dict(cur)
-            profile_id = profile_result["id"]
+                existing = fetchone_dict(cur)
+                if existing:
+                    return {
+                        "status": "already_converted",
+                        "profileId": existing["id"],
+                    }
+                raise HTTPException(status_code=409, detail="Lead already converted")
 
             # Update lead status
             cur.execute("""
