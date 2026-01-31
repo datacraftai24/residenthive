@@ -99,22 +99,15 @@ FROM profile_duplicates pd WHERE profile_shareable_links.profile_id = pd.duplica
 UPDATE profile_tags SET profile_id = pd.keeper_id
 FROM profile_duplicates pd WHERE profile_tags.profile_id = pd.duplicate_id;
 
-UPDATE property_analysis_cache SET profile_id = pd.keeper_id
-FROM profile_duplicates pd WHERE property_analysis_cache.profile_id = pd.duplicate_id;
+-- property_analysis_cache has unique constraint on (listing_id, profile_id)
+-- Just delete all rows for duplicate profiles (keeper likely has own rows)
+DELETE FROM property_analysis_cache
+WHERE profile_id IN (SELECT duplicate_id FROM profile_duplicates);
 
 -- repliers_listings has unique constraint on (listing_id, profile_id)
--- Delete duplicates that would conflict, then update the rest
-DELETE FROM repliers_listings rl
-USING profile_duplicates pd
-WHERE rl.profile_id = pd.duplicate_id
-AND EXISTS (
-    SELECT 1 FROM repliers_listings rl2
-    WHERE rl2.listing_id = rl.listing_id
-    AND rl2.profile_id = pd.keeper_id
-);
-
-UPDATE repliers_listings SET profile_id = pd.keeper_id
-FROM profile_duplicates pd WHERE repliers_listings.profile_id = pd.duplicate_id;
+-- Just delete all rows for duplicate profiles (keeper likely has own rows)
+DELETE FROM repliers_listings
+WHERE profile_id IN (SELECT duplicate_id FROM profile_duplicates);
 
 UPDATE search_outcomes SET profile_id = pd.keeper_id
 FROM profile_duplicates pd WHERE search_outcomes.profile_id = pd.duplicate_id;
