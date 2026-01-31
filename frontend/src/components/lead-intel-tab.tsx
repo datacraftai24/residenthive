@@ -734,6 +734,16 @@ function LeadQuadrantIndicator({
   const engagementScore = engagementMetrics.score;
   const quadrant = classifyLeadQuadrant(intentScore, engagementScore);
 
+  // Convert score to human-readable label with styling
+  const getScoreLabel = (score: number): { label: string; color: string; bg: string } => {
+    if (score >= 66) return { label: "HIGH", color: "text-green-700", bg: "bg-green-100" };
+    if (score >= 36) return { label: "MEDIUM", color: "text-amber-700", bg: "bg-amber-100" };
+    return { label: "LOW", color: "text-slate-600", bg: "bg-slate-100" };
+  };
+
+  const intentLabel = getScoreLabel(intentScore);
+  const engagementLabel = getScoreLabel(engagementScore);
+
   // Check for significant mismatch (engagement much higher than intent)
   const hasMismatch = engagementScore >= 60 && intentScore < 50 && (engagementScore - intentScore) >= 30;
 
@@ -786,17 +796,21 @@ function LeadQuadrantIndicator({
           </Badge>
         </div>
 
-        {/* Score Details Row */}
-        <div className="mt-3 flex items-center gap-6 text-sm">
+        {/* Score Details Row - Using Labels instead of raw numbers */}
+        <div className="mt-3 flex items-center gap-4 text-sm flex-wrap">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-slate-500" />
             <span className="text-slate-600">Intent:</span>
-            <span className="font-semibold">{intentScore}</span>
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${intentLabel.bg} ${intentLabel.color}`}>
+              {intentLabel.label}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-slate-500" />
             <span className="text-slate-600">Engagement:</span>
-            <span className="font-semibold">{engagementScore}</span>
+            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${engagementLabel.bg} ${engagementLabel.color}`}>
+              {engagementLabel.label}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <MessageCircle className="h-4 w-4 text-slate-500" />
@@ -817,12 +831,12 @@ function LeadQuadrantIndicator({
         </div>
       </div>
 
-      {/* Mismatch Alert */}
+      {/* Mismatch Alert - Using labels instead of numbers */}
       {hasMismatch && (
         <div className="px-3 py-2 bg-amber-100 border-t border-amber-200 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-amber-800">
-            <strong>ATTENTION:</strong> Engagement ({engagementScore}) much higher than intent ({intentScore}).
+            <strong>ATTENTION:</strong> {engagementLabel.label} engagement but {intentLabel.label} intent.
             This buyer is more engaged than the score suggests.
           </div>
         </div>
