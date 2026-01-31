@@ -57,9 +57,9 @@ export function LandingNav() {
 
             {/* Desktop CTAs */}
             <div className="hidden md:flex items-center gap-4">
-              <Link href="/sign-in">
+              <a href="/sign-in">
                 <Button variant="ghost">Sign In</Button>
-              </Link>
+              </a>
               <Button onClick={() => setDemoModalOpen(true)}>Request Demo</Button>
             </div>
 
@@ -91,9 +91,9 @@ export function LandingNav() {
                     Why Us
                   </button>
                   <div className="border-t pt-6 flex flex-col gap-3">
-                    <Link href="/sign-in" onClick={() => setOpen(false)}>
+                    <a href="/sign-in">
                       <Button variant="outline" className="w-full">Sign In</Button>
-                    </Link>
+                    </a>
                     <Button className="w-full" onClick={handleDemoClick}>
                       Request Demo
                     </Button>
