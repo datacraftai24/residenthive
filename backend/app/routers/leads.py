@@ -2300,3 +2300,86 @@ def get_lead_chat_sessions(
         } if has_session else None,
         "insights": None
     }
+
+
+# ============================================================
+# SEND EMAIL FROM LEAD INTEL TAB
+# ============================================================
+
+from pydantic import BaseModel, EmailStr
+
+class SendLeadEmailRequest(BaseModel):
+    """Request to send email to lead from Lead Intel Tab"""
+    to_email: EmailStr
+    subject: str
+    body: str
+
+
+@router.post("/leads/{lead_id}/send-email")
+def send_lead_email(
+    lead_id: int,
+    payload: SendLeadEmailRequest,
+    agent_id: int = Depends(get_current_agent_id)
+):
+    """
+    AGENT-only endpoint - Send email to lead directly from Lead Intel Tab.
+    Uses existing email_service with Mailjet provider.
+    Logs email activity for audit trail.
+    """
+    import os
+
+    # 1. Validate lead belongs to agent
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, extracted_name, extracted_email
+                FROM leads WHERE id = %s AND agent_id = %s
+            """, (lead_id, agent_id))
+            lead_row = fetchone_dict(cur)
+
+    if not lead_row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # 2. Get agent's reply-to email
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT email FROM agents WHERE id = %s", (agent_id,))
+            agent_row = cur.fetchone()
+            agent_email = agent_row[0] if agent_row else None
+
+    # 3. Send via email service
+    from ..services.email_service import send_email, DEFAULT_FROM_EMAIL
+
+    try:
+        success = send_email(
+            to_email=payload.to_email,
+            from_email=DEFAULT_FROM_EMAIL,
+            subject=payload.subject,
+            body=payload.body,
+            reply_to=agent_email
+        )
+        if not success:
+            raise HTTPException(status_code=502, detail="Failed to send email")
+    except ValueError as e:
+        logger.error(f"[LEAD_EMAIL_FAILED] lead_id={lead_id} to={payload.to_email} error={e}")
+        raise HTTPException(status_code=502, detail="Email service not configured")
+    except Exception as e:
+        logger.error(f"[LEAD_EMAIL_FAILED] lead_id={lead_id} to={payload.to_email} error={e}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
+
+    # 4. Log email activity (update lead engaged_at if not set)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE leads
+                SET engaged_at = COALESCE(engaged_at, NOW()),
+                    status = CASE WHEN status = 'classified' THEN 'engaged' ELSE status END
+                WHERE id = %s
+            """, (lead_id,))
+
+    logger.info(f"[LEAD_EMAIL] Sent email for lead {lead_id} to {payload.to_email}")
+
+    return {
+        "success": True,
+        "emailSentTo": payload.to_email
+    }
