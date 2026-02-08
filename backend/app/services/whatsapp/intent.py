@@ -184,12 +184,19 @@ class IntentParser:
         if reply_id in button_mapping:
             return Intent(type=button_mapping[reply_id], raw_text=reply_id)
         
-        # Check if it's a buyer selection (format: select_buyer_SC1)
+        # Check if it's a buyer selection (format: select_buyer_SC1 or select_buyer_123)
         if reply_id.startswith("select_buyer_"):
-            code = reply_id.replace("select_buyer_", "").upper()
+            ref = reply_id.replace("select_buyer_", "")
+            # If purely numeric, it's a database ID (fallback when no whatsapp_code)
+            if ref.isdigit():
+                return Intent(
+                    type=IntentType.SELECT_BUYER,
+                    buyer_id=int(ref),
+                    raw_text=reply_id
+                )
             return Intent(
                 type=IntentType.SELECT_BUYER,
-                buyer_reference=code,
+                buyer_reference=ref.upper(),
                 raw_text=reply_id
             )
         

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
     agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
     direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
     wa_message_id TEXT UNIQUE,
-    message_type TEXT NOT NULL CHECK (message_type IN ('text', 'interactive', 'voice', 'image', 'button_reply', 'list_reply')),
+    message_type TEXT NOT NULL CHECK (message_type IN ('text', 'interactive', 'voice', 'image', 'button_reply', 'list_reply', 'buttons', 'list')),
     sender_phone TEXT,
     content JSONB,
     intent_detected TEXT,

@@ -613,28 +613,9 @@ class WhatsAppHandlers:
                 "_Type your changes or 'cancel'_"
             )
         
-        # Parse changes using existing conversational edit
+        # Parse changes - try Gemini conversational endpoint first, fall back to OpenAI
         try:
-            from ...routers.conversational import parse_changes, ParseChangesRequest
-            
-            # Build current profile dict
-            current_profile = {
-                "budgetMin": active_buyer.get("budget_min"),
-                "budgetMax": active_buyer.get("budget_max"),
-                "bedrooms": active_buyer.get("bedrooms"),
-                "mustHaveFeatures": active_buyer.get("must_have_features", []),
-                "dealbreakers": active_buyer.get("dealbreakers", []),
-            }
-            
-            # Create a mock request object
-            class MockRequest:
-                pass
-            mock_req = MockRequest()
-            
-            req = ParseChangesRequest(text=edit_text, currentProfile=current_profile)
-            result = parse_changes(active_buyer["id"], req, mock_req, agent_id=self.agent_id)
-            
-            changes = result.get("changes", [])
+            changes = await self._parse_edit_changes(active_buyer, edit_text)
             
             if not changes:
                 return MessageBuilder.text(
@@ -731,6 +712,29 @@ class WhatsAppHandlers:
             logger.error(f"Create buyer failed: {e}", exc_info=True)
             return MessageBuilder.error("Failed to create buyer. Please try again.")
     
+    @staticmethod
+    def _sanitize_change_value(field: str, value):
+        """Ensure change values have the correct type for the database."""
+        if value is None:
+            return value
+        # Budget and numeric fields must be integers
+        if field in ("budgetMin", "budgetMax", "bedrooms", "bathrooms"):
+            if isinstance(value, (int, float)):
+                return int(value)
+            # Strip currency formatting: "$1,010,000" -> 1010000
+            cleaned = str(value).replace("$", "").replace(",", "").replace(" ", "")
+            # Handle K/M suffixes
+            cleaned_lower = cleaned.lower()
+            try:
+                if cleaned_lower.endswith("m"):
+                    return int(float(cleaned_lower[:-1]) * 1_000_000)
+                elif cleaned_lower.endswith("k"):
+                    return int(float(cleaned_lower[:-1]) * 1_000)
+                return int(float(cleaned))
+            except (ValueError, TypeError):
+                return value
+        return value
+
     async def _execute_edit_buyer(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute buyer edit after confirmation."""
         buyer_id = action_data.get("buyer_id")
@@ -738,6 +742,15 @@ class WhatsAppHandlers:
         
         try:
             from ...routers.conversational import apply_changes, ApplyChangesRequest, ChangeItem
+            
+            # Sanitize change values to ensure correct types
+            for change in changes:
+                change["newValue"] = self._sanitize_change_value(
+                    change.get("field", ""), change.get("newValue")
+                )
+                change["oldValue"] = self._sanitize_change_value(
+                    change.get("field", ""), change.get("oldValue")
+                )
             
             # Create mock request
             class MockRequest:
@@ -747,7 +760,7 @@ class WhatsAppHandlers:
             change_items = [ChangeItem(**c) for c in changes]
             req = ApplyChangesRequest(changes=change_items)
             
-            result = apply_changes(buyer_id, req, mock_req, agent_id=self.agent_id)
+            result = await apply_changes(buyer_id, req, mock_req, agent_id=self.agent_id)
             
             # Update session with new buyer data
             self.session.active_buyer_name = result.get("name", self.session.active_buyer_name)
@@ -840,6 +853,109 @@ class WhatsAppHandlers:
                 )
                 return fetchone_dict(cur)
     
+    async def _parse_edit_changes(
+        self,
+        buyer: Dict[str, Any],
+        edit_text: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Parse edit text into structured changes.
+        Tries Gemini-based conversational endpoint first, falls back to OpenAI.
+        """
+        # Try Gemini-based endpoint first
+        try:
+            from ...routers.conversational import parse_changes, ParseChangesRequest
+            
+            current_profile = {
+                "budgetMin": buyer.get("budget_min"),
+                "budgetMax": buyer.get("budget_max"),
+                "bedrooms": buyer.get("bedrooms"),
+                "mustHaveFeatures": buyer.get("must_have_features", []),
+                "dealbreakers": buyer.get("dealbreakers", []),
+            }
+            
+            class MockRequest:
+                pass
+            
+            req = ParseChangesRequest(text=edit_text, currentProfile=current_profile)
+            result = await parse_changes(buyer["id"], req, MockRequest(), agent_id=self.agent_id)
+            return result.get("changes", [])
+        except Exception as e:
+            logger.info(f"Gemini parse_changes unavailable ({e}), falling back to OpenAI")
+        
+        # Fallback: use OpenAI to parse changes
+        import json
+        import os
+        from openai import OpenAI
+        
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("No AI service available for parsing changes")
+        
+        client = OpenAI(api_key=api_key)
+        
+        # Build current profile summary
+        profile_parts = []
+        if buyer.get("budget_min") and buyer.get("budget_max"):
+            profile_parts.append(f"Budget: ${buyer['budget_min']:,} - ${buyer['budget_max']:,}")
+        if buyer.get("location"):
+            profile_parts.append(f"Location: {buyer['location']}")
+        if buyer.get("bedrooms"):
+            profile_parts.append(f"Bedrooms: {buyer['bedrooms']}+")
+        if buyer.get("bathrooms"):
+            profile_parts.append(f"Bathrooms: {buyer['bathrooms']}+")
+        must_haves = buyer.get("must_have_features") or []
+        if must_haves:
+            profile_parts.append(f"Must-haves: {', '.join(must_haves)}")
+        dealbreakers = buyer.get("dealbreakers") or []
+        if dealbreakers:
+            profile_parts.append(f"Dealbreakers: {', '.join(dealbreakers)}")
+        
+        profile_summary = "\n".join(profile_parts) or "No profile data yet"
+        
+        prompt = f"""You are parsing a real estate buyer profile edit request.
+
+Current profile for {buyer.get('name', 'Buyer')}:
+{profile_summary}
+
+User request: "{edit_text}"
+
+Extract the changes as a JSON array. Each change should have:
+- "field": one of ["budgetMin", "budgetMax", "bedrooms", "bathrooms", "location", "mustHaveFeatures", "dealbreakers", "homeType"]
+- "action": one of ["update", "add", "remove"]
+- "oldValue": current value (or null)
+- "newValue": new value
+
+For budget changes like "increase by $50K", calculate the new value from the current value.
+For "add pool to must-haves", use action "add" with field "mustHaveFeatures".
+
+Return ONLY a JSON array, no other text. Example:
+[{{"field": "budgetMax", "action": "update", "oldValue": "$960,000", "newValue": "$1,010,000"}}, {{"field": "mustHaveFeatures", "action": "add", "oldValue": null, "newValue": "pool"}}]"""
+
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=500
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            # Handle markdown code blocks
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.strip()
+            
+            changes = json.loads(content)
+            return changes if isinstance(changes, list) else []
+            
+        except Exception as e:
+            logger.error(f"OpenAI parse changes failed: {e}")
+            raise
+
     def _get_agent_name(self) -> Optional[str]:
         """Get agent's name."""
         with get_conn() as conn:
