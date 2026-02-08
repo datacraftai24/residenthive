@@ -52,6 +52,9 @@ class IntentType(str, Enum):
     CONFIRM = "confirm"
     CANCEL = "cancel"
     
+    # Session
+    RESET = "reset"
+    
     # Unknown
     UNKNOWN = "unknown"
     GREETING = "greeting"
@@ -230,6 +233,10 @@ class IntentParser:
         # View buyers
         if msg_lower in ("all", "list", "buyers", "my buyers", "show buyers", "view buyers", "show my buyers"):
             return Intent(type=IntentType.VIEW_BUYERS, raw_text=message)
+        
+        # Reset session
+        if msg_lower in ("reset", "start over", "clear", "restart"):
+            return Intent(type=IntentType.RESET, raw_text=message)
         
         # Exit context
         if msg_lower in ("done", "back", "exit", "next", "finish", "thanks", "thank you"):

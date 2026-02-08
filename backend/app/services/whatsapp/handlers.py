@@ -124,6 +124,7 @@ class WhatsAppHandlers:
             IntentType.CANCEL: lambda: self._handle_cancel(),
             IntentType.VIEW_SAVED: lambda: self._handle_view_saved(active_buyer),
             IntentType.VIEW_NOTES: lambda: self._handle_view_notes(active_buyer),
+            IntentType.RESET: lambda: self._handle_reset(),
             IntentType.UNKNOWN: lambda: self._handle_unknown(intent),
         }
         
@@ -193,6 +194,13 @@ class WhatsAppHandlers:
         await SessionManager.save(self.session)
         
         return MessageBuilder.context_exited()
+    
+    async def _handle_reset(self) -> Dict[str, Any]:
+        """Reset/clear the entire session."""
+        await SessionManager.delete(self.phone)
+        self.session = await SessionManager.get_or_create(self.agent_id, self.phone)
+        agent_name = self._get_agent_name()
+        return MessageBuilder.welcome(agent_name)
     
     async def _handle_help(self) -> Dict[str, Any]:
         """Show help message."""
