@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f0fdfa"/>
+      <stop offset="100%" stop-color="#ccfbf1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <path d="M540 220V160l60-45 60 45v60H620v-30h-20v30H540z" fill="#0d9488" opacity="0.9"/>
+  <rect x="580" y="172" width="24" height="18" rx="3" fill="#f0fdfa"/>
+  <text x="600" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="#0f172a" text-anchor="middle">ResidenceHive</text>
+  <text x="600" y="390" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#475569" text-anchor="middle">AI-Powered Lead Engagement for Real Estate</text>
+  <text x="600" y="430" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#64748b" text-anchor="middle">The first-response layer for real estate</text>
+</svg>
