@@ -3,6 +3,9 @@ import App from "./App";
 import "./index.css";
 import { ClerkProvider } from "@clerk/clerk-react";
 import Landing from "./pages/landing";
+import { initPostHog } from "./lib/posthog";
+
+initPostHog();
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 

@@ -20,6 +20,7 @@ from .routers import properties as properties_router
 from .routers import buyer_reports as buyer_reports_router
 from .routers import leads as leads_router
 from .routers import contact as contact_router
+from .routers import admin_analytics as admin_analytics_router
 from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
 
@@ -104,6 +105,8 @@ def create_app() -> FastAPI:
     app.include_router(buyer_reports_router.router)
     app.include_router(leads_router.router)
     app.include_router(contact_router.router)
+    app.include_router(admin_analytics_router.router)
+    app.include_router(admin_analytics_router.public_router)
 
     # Global exception handler
     @app.exception_handler(Exception)

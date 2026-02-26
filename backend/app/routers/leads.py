@@ -49,6 +49,7 @@ from ..models import (
 )
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
+from ..services.event_tracker import track_event
 import psycopg.errors
 
 router = APIRouter(prefix="/api", tags=["leads"])
@@ -1314,7 +1315,9 @@ def process_lead_endpoint(
     agent_id: int = Depends(get_current_agent_id)
 ):
     """Process a lead from raw text input."""
-    return process_lead(request, agent_id)
+    result = process_lead(request, agent_id)
+    track_event(agent_id, "lead.process", "lead", "lead", result.lead.id if result.lead else None, {"source": request.source})
+    return result
 
 
 @router.get("/leads", response_model=List[Lead])
@@ -1914,6 +1917,7 @@ async def generate_lead_outreach(
     else:
         logger.info(f"[OUTREACH] Complete for lead {lead_id}: report={share_id}, no email sent")
 
+    track_event(agent_id, "lead.outreach", "lead", "lead", lead_id, {"email_sent": email_sent, "share_id": share_id})
     return {
         "success": True,
         "profileId": profile_id,
@@ -2171,6 +2175,7 @@ def convert_lead_to_profile(
                 WHERE id = %s
             """, (profile_id, lead_id))
 
+    track_event(agent_id, "lead.convert", "lead", "lead", lead_id, {"profile_id": profile_id})
     return {
         "status": "converted",
         "profileId": profile_id,

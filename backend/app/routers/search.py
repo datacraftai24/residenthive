@@ -22,6 +22,7 @@ from ..services.photo_analyzer import analyze_property_photos
 from ..services.property_analyzer import _generate_agent_take
 from ..db import get_conn, fetchone_dict
 from ..auth import get_current_agent_id
+from ..services.event_tracker import track_event
 import json
 
 
@@ -185,6 +186,7 @@ def agent_search(req: AgentSearchRequest, agent_id: int = Depends(get_current_ag
         logger.warning(f"[AGENT SEARCH] Failed to persist search to database: {e}")
         # Non-blocking - search still works, just won't be resumable
 
+    track_event(agent_id, "search.run", "search", "buyer_profile", req.profileId, {"search_id": search_id, "total_found": len(all_listings)})
     return response
 
 

@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 from ..db import get_conn, fetchone_dict, fetchall_dicts
 from ..auth import get_current_agent_id
+from ..services.event_tracker import track_event
 from .search import get_search_context  # To retrieve full listing data
 from ..services.search_context_store import (
     get_photo_analysis_results,
@@ -535,6 +536,7 @@ def create_buyer_report(
 
             print(f"[BUYER REPORT] Created report with shareId={share_id}, {len(top_5_ids)} listings")
 
+    track_event(agent_id, "report.generate", "report", "buyer_report", share_id, {"profile_id": request.profileId, "listing_count": len(top_5_ids)})
     # Return response with share link and preview
     return {
         "success": True,
@@ -1122,6 +1124,7 @@ def send_buyer_report_email(
         }
     )
 
+    track_event(agent_id, "email.report_sent", "email", "buyer_report", share_id, {"to_email": payload.to_email})
     return {"status": "sent", "to": payload.to_email}
 
 

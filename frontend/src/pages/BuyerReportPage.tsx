@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
+import { trackEvent } from '@/lib/posthog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -189,6 +190,35 @@ export function BuyerReportPage() {
     enabled: !!shareId,
   });
 
+  // Track report view on mount
+  useEffect(() => {
+    if (!shareId || !report) return;
+    const sessionId = sessionStorage.getItem("engagement_session") || crypto.randomUUID();
+    sessionStorage.setItem("engagement_session", sessionId);
+    trackEvent("report_viewed", { shareId });
+    fetch("/api/public/report-engagement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId, eventType: "page_view", sessionId }),
+    }).catch(() => {});
+  }, [shareId, report]);
+
+  const trackPropertyClick = (mlsNumber: string) => {
+    if (!shareId) return;
+    const sessionId = sessionStorage.getItem("engagement_session") || "";
+    trackEvent("property_clicked", { shareId, mlsNumber });
+    fetch("/api/public/report-engagement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shareId,
+        eventType: "property_click",
+        propertyListingId: mlsNumber,
+        sessionId,
+      }),
+    }).catch(() => {});
+  };
+
   // Helper to open chat with pre-filled showing request
   const requestShowing = (mlsNumber: string) => {
     const listing = report?.listings.find(l => l.mlsNumber === mlsNumber);
@@ -372,7 +402,10 @@ export function BuyerReportPage() {
                     key={listing.mlsNumber}
                     listing={listing}
                     rank={idx + 1}
-                    onViewDetails={() => setSelectedListing(listing)}
+                    onViewDetails={() => {
+                      trackPropertyClick(listing.mlsNumber);
+                      setSelectedListing(listing);
+                    }}
                   />
                 ))}
               </div>

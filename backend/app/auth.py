@@ -7,6 +7,7 @@ import os
 from clerk_backend_api import Clerk
 from clerk_backend_api.jwks_helpers import AuthenticateRequestOptions
 from .db import get_conn, fetchone_dict
+from .services.event_tracker import track_event
 
 
 # Initialize Clerk SDK
@@ -72,6 +73,7 @@ async def get_or_create_agent(clerk_user_id: str) -> dict:
                 agent = fetchone_dict(cur)
                 conn.commit()
 
+                track_event(agent["id"], "auth.first_login", "auth")
                 return agent
 
             except Exception as e:

@@ -17,7 +17,28 @@ import AgentSetup from "@/pages/agent-setup";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminAnalytics from "@/pages/admin-analytics";
+import { usePostHogIdentify } from "@/hooks/use-posthog-identify";
 
+
+// Admin route guard — checks client-side email list (backend enforces real security)
+const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS as string || "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (!isLoaded) return null;
+  if (!isSignedIn) {
+    setLocation("/sign-in");
+    return null;
+  }
+
+  return <ProtectedRoute>{children}</ProtectedRoute>;
+}
 
 // Component to handle the root path based on auth state
 function RootRoute() {
@@ -68,6 +89,12 @@ function Router() {
       <Route path="/shared/reports/:shareId/property/:listingId" component={SharedPropertyDetail} />
 
       {/* Protected routes - authentication required */}
+      <Route path="/admin/analytics">
+        <AdminRoute>
+          <AdminAnalytics />
+        </AdminRoute>
+      </Route>
+
       <Route path="/analytics">
         <ProtectedRoute>
           <Analytics />
@@ -89,6 +116,8 @@ function Router() {
 }
 
 function App() {
+  usePostHogIdentify();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

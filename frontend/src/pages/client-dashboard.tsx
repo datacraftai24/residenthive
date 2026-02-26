@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Phone, Mail, Star, Home, DollarSign, MapPin, Eye, Heart, Calendar } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trackEvent } from "@/lib/posthog";
 
 interface ShareableProfile {
   shareId: string;
@@ -59,6 +60,19 @@ interface ScoredListing {
 export default function ClientDashboard() {
   const { shareId } = useParams();
   const [savedListings, setSavedListings] = useState<Set<string>>(new Set());
+
+  // Track page view
+  useEffect(() => {
+    if (!shareId) return;
+    const sessionId = sessionStorage.getItem("engagement_session") || crypto.randomUUID();
+    sessionStorage.setItem("engagement_session", sessionId);
+    trackEvent("report_viewed", { shareId });
+    fetch("/api/public/report-engagement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shareId, eventType: "page_view", sessionId }),
+    }).catch(() => {});
+  }, [shareId]);
 
   // Fetch shareable profile
   const { data: shareableProfile, isLoading: isLoadingProfile } = useQuery({

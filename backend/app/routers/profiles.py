@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import psycopg.errors
 from ..auth import get_current_agent_id
+from ..services.event_tracker import track_event
 
 
 router = APIRouter(prefix="/api")
@@ -380,6 +381,7 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
                 raise HTTPException(status_code=409, detail="Profile already exists for this email")
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create profile")
+    track_event(agent_id, "profile.create", "profile", "buyer_profile", row["id"], {"input_method": data.get("inputMethod")})
     return BuyerProfile(**_row_to_profile(row))
 
 @router.patch("/buyer-profiles/{profile_id}", response_model=BuyerProfile)
@@ -458,6 +460,7 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             row = fetchone_dict(cur)
     if not row:
         raise HTTPException(status_code=404, detail="Profile not found")
+    track_event(agent_id, "profile.edit", "profile", "buyer_profile", profile_id)
     return BuyerProfile(**_row_to_profile(row))
 
 @router.delete("/buyer-profiles/{profile_id}")
@@ -508,6 +511,7 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
             cur.execute("DELETE FROM buyer_profiles WHERE id = %s", (profile_id,))
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Profile not found")
+    track_event(agent_id, "profile.delete", "profile", "buyer_profile", profile_id)
     return {"success": True}
 
 
