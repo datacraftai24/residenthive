@@ -58,11 +58,12 @@ def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:
     context = _cache.get(search_id)
 
     if not context:
+        print(f"[SEARCH CONTEXT] Missing search context for search_id={search_id}")
         return None
 
     # Check TTL
     if datetime.now() - context["timestamp"] > timedelta(hours=TTL_HOURS):
-        # Expired, remove and return None
+        print(f"[SEARCH CONTEXT] Expired search context for search_id={search_id}")
         del _cache[search_id]
         return None
 
