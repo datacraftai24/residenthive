@@ -340,8 +340,10 @@ class MessageBuilder:
             # Show one highlight if available
             analysis = listing.get("aiAnalysis") or {}
             whats_matching = analysis.get("whats_matching", [])
-            if whats_matching:
+            if whats_matching and isinstance(whats_matching[0], str):
                 lines.append(f"   ✓ {whats_matching[0][:40]}")
+            elif whats_matching:
+                lines.append("   ✓ Highlight unavailable")
             
             lines.append("")
         
