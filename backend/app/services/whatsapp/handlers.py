@@ -566,10 +566,11 @@ class WhatsAppHandlers:
         
         # Extract profile using existing NLP
         try:
-            from ...routers.nlp import extract_profile
+            from ...routers.nlp import extract_profile, ExtractRequest
             
-            result = extract_profile({"input": raw_text})
-            extracted = result.get("profile", {})
+            result = extract_profile(ExtractRequest(input=raw_text))
+            # extract_profile returns fields at the top level, not nested under "profile"
+            extracted = result.get("profile") or result
             
             if not extracted.get("name") or not extracted.get("location"):
                 return MessageBuilder.text(
@@ -680,18 +681,18 @@ class WhatsAppHandlers:
             
             # Map extracted to create request
             profile_data = BuyerProfileCreate(
-                name=extracted.get("name", "Unknown"),
-                email=extracted.get("email", "placeholder@residenthive.com"),
-                location=extracted.get("location", ""),
-                budget=extracted.get("budget", ""),
+                name=extracted.get("name") or "Unknown",
+                email=extracted.get("email") or "placeholder@residenthive.com",
+                location=extracted.get("location") or "",
+                budget=extracted.get("budget") or "",
                 budgetMin=extracted.get("budgetMin"),
                 budgetMax=extracted.get("budgetMax"),
-                homeType=extracted.get("homeType", "any"),
-                bedrooms=extracted.get("bedrooms", 3),
-                bathrooms=extracted.get("bathrooms", "2"),
-                mustHaveFeatures=extracted.get("mustHaveFeatures", []),
-                dealbreakers=extracted.get("dealbreakers", []),
-                rawInput=extracted.get("rawInput", ""),
+                homeType=extracted.get("homeType") or "any",
+                bedrooms=extracted.get("bedrooms") or 3,
+                bathrooms=str(extracted.get("bathrooms") or "2"),
+                mustHaveFeatures=extracted.get("mustHaveFeatures") or [],
+                dealbreakers=extracted.get("dealbreakers") or [],
+                rawInput=extracted.get("rawInput") or "",
                 inputMethod="whatsapp",
             )
             

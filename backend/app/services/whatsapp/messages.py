@@ -30,7 +30,18 @@ STATUS_ICONS = {
 
 class MessageBuilder:
     """Build formatted WhatsApp messages."""
-    
+
+    @staticmethod
+    def _fmt_amount(val: int) -> str:
+        """Format a dollar amount: 1000000→$1M, 1500000→$1.5M, 640000→$640K."""
+        if not val:
+            return ""
+        if val >= 1_000_000:
+            m = val / 1_000_000
+            formatted = f"{m:.1f}".rstrip("0").rstrip(".")
+            return f"${formatted}M"
+        return f"${val // 1_000}K"
+
     @staticmethod
     def text(body: str, **kwargs) -> Dict[str, Any]:
         """Build a simple text message."""
@@ -168,7 +179,7 @@ class MessageBuilder:
         if buyer.get("location"):
             desc_parts.append(buyer["location"][:20])
         if buyer.get("budget_min") and buyer.get("budget_max"):
-            desc_parts.append(f"${buyer['budget_min']//1000}K-${buyer['budget_max']//1000}K")
+            desc_parts.append(f"{MessageBuilder._fmt_amount(buyer['budget_min'])}-{MessageBuilder._fmt_amount(buyer['budget_max'])}")
         elif buyer.get("budget"):
             desc_parts.append(str(buyer["budget"])[:15])
         
@@ -340,10 +351,10 @@ class MessageBuilder:
             # Show one highlight if available
             analysis = listing.get("aiAnalysis") or {}
             whats_matching = analysis.get("whats_matching", [])
-            if whats_matching and isinstance(whats_matching[0], str):
-                lines.append(f"   ✓ {whats_matching[0][:40]}")
-            elif whats_matching:
-                lines.append("   ✓ Highlight unavailable")
+            if whats_matching:
+                item = whats_matching[0]
+                text = item if isinstance(item, str) else item.get("text") or item.get("reason") or str(item)
+                lines.append(f"   ✓ {text[:40]}")
             
             lines.append("")
         
@@ -384,13 +395,16 @@ class MessageBuilder:
         # AI Analysis
         analysis = listing.get("aiAnalysis") or {}
         
+        def _ai_text(item) -> str:
+            return item if isinstance(item, str) else item.get("text") or item.get("reason") or str(item)
+
         whats_matching = analysis.get("whats_matching", [])
         for item in whats_matching[:2]:
-            lines.append(f"   ✓ {item[:50]}")
+            lines.append(f"   ✓ {_ai_text(item)[:50]}")
         
         red_flags = analysis.get("red_flags", [])
         for item in red_flags[:1]:
-            lines.append(f"   ⚠️ {item[:50]}")
+            lines.append(f"   ⚠️ {_ai_text(item)[:50]}")
         
         return "\n".join(lines)
     
