@@ -18,7 +18,7 @@ Modules:
 from .buyer_codes import generate_buyer_code, get_buyer_by_code, backfill_buyer_codes
 from .session import SessionManager, AgentSession, SessionState
 from .client import WhatsAppClient, parse_webhook_message
-from .intent import IntentParser, Intent, IntentType
+from .intent import IntentParser, Intent, IntentType, ActionStep
 from .handlers import WhatsAppHandlers
 from .messages import MessageBuilder
 from .notifications import WhatsAppNotifications, on_report_viewed, on_buyer_notes_updated
@@ -40,6 +40,7 @@ __all__ = [
     "IntentParser",
     "Intent",
     "IntentType",
+    "ActionStep",
     # Handlers
     "WhatsAppHandlers",
     # Messages

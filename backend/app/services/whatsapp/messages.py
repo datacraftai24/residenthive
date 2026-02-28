@@ -679,3 +679,102 @@ class MessageBuilder:
                 {"id": "help", "title": "Help"}
             ]
         )
+
+    # =========================================================================
+    # Multi-action sequence messages
+    # =========================================================================
+
+    _INTENT_LABELS = {
+        "select_buyer": "Select buyer",
+        "search": "Search for properties",
+        "generate_report": "Generate buyer report",
+        "send_report": "Send report to buyer",
+        "view_profile": "View buyer profile",
+        "view_buyers": "View all buyers",
+        "view_saved": "View saved properties",
+        "view_notes": "View buyer notes",
+        "edit_buyer": "Update buyer profile",
+        "create_buyer": "Create new buyer",
+        "exit_context": "Exit buyer context",
+        "help": "Show help",
+        "greeting": "Greeting",
+        "reset": "Reset session",
+    }
+
+    @staticmethod
+    def _intent_label(intent_type_value: str, buyer_name: Optional[str] = None) -> str:
+        """Human-readable label for an intent type."""
+        label = MessageBuilder._INTENT_LABELS.get(intent_type_value, intent_type_value)
+        if intent_type_value == "select_buyer" and buyer_name:
+            label = f"Select *{buyer_name}*"
+        return label
+
+    @staticmethod
+    def action_sequence_preview(
+        intents: List[Dict[str, Any]],
+        buyer_name: Optional[str] = None,
+        buyer_email: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build a numbered preview of a planned multi-action sequence with
+        Confirm / Cancel buttons.
+
+        Args:
+            intents: List of dicts with at least ``type`` (IntentType value str)
+                     and optionally ``buyer_reference``.
+            buyer_name: Resolved buyer name (for display).
+            buyer_email: Buyer email (shown on send_report step).
+        """
+        header = "📋 *Planned Actions*"
+        if buyer_name:
+            header += f" for *{buyer_name}*"
+
+        lines = [header, ""]
+        for i, intent_info in enumerate(intents, 1):
+            intent_val = intent_info.get("type", "unknown")
+            ref = intent_info.get("buyer_reference")
+            label = MessageBuilder._intent_label(intent_val, ref or buyer_name)
+            if intent_val == "send_report" and buyer_email:
+                label += f" ({buyer_email})"
+            lines.append(f"{i}. {label}")
+
+        lines.append("")
+        lines.append("_Confirm to execute all steps in order._")
+
+        body = "\n".join(lines)
+
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=[
+                {"id": "confirm", "title": "Confirm"},
+                {"id": "cancel", "title": "Cancel"},
+            ],
+        )
+
+    @staticmethod
+    def action_sequence_summary(
+        results: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Build a consolidated summary after executing a multi-action sequence.
+
+        Args:
+            results: List of dicts, each with ``step`` (int), ``intent`` (str),
+                     ``success`` (bool), and ``summary`` (str).
+        """
+        all_ok = all(r.get("success", False) for r in results)
+        title = "✅ *All done!*" if all_ok else "⚠️ *Sequence partially completed*"
+
+        lines = [title, ""]
+        for r in results:
+            icon = "✅" if r.get("success") else "❌"
+            lines.append(f"{icon} {r.get('summary', r.get('intent', '?'))}")
+
+        body = "\n".join(lines)
+
+        buttons = [
+            {"id": "view_buyers", "title": "View Buyers"},
+            {"id": "done", "title": "Done"},
+        ]
+
+        return MessageBuilder.buttons(body=body, buttons=buttons)

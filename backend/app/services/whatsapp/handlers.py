@@ -64,37 +64,43 @@ class WhatsAppHandlers:
         try:
             # Get buyers for context
             buyers = self._get_all_buyers()
-            
+
             # Get active buyer if in context
             active_buyer = None
             if self.session.active_buyer_id:
                 active_buyer = self._get_buyer_by_id(self.session.active_buyer_id)
-            
-            # Parse intent
-            intent = self.intent_parser.parse(
+
+            # Parse intents (may return multiple for chained actions)
+            intents = self.intent_parser.parse_multi(
                 message=message,
                 input_type=input_type,
                 session_state=self.session.state.value,
                 active_buyer=active_buyer,
-                buyers=buyers
+                buyers=buyers,
             )
-            
-            # Resolve buyer reference if present
-            intent = resolve_buyer_from_intent(intent, self.agent_id, active_buyer)
-            
-            logger.info(
-                f"Parsed intent: type={intent.type.value}, "
-                f"buyer_ref={intent.buyer_reference}, buyer_id={intent.buyer_id}"
-            )
-            
-            # Route to appropriate handler
-            response = await self._route_intent(intent, active_buyer, buyers)
-            
-            # Add intent to response for logging
-            response["intent"] = intent.type.value
-            
+
+            # Resolve buyer references
+            for i, intent in enumerate(intents):
+                intents[i] = resolve_buyer_from_intent(intent, self.agent_id, active_buyer)
+
+            if len(intents) == 1:
+                # Single-intent path (unchanged behaviour)
+                intent = intents[0]
+                logger.info(
+                    f"Parsed intent: type={intent.type.value}, "
+                    f"buyer_ref={intent.buyer_reference}, buyer_id={intent.buyer_id}"
+                )
+                response = await self._route_intent(intent, active_buyer, buyers)
+                response["intent"] = intent.type.value
+            else:
+                # Multi-intent path — preview and ask for confirmation
+                intent_types = ", ".join(i.type.value for i in intents)
+                logger.info(f"Parsed multi-intent sequence ({len(intents)} steps): {intent_types}")
+                response = await self.preview_action_sequence(intents)
+                response["intent"] = "action_sequence"
+
             return response
-            
+
         except Exception as e:
             logger.error(f"Error handling message: {e}", exc_info=True)
             return MessageBuilder.error()
@@ -665,6 +671,8 @@ class WhatsAppHandlers:
                 return await self._execute_create_buyer(action_data)
             elif action_type == "edit_buyer":
                 return await self._execute_edit_buyer(action_data)
+            elif action_type == "action_sequence":
+                return await self._execute_action_sequence(action_data)
             else:
                 return MessageBuilder.error(f"Unknown action type: {action_type}")
                 
@@ -828,6 +836,174 @@ class WhatsAppHandlers:
         
         return MessageBuilder.help_message()
     
+    # =========================================================================
+    # Multi-Action Sequence
+    # =========================================================================
+
+    # Intents that indicate a step failure severe enough to abort the sequence
+    _ABORT_ON_ERROR_INTENTS = {
+        IntentType.SELECT_BUYER,
+        IntentType.SEARCH,
+        IntentType.GENERATE_REPORT,
+    }
+
+    _STEP_SUMMARY_TEMPLATES = {
+        IntentType.SELECT_BUYER: "Selected {buyer}",
+        IntentType.SEARCH: "Searched for properties",
+        IntentType.GENERATE_REPORT: "Generated buyer report",
+        IntentType.SEND_REPORT: "Sent report to buyer",
+        IntentType.VIEW_PROFILE: "Viewed buyer profile",
+        IntentType.VIEW_BUYERS: "Listed all buyers",
+        IntentType.EDIT_BUYER: "Updated buyer profile",
+        IntentType.CREATE_BUYER: "Created new buyer",
+    }
+
+    async def preview_action_sequence(
+        self,
+        intents: List[Intent],
+    ) -> Dict[str, Any]:
+        """
+        Build a human-readable preview of a planned multi-action sequence,
+        store it in ``pending_action``, and return a confirmation message.
+        """
+        # Resolve the primary buyer name for display
+        buyer_name = None
+        buyer_email = None
+        for intent in intents:
+            if intent.buyer_reference:
+                matches = resolve_buyer_reference(self.agent_id, intent.buyer_reference)
+                if len(matches) == 1:
+                    buyer_name = matches[0].get("name")
+                    buyer_email = matches[0].get("email")
+                break
+        if not buyer_name and self.session.active_buyer_name:
+            buyer_name = self.session.active_buyer_name
+            if self.session.active_buyer_id:
+                active = self._get_buyer_by_id(self.session.active_buyer_id)
+                if active:
+                    buyer_email = active.get("email")
+
+        # Serialise intents for storage in pending_action
+        serialised_intents = []
+        for intent in intents:
+            serialised_intents.append({
+                "type": intent.type.value,
+                "buyer_reference": intent.buyer_reference,
+                "buyer_id": intent.buyer_id,
+                "params": intent.params,
+                "raw_text": intent.raw_text,
+                "confidence": intent.confidence,
+            })
+
+        await SessionManager.set_pending_action(
+            self.phone,
+            "action_sequence",
+            {"intents": serialised_intents},
+        )
+
+        # Build preview message
+        intent_dicts = [{"type": i.type.value, "buyer_reference": i.buyer_reference} for i in intents]
+        return MessageBuilder.action_sequence_preview(
+            intent_dicts,
+            buyer_name=buyer_name,
+            buyer_email=buyer_email,
+        )
+
+    async def handle_action_sequence(
+        self,
+        intents: List[Intent],
+    ) -> Dict[str, Any]:
+        """
+        Execute an ordered list of intents sequentially, threading session
+        state between steps.  Returns a consolidated summary message.
+        """
+        results: List[Dict[str, Any]] = []
+        buyers = self._get_all_buyers()
+
+        for step_num, intent in enumerate(intents, 1):
+            # Re-fetch active buyer from session (prior step may have changed it)
+            active_buyer = None
+            if self.session.active_buyer_id:
+                active_buyer = self._get_buyer_by_id(self.session.active_buyer_id)
+
+            # Resolve buyer reference for this step using current state
+            intent = resolve_buyer_from_intent(intent, self.agent_id, active_buyer)
+
+            try:
+                response = await self._route_intent(intent, active_buyer, buyers)
+
+                # Determine if the step succeeded
+                is_error = (
+                    response.get("type") == "text"
+                    and any(kw in response.get("body", "").lower() for kw in ("failed", "couldn't find", "no buyer"))
+                )
+
+                buyer_display = (
+                    intent.buyer_reference
+                    or (active_buyer.get("name") if active_buyer else None)
+                    or self.session.active_buyer_name
+                    or ""
+                )
+                template = self._STEP_SUMMARY_TEMPLATES.get(intent.type, intent.type.value)
+                summary = template.format(buyer=buyer_display)
+
+                results.append({
+                    "step": step_num,
+                    "intent": intent.type.value,
+                    "success": not is_error,
+                    "summary": summary,
+                    "response": response,
+                })
+
+                # Abort on critical failures
+                if is_error and intent.type in self._ABORT_ON_ERROR_INTENTS:
+                    error_body = response.get("body", "")
+                    results[-1]["summary"] = f"{summary} — {error_body[:80]}"
+                    break
+
+                # Refresh session object after each step (handler may have saved changes)
+                refreshed = await SessionManager.get(self.phone)
+                if refreshed:
+                    self.session = refreshed
+
+            except Exception as e:
+                logger.error(f"Action sequence step {step_num} failed: {e}", exc_info=True)
+                results.append({
+                    "step": step_num,
+                    "intent": intent.type.value,
+                    "success": False,
+                    "summary": f"Step {step_num} failed: {str(e)[:60]}",
+                })
+                break
+
+        return MessageBuilder.action_sequence_summary(results)
+
+    async def _execute_action_sequence(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a stored action sequence after user confirmation.
+        Called from ``_handle_confirm`` when ``pending_action.type == "action_sequence"``.
+        """
+        raw_intents = action_data.get("intents", [])
+        intents: List[Intent] = []
+        for raw in raw_intents:
+            try:
+                intent_type = IntentType(raw.get("type", "unknown"))
+            except ValueError:
+                intent_type = IntentType.UNKNOWN
+            intents.append(Intent(
+                type=intent_type,
+                buyer_reference=raw.get("buyer_reference"),
+                buyer_id=raw.get("buyer_id"),
+                params=raw.get("params", {}),
+                raw_text=raw.get("raw_text", ""),
+                confidence=raw.get("confidence", 1.0),
+            ))
+
+        if not intents:
+            return MessageBuilder.error("No actions to execute.")
+
+        return await self.handle_action_sequence(intents)
+
     # =========================================================================
     # Helper Methods
     # =========================================================================

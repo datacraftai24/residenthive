@@ -71,6 +71,14 @@ class Intent:
     confidence: float = 1.0
 
 
+@dataclass
+class ActionStep:
+    """A single step in a multi-action sequence"""
+    intent: Intent
+    step_number: int
+    depends_on_previous: bool = True
+
+
 class IntentParser:
     """
     Parse WhatsApp messages into structured intents.
@@ -392,6 +400,183 @@ Return only the JSON object, no other text."""
         except Exception as e:
             logger.error(f"LLM intent parsing failed: {e}")
             return Intent(type=IntentType.UNKNOWN, raw_text=message, confidence=0.0)
+
+    def parse_multi(
+        self,
+        message: str,
+        input_type: str,
+        session_state: str,
+        active_buyer: Optional[Dict[str, Any]] = None,
+        buyers: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Intent]:
+        """
+        Parse a message into one or more intents for multi-action chaining.
+
+        For button/list replies and simple pattern-matched commands, returns a
+        single-element list (same as ``parse()``).  For natural-language text
+        that may contain multiple actions, uses the LLM to extract an ordered
+        sequence of intents.
+
+        Args:
+            message: User's message text
+            input_type: "text", "button", or "list"
+            session_state: Current session state
+            active_buyer: Currently selected buyer (if any)
+            buyers: List of all agent's buyers (for name matching)
+
+        Returns:
+            Ordered list of Intent objects (always at least one element)
+        """
+        message = message.strip()
+
+        # Interactive replies are always single-action
+        if input_type in ("button", "list"):
+            return [self._parse_interactive_reply(message)]
+
+        # Pattern-matched commands are single-action
+        pattern_intent = self._parse_patterns(message, session_state, active_buyer)
+        if pattern_intent.type != IntentType.UNKNOWN:
+            return [pattern_intent]
+
+        # Buyer-code shortcuts are single-action
+        code_match = re.match(r'^([A-Za-z]{2}\d+)\s*(.*)?$', message)
+        if code_match:
+            code = code_match.group(1).upper()
+            rest = code_match.group(2) or ""
+            if rest.strip():
+                shortcut_intent = self._parse_shortcut(code, rest.strip())
+                if shortcut_intent:
+                    return [shortcut_intent]
+            return [Intent(
+                type=IntentType.SELECT_BUYER,
+                buyer_reference=code,
+                raw_text=message,
+            )]
+
+        # Use LLM for multi-intent extraction
+        if self.client:
+            return self._parse_multi_with_llm(message, session_state, active_buyer, buyers)
+
+        return [Intent(type=IntentType.UNKNOWN, raw_text=message)]
+
+    def _parse_multi_with_llm(
+        self,
+        message: str,
+        session_state: str,
+        active_buyer: Optional[Dict[str, Any]],
+        buyers: Optional[List[Dict[str, Any]]]
+    ) -> List[Intent]:
+        """Use OpenAI to extract an ordered list of intents from natural language."""
+
+        context_parts = [f"Session state: {session_state}"]
+
+        if active_buyer:
+            context_parts.append(
+                f"Currently focused on: {active_buyer.get('name')} ({active_buyer.get('whatsapp_code')})"
+            )
+
+        if buyers:
+            buyer_list = ", ".join([
+                f"{b.get('name')} ({b.get('whatsapp_code')})"
+                for b in buyers[:10]
+            ])
+            context_parts.append(f"Available buyers: {buyer_list}")
+
+        context = "\n".join(context_parts)
+
+        valid_intents = (
+            "view_buyers, select_buyer, view_profile, search, generate_report, "
+            "send_report, create_buyer, edit_buyer, exit_context, help, confirm, "
+            "cancel, greeting, unknown"
+        )
+
+        prompt = f"""You are parsing a WhatsApp message from a real estate agent managing buyer profiles.
+The message may contain ONE or MULTIPLE actions. Extract ALL actions in the correct execution order.
+
+Context:
+{context}
+
+User message: "{message}"
+
+Return a JSON object with:
+- "actions": an array of action objects **in execution order**. Each object has:
+  - "intent": one of [{valid_intents}]
+  - "buyer_reference": buyer name or code if mentioned (e.g. "SC1" or "Sarah"), else null
+  - "edit_text": if intent is edit_buyer, the natural language change request, else omit
+- "confidence": 0.0-1.0 overall confidence
+
+IMPORTANT RULES:
+- If the message contains only one action, return a single-element array.
+- Expand implicit steps. For example "send Sarah a report" requires:
+  select_buyer (Sarah) -> search -> generate_report -> send_report
+- If a buyer is already focused (see context), do NOT add a redundant select_buyer step.
+- The buyer_reference only needs to appear on the FIRST action that references that buyer.
+
+Examples:
+- "search for Sarah and send her the report"
+  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "Sarah"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}, {{"intent": "send_report"}}], "confidence": 0.9}}
+- "show me all buyers"
+  -> {{"actions": [{{"intent": "view_buyers"}}], "confidence": 0.95}}
+- "run a search for SC1 and generate a report"
+  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "SC1"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}], "confidence": 0.9}}
+- "she wants a bigger budget" (with active buyer)
+  -> {{"actions": [{{"intent": "edit_buyer", "edit_text": "increase budget"}}], "confidence": 0.8}}
+- "search and then email the report to Mike"
+  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "Mike"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}, {{"intent": "send_report"}}], "confidence": 0.85}}
+
+Return only the JSON object, no other text."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=INTENT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=500,
+            )
+
+            content = response.choices[0].message.content.strip()
+
+            if content.startswith("```"):
+                content = content.split("```")[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.strip()
+
+            result = json.loads(content)
+            actions_raw = result.get("actions", [])
+            overall_confidence = result.get("confidence", 0.5)
+
+            if not actions_raw:
+                return [Intent(type=IntentType.UNKNOWN, raw_text=message, confidence=0.0)]
+
+            intents: List[Intent] = []
+            for action in actions_raw:
+                intent_str = action.get("intent", "unknown")
+                try:
+                    intent_type = IntentType(intent_str)
+                except ValueError:
+                    intent_type = IntentType.UNKNOWN
+
+                params: Dict[str, Any] = {}
+                if action.get("edit_text"):
+                    params["edit_text"] = action["edit_text"]
+
+                intents.append(Intent(
+                    type=intent_type,
+                    buyer_reference=action.get("buyer_reference"),
+                    params=params,
+                    raw_text=message,
+                    confidence=overall_confidence,
+                ))
+
+            return intents if intents else [Intent(type=IntentType.UNKNOWN, raw_text=message)]
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse multi-intent LLM response as JSON: {e}")
+            return [self._parse_with_llm(message, session_state, active_buyer, buyers)]
+        except Exception as e:
+            logger.error(f"Multi-intent LLM parsing failed: {e}")
+            return [self._parse_with_llm(message, session_state, active_buyer, buyers)]
 
 
 def resolve_buyer_from_intent(
