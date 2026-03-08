@@ -537,7 +537,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: ALL cities/neighborhoods mentioned, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). Correct MA city spelling errors.
+- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). If they say "relocating from X to Y", extract Y (the destination), NOT X (where they're coming from). Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -615,7 +615,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: ALL cities/neighborhoods mentioned, comma-separated. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
+- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated. If they say "relocating from X to Y", extract Y (the destination), NOT X. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -1605,6 +1605,9 @@ async def generate_lead_outreach(
         "property_bedrooms": lead_row.get("property_bedrooms"),
         "property_bathrooms": lead_row.get("property_bathrooms"),
         "extracted_location": lead_row.get("extracted_location"),
+        "extracted_budget_min": lead_row.get("extracted_budget_min"),
+        "extracted_budget_max": lead_row.get("extracted_budget_max"),
+        "property_raw": lead_row.get("property_raw"),
     }
     profile_data = _load_profile(profile_id)
 

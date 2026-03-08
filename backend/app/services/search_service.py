@@ -135,15 +135,48 @@ class SearchService:
             listings = self.repliers.get_similar_listings(mls_number)
 
             # Build reference property from lead data for context
+            ref_price = lead.get("property_list_price")
             reference = {
                 "mls_number": mls_number,
                 "address": lead.get("property_address"),
-                "list_price": lead.get("property_list_price"),
+                "list_price": ref_price,
                 "bedrooms": lead.get("property_bedrooms"),
                 "bathrooms": lead.get("property_bathrooms"),
             }
 
-            logger.info(f"[SEARCH_SERVICE] Similar search returned {len(listings)} listings")
+            logger.info(f"[SEARCH_SERVICE] Similar search returned {len(listings)} listings (before budget filter)")
+
+            # Post-filter by budget: Similar API doesn't filter by price.
+            # Use lead's extracted budget if available, otherwise ±50% of reference price.
+            budget_min = lead.get("extracted_budget_min")
+            budget_max = lead.get("extracted_budget_max")
+            if not budget_min and not budget_max and ref_price:
+                try:
+                    price_f = float(ref_price)
+                    budget_min = int(price_f * 0.5)
+                    budget_max = int(price_f * 1.5)
+                except (ValueError, TypeError):
+                    pass
+
+            if budget_min or budget_max:
+                filtered = []
+                for l in listings:
+                    lp = l.get("listPrice") or l.get("list_price")
+                    if lp is None:
+                        filtered.append(l)  # keep listings without price data
+                        continue
+                    try:
+                        lp_val = float(lp)
+                    except (ValueError, TypeError):
+                        filtered.append(l)
+                        continue
+                    if budget_min and lp_val < float(budget_min):
+                        continue
+                    if budget_max and lp_val > float(budget_max):
+                        continue
+                    filtered.append(l)
+                logger.info(f"[SEARCH_SERVICE] Budget filter: {len(listings)} -> {len(filtered)} (${budget_min}-${budget_max})")
+                listings = filtered
 
             return SearchResult(
                 listings=listings,
@@ -155,10 +188,35 @@ class SearchService:
 
         except RepliersError as e:
             logger.warning(f"[SEARCH_SERVICE] Similar listings API failed: {e}")
-            logger.info(f"[SEARCH_SERVICE] Falling back to criteria search")
 
-            # Fall back to criteria search using property data as profile
+            # Try geo-radius fallback first if we have coordinates
             fallback_profile = self._build_profile_from_lead(lead)
+            property_raw = lead.get("property_raw")
+            if isinstance(property_raw, str):
+                try:
+                    import json
+                    property_raw = json.loads(property_raw)
+                except Exception:
+                    property_raw = None
+
+            lat = None
+            lng = None
+            if isinstance(property_raw, dict):
+                # Coordinates from Repliers: map.latitude/longitude or address.latitude/longitude
+                map_obj = property_raw.get("map") or {}
+                lat = map_obj.get("latitude") or (property_raw.get("address") or {}).get("latitude")
+                lng = map_obj.get("longitude") or (property_raw.get("address") or {}).get("longitude")
+
+            if lat and lng:
+                logger.info(f"[SEARCH_SERVICE] Falling back to geo-radius search at ({lat}, {lng})")
+                fallback_profile["lat"] = lat
+                fallback_profile["long"] = lng
+                fallback_profile["radius"] = 15  # 15km radius around reference property
+                # Remove city filter since we're using coordinates
+                fallback_profile.pop("location", None)
+            else:
+                logger.info(f"[SEARCH_SERVICE] Falling back to criteria search (no coordinates available)")
+
             return self._search_criteria(fallback_profile, lead)
 
     def _search_criteria(self, profile: dict, lead: dict = None) -> SearchResult:
@@ -227,6 +285,12 @@ class SearchService:
         budget_max = profile.get("budgetMax") or profile.get("budget_max")
         bedrooms = profile.get("bedrooms")
 
+        # Extract state from location string (e.g., "Newton, MA" → "MA")
+        if location and not enhanced.get("state"):
+            state = self._extract_state_from_address(location)
+            if state:
+                enhanced["state"] = state
+
         # Get regional config for inference
         regional = get_regional_config(location) if location else get_regional_config("")
 
@@ -276,13 +340,29 @@ class SearchService:
         address = lead.get("property_address")
         price_float = float(price) if price else None
 
-        return {
+        profile = {
             "location": lead.get("extracted_location") or self._extract_city_from_address(address),
             "budgetMin": int(price_float * 0.8) if price_float else None,
             "budgetMax": int(price_float * 1.2) if price_float else None,
             "bedrooms": lead.get("property_bedrooms"),
             "bathrooms": lead.get("property_bathrooms"),
         }
+        # Extract state from address (e.g., "123 Main St, Newton, MA 01609")
+        state = self._extract_state_from_address(address)
+        if state:
+            profile["state"] = state
+        return profile
+
+    def _extract_state_from_address(self, address: str) -> Optional[str]:
+        """Extract 2-letter state code from address like '123 Main St, Newton, MA 01609'."""
+        if not address:
+            return None
+        import re
+        # Match 2-letter state code (optionally followed by zip)
+        match = re.search(r'\b([A-Z]{2})\b(?:\s+\d{5})?', address)
+        if match:
+            return match.group(1)
+        return None
 
     def _extract_city_from_address(self, address: str) -> Optional[str]:
         """
