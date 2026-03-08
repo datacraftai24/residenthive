@@ -161,7 +161,7 @@ class SearchService:
             if budget_min or budget_max:
                 filtered = []
                 for l in listings:
-                    lp = l.get("listPrice") or l.get("list_price")
+                    lp = l.get("price") or l.get("listPrice") or l.get("list_price")
                     if lp is None:
                         filtered.append(l)  # keep listings without price data
                         continue
