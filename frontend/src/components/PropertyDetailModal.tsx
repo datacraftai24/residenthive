@@ -355,18 +355,20 @@ export function PropertyDetailModal({
                 {/* Photo Matches - Requirements visible in photos */}
                 {aiAnalysis?.photo_matches && aiAnalysis.photo_matches.length > 0 && (
                   <div className="mt-3 space-y-2">
-                    {aiAnalysis.photo_matches.map((item, i) => (
+                    {aiAnalysis.photo_matches.map((item, i) => {
+                      const isVisible = item.visible || item.status === "present";
+                      return (
                       <div key={`photo-match-${i}`} className="flex items-start gap-2">
-                        {item.visible ? (
+                        {isVisible ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                         ) : (
                           <Info className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                         )}
                         <div>
-                          <span className={item.visible ? "text-gray-900" : "text-gray-500"}>
+                          <span className={isVisible ? "text-gray-900" : "text-gray-500"}>
                             {item.requirement}
                           </span>
-                          {!item.visible && (
+                          {!isVisible && (
                             <span className="text-xs text-gray-400 ml-1">(not visible in photos)</span>
                           )}
                           {item.notes && (
@@ -374,7 +376,8 @@ export function PropertyDetailModal({
                           )}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
 
