@@ -708,7 +708,7 @@ def compute_category_winners(
 # RICH COMPARISON TABLE (New - for visual comparison)
 # =============================================================================
 
-def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, Any]]) -> Dict[str, Any]:
+def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, Any]], is_lead_report: bool = False) -> Dict[str, Any]:
     """
     Generate rich comparison data with actual values, not just pass/fail flags.
 
@@ -736,7 +736,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
         except (ValueError, TypeError):
             return default
 
-    # 1. Match Score (always show)
+    # 1. Match Score (skip for lead reports which have no real scoring)
     # fitScore can be decimal (0.9 = 90%) or already percentage (90 = 90%)
     def normalize_score(score):
         """Normalize fitScore to percentage value (0-100)"""
@@ -746,21 +746,22 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             return score  # Already a percentage (e.g., 90)
         return score * 100  # Decimal, convert to percentage (e.g., 0.9 → 90)
 
-    rows.append({
-        "id": "match_score",
-        "label": "Match Score",
-        "icon": "trophy",
-        "type": "percentage",
-        "values": {
-            l.get("mlsNumber"): {
-                "value": normalize_score(safe_float(l.get("fitScore", l.get("finalScore", 0)))),
-                "display": f"{int(normalize_score(safe_float(l.get('fitScore', l.get('finalScore', 0)))))}%",
-                "is_best": False
-            }
-            for l in listings
-        },
-        "best_is": "highest"
-    })
+    if not is_lead_report:
+        rows.append({
+            "id": "match_score",
+            "label": "Match Score",
+            "icon": "trophy",
+            "type": "percentage",
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": normalize_score(safe_float(l.get("fitScore", l.get("finalScore", 0)))),
+                    "display": f"{int(normalize_score(safe_float(l.get('fitScore', l.get('finalScore', 0)))))}%",
+                    "is_best": False
+                }
+                for l in listings
+            },
+            "best_is": "highest"
+        })
 
     # 2. Price (always show)
     budget_max = safe_float(profile.get("budgetMax"), 0)
@@ -987,7 +988,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
                 "city": l.get("city"),
                 "image": (l.get("images") or [None])[0] if l.get("images") else None,
                 "rank": idx + 1,
-                "label": _get_rank_label(idx)
+                "label": _get_rank_label_lead(idx) if is_lead_report else _get_rank_label(idx)
             }
             for idx, l in enumerate(listings)
         ]
@@ -1086,3 +1087,8 @@ def _get_rank_label(idx: int) -> str:
     """Get display label for rank position."""
     labels = ["TOP PICK", "ALTERNATIVE", "OPTION", "OPTION"]
     return labels[idx] if idx < len(labels) else "OPTION"
+
+
+def _get_rank_label_lead(idx: int) -> str:
+    """Get neutral numeric label for lead report rank position."""
+    return f"#{idx + 1}"

@@ -368,7 +368,8 @@ Return JSON only, no extra commentary.
         synthesis["category_winners"] = category_winners
 
         # Add rich comparison data for enhanced comparison table
-        rich_comparison = compute_rich_comparison(profile, listings)
+        is_lead = lead_context is not None
+        rich_comparison = compute_rich_comparison(profile, listings, is_lead_report=is_lead)
         synthesis["rich_comparison"] = rich_comparison
 
         # Include lead_context in synthesis for frontend rendering
@@ -384,15 +385,16 @@ Return JSON only, no extra commentary.
     except json.JSONDecodeError as e:
         print(f"[REPORT SYNTHESIS] JSON parse error: {e}")
         # Fallback to simple ranking
-        return _generate_fallback_synthesis(listings, profile)
+        return _generate_fallback_synthesis(listings, profile, lead_context=lead_context)
     except Exception as e:
         print(f"[REPORT SYNTHESIS] Error: {e}")
-        return _generate_fallback_synthesis(listings, profile)
+        return _generate_fallback_synthesis(listings, profile, lead_context=lead_context)
 
 
 def _generate_fallback_synthesis(
     listings: List[Dict[str, Any]],
-    profile: Dict[str, Any] = None
+    profile: Dict[str, Any] = None,
+    lead_context: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """Fallback synthesis if LLM fails."""
     # Sort by fitScore (if available)
@@ -429,6 +431,7 @@ def _generate_fallback_synthesis(
             ranked_picks=synthesis.get("ranked_picks", [])
         )
         # Add rich comparison data
-        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings)
+        is_lead = lead_context is not None
+        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings, is_lead_report=is_lead)
 
     return synthesis
