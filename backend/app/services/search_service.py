@@ -147,14 +147,15 @@ class SearchService:
             logger.info(f"[SEARCH_SERVICE] Similar search returned {len(listings)} listings (before budget filter)")
 
             # Post-filter by budget: Similar API doesn't filter by price.
-            # Use lead's extracted budget if available, otherwise ±50% of reference price.
-            budget_min = lead.get("extracted_budget_min")
-            budget_max = lead.get("extracted_budget_max")
-            if not budget_min and not budget_max and ref_price:
+            # Always use ±30% of reference price for similar listings.
+            # The LLM-extracted budget is often too narrow and filters out good matches.
+            budget_min = None
+            budget_max = None
+            if ref_price:
                 try:
                     price_f = float(ref_price)
-                    budget_min = int(price_f * 0.5)
-                    budget_max = int(price_f * 1.5)
+                    budget_min = int(price_f * 0.7)
+                    budget_max = int(price_f * 1.3)
                 except (ValueError, TypeError):
                     pass
 
