@@ -296,6 +296,7 @@ def get_profile_lead(profile_id: int, agent_id: int = Depends(get_current_agent_
             return {
                 "hasLead": True,
                 "createdByMethod": created_by_method,
+                "status": lead_row["status"],
                 "lead": lead_data
             }
 
