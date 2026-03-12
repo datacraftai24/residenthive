@@ -11,6 +11,7 @@ import TopAgentsChart from "@/components/admin-analytics/TopAgentsChart";
 import LeadFunnelChart from "@/components/admin-analytics/LeadFunnelChart";
 import ApiPerformanceChart from "@/components/admin-analytics/ApiPerformanceChart";
 import AgentDetailPanel from "@/components/admin-analytics/AgentDetailPanel";
+import PilotMetricsPanel from "@/components/admin-analytics/PilotMetricsPanel";
 
 async function authFetch(url: string) {
   const token = await window.Clerk?.session?.getToken();
@@ -55,6 +56,11 @@ export default function AdminAnalytics() {
     queryKey: ["/api/admin/analytics/api-performance", { days: Math.min(days, 30) }],
     queryFn: () =>
       authFetch(`/api/admin/analytics/api-performance?days=${Math.min(days, 30)}`),
+  });
+
+  const pilotMetrics = useQuery({
+    queryKey: ["/api/admin/analytics/pilot-metrics", { days }],
+    queryFn: () => authFetch(`/api/admin/analytics/pilot-metrics?days=${days}`),
   });
 
   const agentsList = useQuery({
@@ -136,6 +142,17 @@ export default function AdminAnalytics() {
             icon={FileText}
             iconColor="text-amber-600"
           />
+        </div>
+
+        {/* Pilot KPIs */}
+        <div className="bg-white rounded-lg border border-slate-200 p-5">
+          {pilotMetrics.isLoading ? (
+            <div className="h-32 flex items-center justify-center text-slate-400 text-sm">
+              Loading pilot metrics...
+            </div>
+          ) : pilotMetrics.data ? (
+            <PilotMetricsPanel data={pilotMetrics.data} />
+          ) : null}
         </div>
 
         {/* Charts Row 1 */}

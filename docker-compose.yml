@@ -69,6 +69,7 @@ services:
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
         VITE_BACKEND_URL: http://localhost:8001
         VITE_CHATBOT_URL: http://localhost:8010
+        VITE_ADMIN_EMAILS: info@datacraftai.com
     container_name: residenthive-frontend
     environment:
       VITE_BACKEND_URL: http://backend:8000
