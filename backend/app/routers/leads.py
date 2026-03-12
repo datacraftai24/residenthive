@@ -538,7 +538,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: ALL cities/neighborhoods mentioned, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). Correct MA city spelling errors.
+- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). If they say "relocating from X to Y", extract Y (the destination), NOT X (where they're coming from). Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -616,7 +616,7 @@ EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: ALL cities/neighborhoods mentioned, comma-separated. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
+- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated. If they say "relocating from X to Y", extract Y (the destination), NOT X. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -1608,6 +1608,9 @@ async def generate_lead_outreach(
         "property_bedrooms": lead_row.get("property_bedrooms"),
         "property_bathrooms": lead_row.get("property_bathrooms"),
         "extracted_location": lead_row.get("extracted_location"),
+        "extracted_budget_min": lead_row.get("extracted_budget_min"),
+        "extracted_budget_max": lead_row.get("extracted_budget_max"),
+        "property_raw": lead_row.get("property_raw"),
     }
     profile_data = _load_profile(profile_id)
 
@@ -1659,11 +1662,59 @@ async def generate_lead_outreach(
     # Note: We'll run vision analysis AFTER selecting top 5 to save time
     # First, build the listing structure and select top 5
 
+    # Build reference property listing from lead's property_raw (the property they inquired about)
+    ref_property_raw = _parse_json_field(lead_row.get("property_raw"))
+    ref_listing_id = lead_row.get("property_listing_id")
+    ref_listing = None
+    if ref_property_raw and ref_listing_id:
+        # Description and yearBuilt are nested in _raw.listing.details (not top-level)
+        raw_details = ((ref_property_raw.get("_raw") or {}).get("listing") or {}).get("details") or {}
+        ref_listing = {
+            "mlsNumber": ref_listing_id,
+            "address": ref_property_raw.get("address"),
+            "city": ref_property_raw.get("city"),
+            "state": ref_property_raw.get("state"),
+            "zip": ref_property_raw.get("zipCode"),
+            "listPrice": ref_property_raw.get("listPrice"),
+            "bedrooms": ref_property_raw.get("bedrooms"),
+            "bathrooms": ref_property_raw.get("bathrooms"),
+            "sqft": ref_property_raw.get("sqft"),
+            "propertyType": ref_property_raw.get("propertyType"),
+            "status": ref_property_raw.get("status"),
+            "images": ref_property_raw.get("images", []),
+            "photoCount": len(ref_property_raw.get("images", [])),
+            "description": ref_property_raw.get("description") or raw_details.get("description"),
+            "yearBuilt": ref_property_raw.get("yearBuilt") or raw_details.get("yearBuilt"),
+            "daysOnMarket": ref_property_raw.get("daysOnMarket") or raw_details.get("daysOnMarket"),
+            "matchLabel": "Property of Interest",
+            "leadAnalysis": None,
+            "aiAnalysis": None,
+            "pricePerSqft": None,
+            "fitScore": None,
+            "finalScore": None,
+        }
+        # Add raw data to all_picks so vision analysis lookup can find it.
+        # Inject normalized fields the LeadPropertyAnalyzer expects (snake_case).
+        ref_property_raw["mls_number"] = ref_listing_id
+        ref_property_raw["price"] = ref_property_raw.get("listPrice")
+        ref_property_raw["square_feet"] = ref_property_raw.get("sqft")
+        ref_property_raw["year_built"] = ref_listing.get("yearBuilt")
+        ref_property_raw["description"] = ref_listing.get("description")
+        ref_property_raw["days_on_market"] = ref_listing.get("daysOnMarket")
+        ref_property_raw["property_type"] = ref_property_raw.get("propertyType")
+        all_picks.append(ref_property_raw)
+        logger.info(f"[OUTREACH] Including reference property {ref_listing_id} in report")
+
     # 5. Generate buyer report with top 5
     # Map listings to agent listing format
     # For SearchService results (raw listings), we convert them directly
     ai_listings = []
     for listing in all_picks:
+        # Skip reference property - it's added separately as ref_listing (line 1762)
+        # to avoid a duplicate entry that overwrites the analyzed version
+        listing_mls = listing.get("mls_number") or listing.get("mlsNumber") or listing.get("id")
+        if ref_listing_id and listing_mls == ref_listing_id:
+            continue
         # Handle both normalized listings (from SearchService) and scored listings (legacy)
         if "listing" in listing:
             # Legacy format from listings_search() - extract nested listing
@@ -1718,18 +1769,28 @@ async def generate_lead_outreach(
                 "leadAnalysis": None,
                 "aiAnalysis": None,
                 "pricePerSqft": listing.get("price_per_sqft"),
-                # For similar listings, use price as score proxy (higher price = more similar budget)
-                "fitScore": 80,  # Default for similar listings
-                "finalScore": 80,  # Default for similar listings
+                # Lead reports don't have real scoring - scores left as None
+                "fitScore": None,
+                "finalScore": None,
             })
 
-    # Select top 5 by finalScore
-    sorted_listings = sorted(
-        [l for l in ai_listings if l.get('finalScore') is not None],
-        key=lambda x: x.get('finalScore', 0),
-        reverse=True
+    # Add reference property to ai_listings so it's included in search context
+    if ref_listing:
+        ai_listings.insert(0, ref_listing)
+
+    # Select top 5 by price proximity to reference property
+    # Reference property is always #1, then top 4 similar listings
+    ref_price = float(lead_row.get("property_list_price") or 0)
+    ref_mls = ref_listing["mlsNumber"] if ref_listing else None
+    similar_only = [l for l in ai_listings if l["mlsNumber"] != ref_mls]
+    sorted_similar = sorted(
+        similar_only,
+        key=lambda x: abs((x.get("listPrice") or 0) - ref_price)
     )
-    top_5_listings = sorted_listings[:5]
+    if ref_listing:
+        top_5_listings = [ref_listing] + sorted_similar[:4]
+    else:
+        top_5_listings = sorted_similar[:5]
     top_5_ids = [l['mlsNumber'] for l in top_5_listings]
 
     if len(top_5_listings) == 0:
@@ -1804,8 +1865,6 @@ async def generate_lead_outreach(
             "sqft": listing.get("sqft"),
             "propertyType": listing.get("propertyType"),
             "images": listing.get("images", [])[:10],
-            "finalScore": listing.get("finalScore"),
-            "fitScore": listing.get("fitScore"),
             "aiAnalysis": listing.get("aiAnalysis", {}),
             # Include original lead analysis for rich frontend rendering
             "leadAnalysis": listing.get("leadAnalysis"),

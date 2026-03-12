@@ -101,6 +101,15 @@ class RepliersClient:
             cities = parse_multi_city_location(profile["location"])
             if cities:
                 q["_cities"] = cities  # Special key, handled in search()
+        # State - prevents cross-state false matches (e.g., Newton MA vs Newton NJ)
+        if profile.get("state"):
+            q["state"] = profile["state"]
+        # Geo-radius search - lat/long/radius (used for nearby property search)
+        if profile.get("lat") and profile.get("long"):
+            q["lat"] = str(profile["lat"])
+            q["long"] = str(profile["long"])
+            if profile.get("radius"):
+                q["radius"] = int(profile["radius"])
         # Note: preferredAreas is NOT used for Repliers search - only location field matters
         return q
 
@@ -555,8 +564,12 @@ class RepliersClient:
             data = r.json()
             print(f"[REPLIERS] Similar listings response keys: {list(data.keys()) if isinstance(data, dict) else 'list'}")
 
-        # Handle response - may be {"listings": [...]} or just [...]
-        items = data.get("listings", data) if isinstance(data, dict) else data
+        # Handle response - API returns {"similar": [...]} for similar endpoint
+        # Also handle {"listings": [...]} or just [...] as fallbacks
+        if isinstance(data, dict):
+            items = data.get("similar", data.get("listings", data))
+        else:
+            items = data
         if not isinstance(items, list):
             raise RepliersError("Unexpected similar listings response shape")
 

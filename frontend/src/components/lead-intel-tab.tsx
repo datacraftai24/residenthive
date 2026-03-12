@@ -53,8 +53,12 @@ import {
   Shield,
   Car,
   AlertTriangle,
+  UserCheck,
+  ListChecks,
+  StickyNote,
 } from "lucide-react";
 import TaskQueue from "./task-queue";
+import { checkHintsCompliance, hasAnyFHAFlags, generateEmailComplianceNote } from "@/lib/fha-compliance";
 
 // ============================================================================
 // TYPES
@@ -181,6 +185,7 @@ interface BuyerInsightsResponse {
 
 interface LeadIntelTabProps {
   profileId: number;
+  onLeadConverted?: () => void;
 }
 
 // New types for email drafts and engagement
@@ -223,13 +228,23 @@ interface LeadQuadrant {
 
 // Property analysis data from backend (for hidden gems, market position)
 interface PropertyAnalysis {
+  headline?: string;
+  agentSummary?: string;
   hiddenGems?: string[];
+  highlightsWithEvidence?: Array<{
+    feature: string;
+    evidence: string;
+    why_notable: string;
+  }>;
   redFlags?: string[];
   whatsMatching?: string[];
   marketPosition?: {
     daysOnMarket?: number;
     priceCutsCount?: number;
     totalPriceReduction?: number;
+    priceAssessment?: string;
+    daysOnMarketInsight?: string;
+    valueIndicators?: string[];
   };
 }
 
@@ -498,8 +513,14 @@ function classifyLeadQuadrant(intentScore: number, engagementScore: number): Lea
 }
 
 /**
- * Generate quadrant-aware email draft using all available data
- * Different quadrants get different tones and content strategies:
+ * Generate quadrant-aware email draft using property analysis data.
+ *
+ * When propertyAnalysis is available (report already generated), the email
+ * uses evidence-backed highlights, market position data, and the agent summary
+ * to demonstrate value. When unavailable, falls back to a professional generic
+ * template without echoing the lead's own hints back to them.
+ *
+ * Quadrant tones:
  * - HOT: Direct, action-oriented, schedule showing
  * - READY: Warm, inviting, create urgency
  * - RESEARCHING: Educational, value-first, answer questions
@@ -511,12 +532,14 @@ function generateFullEmailDraft(
   chatInsights: ChatInsights | null,
   buyerInsights: BuyerInsightsResponse | null,
   quadrant?: LeadQuadrant,
-  propertyAnalysis?: PropertyAnalysis
+  propertyAnalysis?: PropertyAnalysis,
+  reportUrl?: string | null
 ): EmailDraft {
   const name = lead.extractedName || "there";
   const firstName = name.split(" ")[0];
   const address = lead.propertyAddress;
   const topics = extractTopicsFromQuestions(chatInsights?.topQuestions);
+  const hasAnalysis = !!propertyAnalysis;
 
   // Get the quadrant type for customization
   const quadrantType = quadrant?.quadrant || "COLD";
@@ -525,14 +548,13 @@ function generateFullEmailDraft(
   let subject = "Following up on your property inquiry";
 
   if (quadrantType === "RESEARCHING" && topics.length > 0) {
-    // Reference their specific concern in subject
     const mainTopic = topics[0];
     if (mainTopic.topic === "commute" && address) {
       subject = `Commute times from ${address} + a few things I noticed`;
     } else if (mainTopic.topic === "schools" && address) {
       subject = `School info for ${address} + neighborhood details`;
     } else if (mainTopic.topic === "safety" && address) {
-      subject = `Neighborhood safety report for ${address}`;
+      subject = `Neighborhood details for ${address}`;
     } else if (address) {
       subject = `Some details I researched about ${address}`;
     }
@@ -547,35 +569,51 @@ function generateFullEmailDraft(
   // Build greeting
   const greeting = `Hi ${firstName},`;
 
+  // Helper: format evidence-backed highlights as bullet points
+  const formatHighlights = (count: number): string[] => {
+    if (!propertyAnalysis?.highlightsWithEvidence?.length) return [];
+    return propertyAnalysis.highlightsWithEvidence
+      .slice(0, count)
+      .map(h => `${h.feature} — ${h.evidence}`);
+  };
+
+  // Helper: build market context paragraph from analysis
+  const buildMarketContext = (): string | null => {
+    if (!propertyAnalysis?.marketPosition) return null;
+    const mp = propertyAnalysis.marketPosition;
+    const parts: string[] = [];
+    if (mp.priceAssessment) {
+      parts.push(mp.priceAssessment);
+    }
+    if (mp.priceCutsCount && mp.priceCutsCount > 0) {
+      const reduction = mp.totalPriceReduction;
+      const reductionText = reduction ? ` ($${Math.round(reduction / 1000)}K total)` : "";
+      parts.push(`The price has been reduced ${mp.priceCutsCount} time${mp.priceCutsCount > 1 ? "s" : ""}${reductionText}.`);
+    }
+    if (mp.daysOnMarketInsight) {
+      parts.push(mp.daysOnMarketInsight);
+    }
+    return parts.length > 0 ? parts.join(" ") : null;
+  };
+
   // Build body paragraphs based on quadrant
   const bodyParts: string[] = [];
 
   // === HOT LEAD EMAIL: Direct, action-oriented ===
   if (quadrantType === "HOT") {
-    if (address) {
+    // Opening with headline or direct hook
+    if (propertyAnalysis?.headline && address) {
+      bodyParts.push(`I've been researching ${address} and wanted to share what I found:\n\n${propertyAnalysis.headline}`);
+    } else if (address) {
       bodyParts.push(`I can tell you're serious about ${address} - and I don't blame you. Here's why I think it deserves a closer look:`);
     } else {
       bodyParts.push("I can tell you're serious about finding the right home. Here's what I've put together:");
     }
 
-    // Add property strengths as checkmarks
-    const strengths: string[] = [];
-    if (propertyAnalysis?.hiddenGems && propertyAnalysis.hiddenGems.length > 0) {
-      strengths.push(...propertyAnalysis.hiddenGems.slice(0, 2));
-    }
-    if (buyerInsights?.hasData && buyerInsights.report.mustHaves.length > 0) {
-      const confirmed = buyerInsights.report.mustHaves
-        .filter(m => m.confidence === "Confirmed")
-        .slice(0, 1);
-      if (confirmed.length > 0) {
-        strengths.push(`${confirmed[0].item} (your must-have)`);
-      }
-    }
-
-    // Add commute info if they asked about it
-    const commuteTopic = topics.find(t => t.topic === "commute");
-    if (commuteTopic) {
-      strengths.push("Convenient commute (details below)");
+    // Evidence-backed highlights
+    const highlights = formatHighlights(3);
+    if (highlights.length > 0) {
+      bodyParts.push(highlights.map(s => `✓ ${s}`).join("\n"));
     }
 
     // Budget fit
@@ -584,63 +622,83 @@ function generateFullEmailDraft(
     if (budget && propertyPrice && propertyPrice <= budget) {
       const budgetK = Math.round(budget / 1000);
       const priceK = Math.round(propertyPrice / 1000);
-      strengths.push(`$${priceK}K = right at your $${budgetK}K budget with no stretch`);
+      bodyParts.push(`At $${priceK}K, this is right at your $${budgetK}K budget with no stretch.`);
     }
 
-    if (strengths.length > 0) {
-      bodyParts.push(strengths.map(s => `✓ ${s}`).join("\n"));
+    // Market context with negotiation leverage
+    const marketContext = buildMarketContext();
+    if (marketContext) {
+      bodyParts.push(marketContext);
     }
 
-    // Negotiation leverage
-    if (propertyAnalysis?.marketPosition?.priceCutsCount && propertyAnalysis.marketPosition.priceCutsCount > 0) {
-      bodyParts.push(`The seller has already reduced the price ${propertyAnalysis.marketPosition.priceCutsCount} time${propertyAnalysis.marketPosition.priceCutsCount > 1 ? "s" : ""}. That tells me there's room to negotiate if we move quickly.`);
+    // Agent summary as value paragraph
+    if (propertyAnalysis?.agentSummary) {
+      bodyParts.push(propertyAnalysis.agentSummary);
+    }
+
+    // Timeline urgency
+    if (lead.extractedTimeline) {
+      bodyParts.push(`I know you're looking to move ${lead.extractedTimeline} - happy to prioritize getting you in quickly.`);
     }
 
   // === RESEARCHING LEAD EMAIL: Educational, value-first ===
   } else if (quadrantType === "RESEARCHING") {
-    // Open by addressing their specific question
-    if (topics.length > 0) {
+    // Opening — address their question topic, then pivot to analysis
+    if (hasAnalysis && address) {
+      bodyParts.push(`I've been researching ${address} and wanted to share a few things I found:`);
+    } else if (topics.length > 0) {
       const mainTopic = topics[0];
       if (mainTopic.topic === "commute") {
         bodyParts.push("You asked about commute times - here's what I found:");
-        // Add placeholder for commute data (would be filled from property analysis)
         if (address) {
           bodyParts.push(`From ${address}:\n- Nearby transit options and commute times vary by destination\n- Happy to research specific routes for your workplace`);
         }
       } else if (mainTopic.topic === "schools") {
-        bodyParts.push("You asked about schools - here's what I researched:");
-        bodyParts.push("I can provide detailed school ratings and district information for this area.");
+        bodyParts.push("You asked about schools - I've researched the area and can share detailed district info.");
       } else if (mainTopic.topic === "safety") {
-        bodyParts.push("You asked about the neighborhood - here's what I found:");
-        bodyParts.push("I've looked into the area safety statistics and can share more details.");
+        bodyParts.push("You asked about the neighborhood - I've looked into the area and have some details to share.");
       } else {
-        bodyParts.push(`I've been looking into your questions and have some information to share.`);
+        bodyParts.push("I've been looking into your questions and have some information to share.");
       }
     } else if (address) {
-      bodyParts.push(`Thank you for your interest in ${address}. I've done some research and have some helpful information.`);
+      bodyParts.push(`I've done some research on ${address} and wanted to share my analysis.`);
     } else {
       bodyParts.push("I've been doing some research based on your search criteria.");
     }
 
-    // Add hidden gems / property strengths
-    if (propertyAnalysis?.hiddenGems && propertyAnalysis.hiddenGems.length > 0) {
-      bodyParts.push("A few things that stood out in my research:\n" +
-        propertyAnalysis.hiddenGems.slice(0, 3).map(gem => `- ${gem}`).join("\n"));
-    } else if (lead.hints && lead.hints.length > 0) {
-      bodyParts.push("A few things that stood out:\n" +
-        lead.hints.slice(0, 3).map(hint => `- ${hint}`).join("\n"));
+    // Headline hook
+    if (propertyAnalysis?.headline) {
+      bodyParts.push(propertyAnalysis.headline);
     }
 
-    // Negotiation info (provides value, shows expertise)
-    if (propertyAnalysis?.marketPosition?.priceCutsCount && propertyAnalysis.marketPosition.priceCutsCount > 0) {
-      const reduction = propertyAnalysis.marketPosition.totalPriceReduction;
-      const reductionText = reduction ? ` (total $${Math.round(reduction / 1000)}K off)` : "";
-      bodyParts.push(`Also worth noting - the price has been reduced ${propertyAnalysis.marketPosition.priceCutsCount} time${propertyAnalysis.marketPosition.priceCutsCount > 1 ? "s" : ""} already${reductionText}, which suggests the seller may be flexible.`);
+    // Evidence-backed highlights (primary content)
+    const highlights = formatHighlights(3);
+    if (highlights.length > 0) {
+      bodyParts.push("A few things that stood out in my research:\n" +
+        highlights.map(h => `- ${h}`).join("\n"));
+    }
+
+    // Market context
+    const marketContext = buildMarketContext();
+    if (marketContext) {
+      bodyParts.push(marketContext);
+    }
+
+    // Agent summary
+    if (propertyAnalysis?.agentSummary) {
+      bodyParts.push(propertyAnalysis.agentSummary);
+    }
+
+    // Fallback when no report data — generic professional (no hint echoing)
+    if (!hasAnalysis && !topics.length && address) {
+      bodyParts.push("I'd love to share my full analysis of this property with you - including market data, neighborhood details, and things that might not be obvious from the listing.");
     }
 
   // === READY LEAD EMAIL: Warm, create urgency without pressure ===
   } else if (quadrantType === "READY") {
-    if (address) {
+    if (hasAnalysis && address) {
+      bodyParts.push(`I've been researching ${address} and it looks like a strong fit. Here's what stood out:`);
+    } else if (address) {
       bodyParts.push(`I wanted to follow up on ${address} - it seems like a strong match for what you're looking for.`);
     } else {
       bodyParts.push("I wanted to follow up on the properties we discussed.");
@@ -649,31 +707,57 @@ function generateFullEmailDraft(
     // Budget fit
     const budget = lead.extractedBudgetMax || lead.extractedBudgetMin;
     const propertyPrice = lead.propertyListPrice;
-    if (budget && propertyPrice) {
+    if (budget && propertyPrice && propertyPrice <= budget) {
       const budgetK = Math.round(budget / 1000);
       const priceK = Math.round(propertyPrice / 1000);
-      if (propertyPrice <= budget) {
-        bodyParts.push(`At $${priceK}K, this fits well within your $${budgetK}K budget.`);
-      }
+      bodyParts.push(`At $${priceK}K, this fits well within your $${budgetK}K budget.`);
     }
 
-    // Hidden gems
-    if (propertyAnalysis?.hiddenGems && propertyAnalysis.hiddenGems.length > 0) {
+    // Evidence-backed highlights
+    const highlights = formatHighlights(2);
+    if (highlights.length > 0) {
       bodyParts.push("A few highlights:\n" +
-        propertyAnalysis.hiddenGems.slice(0, 2).map(gem => `- ${gem}`).join("\n"));
+        highlights.map(h => `- ${h}`).join("\n"));
     }
 
-    // Market position
-    if (propertyAnalysis?.marketPosition?.daysOnMarket && propertyAnalysis.marketPosition.daysOnMarket > 30) {
+    // Market context
+    const marketContext = buildMarketContext();
+    if (marketContext) {
+      bodyParts.push(marketContext);
+    } else if (propertyAnalysis?.marketPosition?.daysOnMarket && propertyAnalysis.marketPosition.daysOnMarket > 30) {
       bodyParts.push(`It's been on the market for ${propertyAnalysis.marketPosition.daysOnMarket} days, which means there may be room for negotiation.`);
+    }
+
+    // Timeline urgency
+    if (lead.extractedTimeline) {
+      bodyParts.push(`Since you mentioned you're looking to move ${lead.extractedTimeline}, I want to make sure we don't miss this one.`);
     }
 
   // === COLD LEAD EMAIL: Value-first nurture ===
   } else {
-    if (address) {
+    if (hasAnalysis && address) {
+      bodyParts.push(`I've been researching ${address} and wanted to share a few things I found:`);
+    } else if (address) {
       bodyParts.push(`Thank you for your interest in ${address}! I wanted to share some helpful information.`);
     } else {
       bodyParts.push("Thank you for reaching out! I wanted to follow up with some helpful information about the market.");
+    }
+
+    // Headline hook
+    if (propertyAnalysis?.headline) {
+      bodyParts.push(propertyAnalysis.headline);
+    }
+
+    // Evidence-backed highlights
+    const highlights = formatHighlights(2);
+    if (highlights.length > 0) {
+      bodyParts.push(highlights.map(h => `- ${h}`).join("\n"));
+    }
+
+    // Market context
+    const marketContext = buildMarketContext();
+    if (marketContext) {
+      bodyParts.push(marketContext);
     }
 
     // Budget context
@@ -683,11 +767,15 @@ function generateFullEmailDraft(
       bodyParts.push(`With your budget around $${budgetK}K, there are some good options available. I can help you find properties that match your criteria.`);
     }
 
-    // General value add
-    if (lead.hints && lead.hints.length > 0) {
-      bodyParts.push("Based on what I've learned about your preferences:\n" +
-        lead.hints.slice(0, 2).map(hint => `- ${hint}`).join("\n"));
+    // Fallback when no report data — professional generic (no hint echoing)
+    if (!hasAnalysis) {
+      bodyParts.push("I'd love to share my analysis of this property with you, including details that might not be obvious from the listing alone.");
     }
+  }
+
+  // Add report link if available
+  if (reportUrl) {
+    bodyParts.push(`I've put together a detailed report for you with full property analysis, photos, and market data:\n${reportUrl}`);
   }
 
   const body = bodyParts.join("\n\n");
@@ -868,6 +956,8 @@ interface AgentPrepChecklistProps {
     daysOnMarket?: number;
   };
   lead: LeadData;
+  nextSteps?: NextStep[];
+  buyerNotes?: string | null;
 }
 
 function AgentPrepChecklist({
@@ -879,6 +969,8 @@ function AgentPrepChecklist({
   propertyPrice,
   negotiationPoints,
   lead,
+  nextSteps,
+  buyerNotes,
 }: AgentPrepChecklistProps) {
   // Build sections only if they have content
   const hasTopics = topics.length > 0;
@@ -887,9 +979,11 @@ function AgentPrepChecklist({
   const hasPropertyStrengths = propertyStrengths && propertyStrengths.length > 0;
   const hasBudgetInfo = buyerBudget && propertyPrice;
   const hasNegotiationPoints = negotiationPoints && (negotiationPoints.priceCuts || negotiationPoints.daysOnMarket);
+  const hasNextSteps = nextSteps && nextSteps.length > 0;
+  const hasBuyerNotes = !!buyerNotes?.trim();
 
   // Check if there's any content to show
-  const hasAnyContent = hasTopics || hasConcerns || hasRiskTopics || hasPropertyStrengths || hasBudgetInfo || hasNegotiationPoints;
+  const hasAnyContent = hasTopics || hasConcerns || hasRiskTopics || hasPropertyStrengths || hasBudgetInfo || hasNegotiationPoints || hasNextSteps || hasBuyerNotes;
 
   if (!hasAnyContent) return null;
 
@@ -991,21 +1085,44 @@ function AgentPrepChecklist({
         )}
 
         {/* Property Strengths to Highlight */}
-        {hasPropertyStrengths && (
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
-              Property Strengths to Highlight
-            </p>
-            <ul className="space-y-1.5">
-              {propertyStrengths!.slice(0, 4).map((strength, i) => (
-                <li key={`strength-${i}`} className="flex items-center gap-2 text-sm">
-                  <Sparkles className="h-4 w-4 text-purple-500" />
-                  <span className="text-slate-700">{strength}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {hasPropertyStrengths && (() => {
+          const complianceResults = checkHintsCompliance(propertyStrengths!.slice(0, 4));
+          const hasFHAFlags = complianceResults.some(r => r.isFlagged);
+          return (
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                Property Strengths to Highlight
+              </p>
+              {hasFHAFlags && (
+                <div className="flex items-start gap-2 mb-2 p-2 rounded-md bg-amber-50 border border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">
+                    Some strengths reference FHA-sensitive topics. Use objective, verifiable facts when discussing these.
+                  </p>
+                </div>
+              )}
+              <ul className="space-y-1.5">
+                {complianceResults.map((result, i) => (
+                  <li key={`strength-${i}`}>
+                    <div className="flex items-center gap-2 text-sm">
+                      {result.isFlagged ? (
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 text-purple-500" />
+                      )}
+                      <span className="text-slate-700">{result.hint}</span>
+                    </div>
+                    {result.isFlagged && (
+                      <p className="text-xs text-amber-600 ml-6 mt-0.5">
+                        FHA Sensitive ({result.flags.join(", ")}) — Use objective facts only
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         {/* Negotiation Points */}
         {hasNegotiationPoints && (
@@ -1035,6 +1152,41 @@ function AgentPrepChecklist({
             </ul>
           </div>
         )}
+
+        {/* Action Items (from Buyer Insights nextSteps) */}
+        {hasNextSteps && (
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+              Action Items
+            </p>
+            <ul className="space-y-1.5">
+              {nextSteps!.map((step, i) => (
+                <li key={`step-${i}`} className="flex items-start gap-2 text-sm">
+                  <ListChecks className={`h-4 w-4 mt-0.5 ${step.priority === "high" ? "text-red-500" : "text-blue-500"}`} />
+                  <span className="text-slate-700">{step.action}</span>
+                  {step.priority === "high" && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-200 text-red-600 ml-auto flex-shrink-0">
+                      High
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Buyer Notes (from their report) */}
+        {hasBuyerNotes && (
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+              Buyer's Notes
+            </p>
+            <div className="flex items-start gap-2 p-2.5 rounded-md bg-yellow-50 border border-yellow-200">
+              <StickyNote className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-slate-700 whitespace-pre-line">{buyerNotes}</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1052,6 +1204,7 @@ function FullEmailDraftSection({
   onSendEmail,
   quadrant,
   propertyAnalysis,
+  reportShareId,
 }: {
   lead: LeadData;
   chatSummary: ChatSessionSummary | null;
@@ -1060,39 +1213,29 @@ function FullEmailDraftSection({
   onSendEmail: (subject: string, body: string) => Promise<void>;
   quadrant?: LeadQuadrant;
   propertyAnalysis?: PropertyAnalysis;
+  reportShareId?: string | null;
 }) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("template"); // Default to template since it's now quadrant-aware
 
-  // Generate quadrant-aware template draft
+  // Build the report URL if available
+  const reportUrl = reportShareId
+    ? `${window.location.origin}/buyer-report/${reportShareId}`
+    : null;
+
+  // Generate quadrant-aware draft
   const templateDraft = useMemo(
-    () => generateFullEmailDraft(lead, chatSummary, chatInsights, buyerInsights, quadrant, propertyAnalysis),
-    [lead, chatSummary, chatInsights, buyerInsights, quadrant, propertyAnalysis]
+    () => generateFullEmailDraft(lead, chatSummary, chatInsights, buyerInsights, quadrant, propertyAnalysis, reportUrl),
+    [lead, chatSummary, chatInsights, buyerInsights, quadrant, propertyAnalysis, reportUrl]
   );
-
-  // AI draft comes from backend's followUpMessage
-  const aiDraftBody = chatInsights?.followUpMessage || "";
 
   // State for edited content
   const [editedSubject, setEditedSubject] = useState(templateDraft.subject);
-  const [editedBody, setEditedBody] = useState(
-    activeTab === "ai" && aiDraftBody ? aiDraftBody : templateDraft.fullMessage
-  );
-
-  // Update edited content when tab changes
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    if (value === "ai" && aiDraftBody) {
-      setEditedBody(aiDraftBody);
-    } else {
-      setEditedBody(templateDraft.fullMessage);
-    }
-  };
+  const [editedBody, setEditedBody] = useState(templateDraft.fullMessage);
 
   const handleCopy = () => {
-    const textToCopy = isEditing ? editedBody : (activeTab === "ai" && aiDraftBody ? aiDraftBody : templateDraft.fullMessage);
+    const textToCopy = isEditing ? editedBody : templateDraft.fullMessage;
     navigator.clipboard.writeText(textToCopy);
     toast({
       title: "Copied",
@@ -1145,94 +1288,72 @@ function FullEmailDraftSection({
         </div>
       </div>
 
-      {/* Tabs for AI vs Template */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="w-full justify-start rounded-none border-b border-slate-200 bg-slate-50 h-9 px-2">
-          <TabsTrigger value="ai" className="text-xs" disabled={!aiDraftBody}>
-            <Sparkles className="h-3 w-3 mr-1" />
-            AI Draft
-          </TabsTrigger>
-          <TabsTrigger value="template" className="text-xs">
-            <FileText className="h-3 w-3 mr-1" />
-            Template
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="p-4 space-y-3">
-          {/* To field */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-500 w-16">To:</span>
-            <span className="text-slate-700">{toEmail || "No email on file"}</span>
-          </div>
-
-          {/* Subject field */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-500 w-16">Subject:</span>
-            {isEditing ? (
-              <input
-                type="text"
-                value={editedSubject}
-                onChange={(e) => setEditedSubject(e.target.value)}
-                className="flex-1 px-2 py-1 border rounded text-sm"
-              />
-            ) : (
-              <span className="text-slate-700">{editedSubject}</span>
-            )}
-          </div>
-
-          {/* Body */}
-          <TabsContent value="ai" className="mt-0">
-            {isEditing ? (
-              <Textarea
-                value={editedBody}
-                onChange={(e) => setEditedBody(e.target.value)}
-                className="min-h-[200px] text-sm"
-              />
-            ) : (
-              <div className="bg-white rounded-lg p-3 border border-slate-200 min-h-[200px]">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {aiDraftBody || "No AI-generated draft available. Use the Template tab."}
-                </p>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="template" className="mt-0">
-            {isEditing ? (
-              <Textarea
-                value={editedBody}
-                onChange={(e) => setEditedBody(e.target.value)}
-                className="min-h-[200px] text-sm"
-              />
-            ) : (
-              <div className="bg-white rounded-lg p-3 border border-slate-200 min-h-[200px]">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{templateDraft.fullMessage}</p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
-              <Copy className="h-4 w-4 mr-1" />
-              Copy
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSend}
-              disabled={!toEmail || isSending}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {isSending ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4 mr-1" />
-              )}
-              Send Email
-            </Button>
-          </div>
+      <div className="p-4 space-y-3">
+        {/* To field */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-500 w-16">To:</span>
+          <span className="text-slate-700">{toEmail || "No email on file"}</span>
         </div>
-      </Tabs>
+
+        {/* Subject field */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-500 w-16">Subject:</span>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editedSubject}
+              onChange={(e) => setEditedSubject(e.target.value)}
+              className="flex-1 px-2 py-1 border rounded text-sm"
+            />
+          ) : (
+            <span className="text-slate-700">{editedSubject}</span>
+          )}
+        </div>
+
+        {/* Body */}
+        {isEditing ? (
+          <Textarea
+            value={editedBody}
+            onChange={(e) => setEditedBody(e.target.value)}
+            className="min-h-[200px] text-sm"
+          />
+        ) : (
+          <div className="bg-white rounded-lg p-3 border border-slate-200 min-h-[200px]">
+            <p className="text-sm text-slate-700 whitespace-pre-wrap">{templateDraft.fullMessage}</p>
+          </div>
+        )}
+
+        {/* FHA Compliance Note */}
+        {lead.hints && lead.hints.length > 0 && hasAnyFHAFlags(lead.hints) && (
+          <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-50 border border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-amber-700">
+              {generateEmailComplianceNote(checkHintsCompliance(lead.hints))}
+            </p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+          <Button variant="outline" size="sm" onClick={handleCopy}>
+            <Copy className="h-4 w-4 mr-1" />
+            Copy
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSend}
+            disabled={!toEmail || isSending}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            {isSending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4 mr-1" />
+            )}
+            Send Email
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1447,6 +1568,8 @@ function AIRecommendedAction({
   onCall,
   onText,
   onSendEmail,
+  propertyAnalysis,
+  buyerNotes,
 }: {
   lead: LeadData;
   chatSummary: ChatSessionSummary | null;
@@ -1455,6 +1578,8 @@ function AIRecommendedAction({
   onCall: () => void;
   onText: () => void;
   onSendEmail: (subject: string, body: string) => Promise<void>;
+  propertyAnalysis?: PropertyAnalysis;
+  buyerNotes?: string | null;
 }) {
   const { toast } = useToast();
   const emailDraftRef = React.useRef<HTMLDivElement>(null);
@@ -1686,6 +1811,8 @@ function AIRecommendedAction({
           buyerBudget={lead.extractedBudgetMax || lead.extractedBudgetMin}
           propertyPrice={lead.propertyListPrice}
           lead={lead}
+          nextSteps={buyerInsights?.report?.nextSteps}
+          buyerNotes={buyerNotes}
         />
 
         {/* Full Email Draft Section with quadrant-aware content */}
@@ -1698,6 +1825,8 @@ function AIRecommendedAction({
               buyerInsights={buyerInsights}
               onSendEmail={onSendEmail}
               quadrant={quadrant}
+              propertyAnalysis={propertyAnalysis}
+              reportShareId={lead.reportShareId}
             />
           </div>
         )}
@@ -1954,11 +2083,13 @@ function TimelineItem({
 // MAIN COMPONENT
 // ============================================================================
 
-export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
+export default function LeadIntelTab({ profileId, onLeadConverted }: LeadIntelTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isGeneratingOutreach, setIsGeneratingOutreach] = useState(false);
   const [leadStage, setLeadStage] = useState("new");
+  const [isQualifying, setIsQualifying] = useState(false);
+  const [showQualifyConfirm, setShowQualifyConfirm] = useState(false);
 
   // Fetch lead data
   const { data: leadData, isLoading } = useQuery<ProfileLeadResponse>({
@@ -1983,6 +2114,38 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
     enabled: !!profileId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch buyer report for property analysis data (when report already generated)
+  const { data: reportData } = useQuery({
+    queryKey: [`/api/buyer-reports/${leadData?.lead?.reportShareId}`],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!leadData?.lead?.reportShareId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Extract property analysis from the reference listing's leadAnalysis
+  const propertyAnalysis = useMemo<PropertyAnalysis | undefined>(() => {
+    const listings = (reportData as any)?.listings;
+    if (!listings?.length) return undefined;
+    const refListing = listings[0]; // Reference property is always first
+    const la = refListing?.leadAnalysis;
+    if (!la) return undefined;
+    return {
+      headline: la.headline,
+      agentSummary: la.agent_summary,
+      hiddenGems: (la.property_highlights || []).map((h: any) => h.feature),
+      highlightsWithEvidence: la.property_highlights || [],
+      redFlags: (la.things_to_consider || []).map((c: any) => c.concern),
+      marketPosition: {
+        daysOnMarket: refListing.daysOnMarket,
+        priceCutsCount: la.market_position?.price_cuts_count,
+        totalPriceReduction: la.market_position?.total_price_reduction,
+        priceAssessment: la.market_position?.price_assessment,
+        daysOnMarketInsight: la.market_position?.days_on_market_insight,
+        valueIndicators: la.market_position?.value_indicators || [],
+      },
+    };
+  }, [reportData]);
 
   // Outreach eligibility
   const outreachEligibility = useMemo(() => {
@@ -2115,6 +2278,31 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
     });
   };
 
+  const handleQualifyToBuyer = async () => {
+    if (!leadData?.lead?.id) return;
+    setIsQualifying(true);
+    try {
+      await apiRequest("PATCH", `/api/leads/${leadData.lead.id}/status`, {
+        status: "qualified",
+      });
+      toast({
+        title: "Lead qualified",
+        description: "This lead has been qualified as a buyer. Switching to Buyer Insights.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profileId}/lead`] });
+      onLeadConverted?.();
+    } catch (error: any) {
+      toast({
+        title: "Failed to qualify lead",
+        description: error?.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsQualifying(false);
+      setShowQualifyConfirm(false);
+    }
+  };
+
   const getCurrentStage = () => {
     if (leadData?.lead?.reportSentAt) return "contacted";
     if (leadData?.lead?.convertedAt) return "new";
@@ -2162,6 +2350,69 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
         lastActive={chatData?.summary?.lastActivity}
         onStageChange={handleStageChange}
       />
+
+      {/* Qualify to Buyer */}
+      {!showQualifyConfirm ? (
+        <Card className="border-emerald-200 bg-emerald-50/30">
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-100">
+                  <UserCheck className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm">Qualify as Buyer</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Convert this lead to a buyer once they sign
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setShowQualifyConfirm(true)}
+                size="sm"
+                variant="outline"
+                className="border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+              >
+                <UserCheck className="h-4 w-4 mr-1" />
+                Qualify
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-emerald-300 bg-emerald-50">
+          <CardContent className="py-3">
+            <div className="space-y-3">
+              <p className="text-sm text-slate-700">
+                Qualify this lead as a buyer? This will unlock Buyer Insights and hide Lead Intel.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleQualifyToBuyer}
+                  disabled={isQualifying}
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isQualifying ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                  )}
+                  Confirm
+                </Button>
+                <Button
+                  onClick={() => setShowQualifyConfirm(false)}
+                  disabled={isQualifying}
+                  size="sm"
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Generate Outreach CTA (if not sent) */}
       {!outreachEligibility.alreadySent && (
@@ -2256,6 +2507,8 @@ export default function LeadIntelTab({ profileId }: LeadIntelTabProps) {
           onCall={handleCall}
           onText={handleText}
           onSendEmail={handleSendEmail}
+          propertyAnalysis={propertyAnalysis}
+          buyerNotes={(reportData as any)?.buyerNotes}
         />
       )}
 

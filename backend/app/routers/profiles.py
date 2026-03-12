@@ -297,6 +297,7 @@ def get_profile_lead(profile_id: int, agent_id: int = Depends(get_current_agent_
             return {
                 "hasLead": True,
                 "createdByMethod": created_by_method,
+                "status": lead_row["status"],
                 "lead": lead_data
             }
 
@@ -467,9 +468,9 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
 def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id)):
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # First verify the profile belongs to this agent
+            # First verify the profile belongs to this agent and get parent lead
             cur.execute(
-                "SELECT agent_id FROM buyer_profiles WHERE id = %s",
+                "SELECT agent_id, parent_lead_id FROM buyer_profiles WHERE id = %s",
                 (profile_id,)
             )
             row = cur.fetchone()
@@ -477,8 +478,14 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
                 raise HTTPException(status_code=404, detail="Profile not found")
             if row[0] != agent_id:
                 raise HTTPException(status_code=403, detail="Not authorized to delete this profile")
-            
+            parent_lead_id = row[1]
+
             # Delete dependent rows to satisfy FK constraints
+            # NO ACTION FK tables (must delete manually before profile)
+            cur.execute("DELETE FROM agent_interactions WHERE profile_id = %s", (profile_id,))
+            cur.execute("DELETE FROM ingestion_jobs WHERE profile_id = %s", (profile_id,))
+            cur.execute("DELETE FROM search_outcomes WHERE profile_id = %s", (profile_id,))
+
             # Search transactions and results
             cur.execute("SELECT transaction_id FROM search_transactions WHERE profile_id = %s", (profile_id,))
             tids = [row[0] for row in cur.fetchall()]
@@ -511,6 +518,11 @@ def delete_profile(profile_id: int, agent_id: int = Depends(get_current_agent_id
             cur.execute("DELETE FROM buyer_profiles WHERE id = %s", (profile_id,))
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Profile not found")
+
+            # Clean up the parent lead row if this profile was created from a lead
+            if parent_lead_id:
+                cur.execute("DELETE FROM leads WHERE id = %s", (parent_lead_id,))
+
     track_event(agent_id, "profile.delete", "profile", "buyer_profile", profile_id)
     return {"success": True}
 

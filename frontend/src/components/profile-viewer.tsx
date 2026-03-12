@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ type EnhancedProfileResponse = {
 type ProfileLeadResponse = {
   hasLead: boolean;
   createdByMethod: string;
+  status?: string;
   lead?: {
     id: number;
     source: string;
@@ -91,6 +92,8 @@ interface ProfileViewerProps {
 export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps) {
   const [editMode, setEditMode] = useState<'conversation' | 'form' | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile");
+  const queryClient = useQueryClient();
 
   // Fetch basic profile
   const { data: profile, isLoading: profileLoading } = useQuery<BuyerProfile>({
@@ -117,6 +120,19 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
   const isLoading = profileLoading || enhancedLoading;
   const enhancedTags = enhancedProfile?.tags ?? [];
   const enhancedPersona = enhancedProfile?.persona;
+
+  // Tab visibility: leads see Lead Intel, qualified buyers see Buyer Insights
+  // "converted" = profile created from lead (automatic), "qualified" = agent explicitly qualified as buyer
+  const isQualifiedBuyer = leadData?.hasLead && leadData.status === "qualified";
+  const showLeadIntel = leadData?.hasLead && !isQualifiedBuyer;
+  const showBuyerInsights = !leadData?.hasLead || isQualifiedBuyer;
+  const visibleTabCount = 3 + (showBuyerInsights ? 1 : 0) + (showLeadIntel ? 1 : 0);
+
+  // When lead is qualified to buyer, refetch and switch tabs
+  const handleLeadConverted = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profileId}/lead`] });
+    setActiveTab("insights");
+  }, [queryClient, profileId]);
 
   // Allow external trigger to open edit mode from sidebar menu
   // Listen for a CustomEvent('open-profile-edit', { detail: profileId })
@@ -249,18 +265,20 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       </div>
 
       {/* Tabs Navigation */}
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className={`grid w-full h-auto`} style={{ gridTemplateColumns: `repeat(${visibleTabCount}, minmax(0, 1fr))` }}>
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Profile Details</span>
             <span className="sm:hidden">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="insights" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Buyer Insights</span>
-            <span className="sm:hidden">Insights</span>
-          </TabsTrigger>
+          {showBuyerInsights && (
+            <TabsTrigger value="insights" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Lightbulb className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Buyer Insights</span>
+              <span className="sm:hidden">Insights</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="agent-search" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
             <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Agent Search</span>
@@ -271,11 +289,13 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
             <span className="hidden sm:inline">Saved Properties</span>
             <span className="sm:hidden">Saved</span>
           </TabsTrigger>
-          <TabsTrigger value="lead" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
-            <Inbox className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Lead Intel</span>
-            <span className="sm:hidden">Lead</span>
-          </TabsTrigger>
+          {showLeadIntel && (
+            <TabsTrigger value="lead" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm p-2 sm:p-3">
+              <Inbox className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Lead Intel</span>
+              <span className="sm:hidden">Lead</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6 mt-6">
@@ -334,9 +354,11 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
       )}
         </TabsContent>
 
-        <TabsContent value="insights" className="space-y-6 mt-6">
-          <BuyerInsights profileId={profile.id} />
-        </TabsContent>
+        {showBuyerInsights && (
+          <TabsContent value="insights" className="space-y-6 mt-6">
+            <BuyerInsights profileId={profile.id} />
+          </TabsContent>
+        )}
 
         <TabsContent value="agent-search" className="space-y-6 mt-6">
           <AgentDualViewSearch profile={profile} />
@@ -346,9 +368,11 @@ export default function ProfileViewer({ profileId, onBack }: ProfileViewerProps)
           {profile && <SavedPropertiesList profile={profile} />}
         </TabsContent>
 
-        <TabsContent value="lead" className="mt-6">
-          <LeadIntelTab profileId={profile.id} />
-        </TabsContent>
+        {showLeadIntel && (
+          <TabsContent value="lead" className="mt-6">
+            <LeadIntelTab profileId={profile.id} onLeadConverted={handleLeadConverted} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Report Generator Modal */}

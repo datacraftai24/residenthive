@@ -219,12 +219,24 @@ Return ONLY a JSON array (max 4 items):
 ]"""
 
         try:
-            # Build content with images
+            # Build content with images - download and send as bytes
+            # to avoid transient failures when Gemini can't fetch CDN URLs
+            import requests as http_requests
             content_parts = [prompt]
 
             for idx, url in enumerate(image_urls):
-                # Gemini accepts image URLs directly
-                content_parts.append(types.Part.from_uri(file_uri=url, mime_type="image/jpeg"))
+                try:
+                    img_resp = http_requests.get(url, timeout=10)
+                    img_resp.raise_for_status()
+                    content_parts.append(types.Part.from_bytes(data=img_resp.content, mime_type="image/jpeg"))
+                except Exception as img_err:
+                    print(f"[LEAD ANALYZER] Failed to download image {idx}: {img_err}")
+                    continue
+
+            # If no images were downloaded, skip vision
+            if len(content_parts) <= 1:
+                print("[LEAD ANALYZER] No images downloaded, skipping vision")
+                return []
 
             response = self.gemini_client.models.generate_content(
                 model=self.vision_model,
