@@ -408,12 +408,32 @@ def classify_lead_deterministic(
     role = "unknown"
     role_reason = "No buyer signals detected"
 
-    # Investor keywords
-    investor_keywords = ["cap rate", "roi", "cash flow", "rent", "investment", "returns", "rental income"]
-    for kw in investor_keywords:
-        if kw in text_lower:
+    # --- Buyer-context phrases that should NOT trigger investor classification ---
+    # e.g. "currently renting", "renting in Boston", "I rent an apartment"
+    import re
+    buyer_rent_patterns = [
+        r"currently\s+rent", r"i\s+rent\b", r"i'm\s+renting", r"i am\s+renting",
+        r"renting\s+(in|at|from|an?\s)", r"we\s+rent\b", r"we're\s+renting",
+        r"lease\s+(is\s+)?up", r"my\s+rent", r"pay\s+rent",
+    ]
+    is_renter_context = any(re.search(p, text_lower) for p in buyer_rent_patterns)
+
+    # Investor keywords — use word-boundary matching to avoid false positives
+    # e.g. "rent" should not match "renting", "currently renting"
+    investor_keywords = [
+        r"\bcap\s*rate\b", r"\broi\b", r"\bcash\s*flow\b",
+        r"\binvestment\b", r"\breturns\b", r"\brental\s+income\b",
+        r"\brental\s+property\b", r"\binvestor\b", r"\bflip(ping)?\b",
+    ]
+    # Only match "rent" as investor signal if NOT in a renter context
+    if not is_renter_context:
+        investor_keywords.append(r"\brent\b")
+
+    for pattern in investor_keywords:
+        match = re.search(pattern, text_lower)
+        if match:
             role = "investor"
-            role_reason = f"Contains '{kw}'"
+            role_reason = f"Contains '{match.group()}'"
             break
 
     # Agent keywords (only if not already investor)
@@ -425,11 +445,13 @@ def classify_lead_deterministic(
                 role_reason = "Self-identified as agent"
                 break
 
-    # Buyer signals (only if not investor or agent)
-    if role == "unknown":
-        buyer_keywords = ["tour", "showing", "schedule", "available", "interested", "looking for"]
-        buyer_sources = ["zillow", "redfin", "google", "referral"]
+    # Buyer signals (override investor if strong buyer context + renter)
+    buyer_keywords = ["tour", "showing", "schedule", "available", "interested", "looking for",
+                      "looking to buy", "want to buy", "home search", "house hunting", "first-time buyer",
+                      "pre-approved", "mortgage", "move to", "relocating"]
+    buyer_sources = ["zillow", "redfin", "google", "referral"]
 
+    if role == "unknown" or (role == "investor" and is_renter_context):
         if source in buyer_sources:
             role = "buyer_lead"
             role_reason = f"Lead from {source.title()}"
@@ -440,7 +462,7 @@ def classify_lead_deterministic(
             for kw in buyer_keywords:
                 if kw in text_lower:
                     role = "buyer_lead"
-                    role_reason = f"Contains '{kw}'"
+                    role_reason = f"Contains '{kw}'" + (" (renter context)" if is_renter_context else "")
                     break
 
     # === LEAD TYPE CLASSIFICATION ===
@@ -570,6 +592,13 @@ THEN GENERATE:
    - ONLY return ONE question, never multiple
    - If everything seems covered, return null
 
+3. classifiedRole: one of "buyer_lead", "investor", "agent", "unknown"
+   - "buyer_lead": person looking to BUY a home to live in (includes renters looking to buy, first-time buyers, relocators)
+   - "investor": person looking for investment/rental properties (mentions ROI, cap rate, cash flow, rental income, flipping)
+   - "agent": another real estate agent reaching out
+   - "unknown": cannot determine intent
+   - IMPORTANT: "currently renting" or "I rent" means buyer_lead, NOT investor
+
 OUTPUT JSON ONLY (no markdown, no explanation):
 {{
   "extracted": {{
@@ -586,6 +615,7 @@ OUTPUT JSON ONLY (no markdown, no explanation):
     "timeline": "string or null",
     "hints": ["array of strings"]
   }},
+  "classifiedRole": "buyer_lead | investor | agent | unknown",
   "suggestedMessage": "Your response here...",
   "clarifyingQuestion": "One question or null"
 }}"""
@@ -649,6 +679,13 @@ THEN GENERATE:
    - ONLY return ONE question, never multiple
    - If everything seems covered, return null
 
+3. classifiedRole: one of "buyer_lead", "investor", "agent", "unknown"
+   - "buyer_lead": person looking to BUY a home to live in (includes renters looking to buy, first-time buyers, relocators)
+   - "investor": person looking for investment/rental properties (mentions ROI, cap rate, cash flow, rental income, flipping)
+   - "agent": another real estate agent reaching out
+   - "unknown": cannot determine intent
+   - IMPORTANT: "currently renting" or "I rent" means buyer_lead, NOT investor
+
 OUTPUT JSON ONLY (no markdown, no explanation):
 {{
   "extracted": {{
@@ -665,6 +702,7 @@ OUTPUT JSON ONLY (no markdown, no explanation):
     "timeline": "string or null",
     "hints": ["array of strings"]
   }},
+  "classifiedRole": "buyer_lead | investor | agent | unknown",
   "suggestedMessage": "Your response here...",
   "clarifyingQuestion": "One question or null"
 }}"""
@@ -1060,6 +1098,22 @@ def process_lead(
         }
 
     extracted = extraction.get("extracted", {})
+
+    # === LLM Role Validation — override deterministic if LLM disagrees ===
+    llm_role = extraction.get("classifiedRole")
+    det_role = classification["role"]
+    if llm_role and llm_role != det_role:
+        # LLM says buyer but deterministic said investor/unknown → trust the LLM
+        if llm_role == "buyer_lead" and det_role in ("investor", "unknown"):
+            print(f"[LEAD] Role override: deterministic='{det_role}' → LLM='{llm_role}'", flush=True)
+            classification["role"] = "buyer_lead"
+            classification["roleReason"] = f"LLM override (deterministic was '{det_role}')"
+        # LLM says investor but deterministic said buyer → keep deterministic (it checked buyer signals)
+        # LLM says unknown but deterministic had a match → keep deterministic
+        elif llm_role == "investor" and det_role == "unknown":
+            print(f"[LEAD] Role override: deterministic='{det_role}' → LLM='{llm_role}'", flush=True)
+            classification["role"] = "investor"
+            classification["roleReason"] = f"LLM classified as investor"
 
     # Validate and enhance extraction for search readiness
     extracted = validate_and_enhance_extraction(
@@ -1973,7 +2027,6 @@ async def generate_lead_outreach(
     logger.info(f"[OUTREACH] Created report with shareId={share_id}, {len(top_5_ids)} listings")
 
     # 6. Build report URL
-    import os
     frontend_url = os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
     report_url = f"{frontend_url}/buyer-report/{share_id}"
 
@@ -2443,8 +2496,6 @@ def send_lead_email(
     Uses existing email_service with Mailjet provider.
     Logs email activity for audit trail.
     """
-    import os
-
     # 1. Validate lead belongs to agent
     with get_conn() as conn:
         with conn.cursor() as cur:
