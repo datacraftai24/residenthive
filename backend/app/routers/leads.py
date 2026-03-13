@@ -25,6 +25,7 @@ LLM must return null for missing fields, never guess.
 ============================================================
 """
 
+import os
 import re
 import json
 import logging
@@ -1817,6 +1818,63 @@ async def generate_lead_outreach(
         if lead_analysis:
             listing["leadAnalysis"] = lead_analysis
             listing["aiAnalysis"] = _convert_lead_analysis_to_ai_format(lead_analysis)
+
+    # 4.6. Run location intelligence on top 5 listings
+    import httpx
+    location_service_url = os.environ.get("LOCATION_SERVICE_URL", "http://localhost:8002")
+    logger.info(f"[OUTREACH] Running location analysis on {len(top_5_listings)} listings via {location_service_url}")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for listing in top_5_listings:
+                mls_number = listing.get("mlsNumber")
+                if not mls_number:
+                    continue
+
+                address_parts = [
+                    listing.get("address", ""),
+                    listing.get("city", ""),
+                    listing.get("state", ""),
+                    listing.get("zip", ""),
+                ]
+                full_address = " ".join(str(p) for p in address_parts if p).strip()
+                if not full_address:
+                    logger.info(f"[OUTREACH] Missing address for {mls_number}, skipping location analysis")
+                    continue
+
+                try:
+                    resp = await client.post(
+                        f"{location_service_url}/analyze",
+                        json={
+                            "address": full_address,
+                            "buyer_prefs": None,
+                            "fast_mode": True,
+                        },
+                    )
+                    resp.raise_for_status()
+                    loc_result = resp.json()
+
+                    # Flatten flags
+                    if loc_result.get("location_summary", {}).get("flags"):
+                        loc_result["location_flags"] = loc_result["location_summary"]["flags"]
+                    else:
+                        loc_result["location_flags"] = []
+
+                    # Merge into listing's aiAnalysis
+                    if listing.get("aiAnalysis") is None:
+                        listing["aiAnalysis"] = {}
+                    listing["aiAnalysis"]["location_match_score"] = loc_result.get("location_match_score")
+                    listing["aiAnalysis"]["location_flags"] = loc_result.get("location_flags", [])
+                    listing["aiAnalysis"]["location_summary"] = loc_result.get("location_summary")
+
+                    score = loc_result.get("location_match_score")
+                    logger.info(f"[OUTREACH] Location analysis for {mls_number}: score={score}")
+
+                except Exception as e:
+                    logger.warning(f"[OUTREACH] Location analysis failed for {mls_number}: {e}")
+
+    except Exception as e:
+        logger.warning(f"[OUTREACH] Location analysis step failed, continuing without: {e}")
 
     # Generate search_id and store context
     from ..services.search_context_store import generate_search_id, store_search_context
