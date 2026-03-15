@@ -1684,6 +1684,8 @@ async def generate_lead_outreach(
         logger.info(f"[OUTREACH] Search strategy: {search_result.strategy}, found {search_result.total_count} listings")
         for inf in search_result.inferences:
             logger.info(f"[OUTREACH] Inferred {inf['field']}: {inf['reason']}")
+        if search_result.expansion_used:
+            logger.info(f"[OUTREACH] Search expanded to {search_result.expansion_radius_km}km: {search_result.city_breakdown}")
 
         # Get listings from SearchResult
         all_picks = search_result.listings
@@ -1826,7 +1828,8 @@ async def generate_lead_outreach(
                 "description": listing.get("description"),
                 "yearBuilt": listing.get("year_built"),
                 "daysOnMarket": listing.get("days_on_market"),
-                "matchLabel": "Similar" if search_result.strategy == "similar" else "Match",
+                "matchLabel": "Also Worth a Look" if listing.get("_is_nearby") else ("Similar" if search_result.strategy == "similar" else "Match"),
+                "isNearby": listing.get("_is_nearby", False),
                 # Lead analysis will be added AFTER top 5 selection (vision analysis is slow)
                 "leadAnalysis": None,
                 "aiAnalysis": None,
@@ -1960,6 +1963,11 @@ async def generate_lead_outreach(
         "propertyListingId": lead_row.get("property_listing_id"),
         "originalMessage": (lead_row.get("raw_input") or "")[:300],
         "timeline": lead_row.get("extracted_timeline"),
+        # Expansion metadata for report synthesis
+        "expansionUsed": search_result.expansion_used,
+        "expansionRadiusKm": search_result.expansion_radius_km,
+        "expansionCenterCity": search_result.expansion_center_city,
+        "cityBreakdown": search_result.city_breakdown,
     }
 
     # Generate synthesis

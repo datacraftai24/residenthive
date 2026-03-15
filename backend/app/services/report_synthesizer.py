@@ -92,7 +92,8 @@ def generate_report_synthesis(
             "why_match": whats_matching,
             "what_missing": whats_missing,
             "concerns": red_flags,
-            "my_take": agent_take[:200] if agent_take else ""  # Truncate to 200 chars
+            "my_take": agent_take[:200] if agent_take else "",  # Truncate to 200 chars
+            "is_nearby": listing.get("isNearby", False),
         }
         listing_dtos.append(dto)
 
@@ -255,7 +256,25 @@ Return JSON with:
 }"""
         lead_section = ""
 
-    user_prompt = f"""{lead_section}Buyer Profile:
+    # Add expansion context if search was expanded to nearby areas
+    expansion_note = ""
+    if lead_context and lead_context.get("expansionUsed"):
+        city_breakdown = lead_context.get("cityBreakdown", {})
+        center_city = lead_context.get("expansionCenterCity", "the area")
+        city_parts = [f"{count} in {city}" for city, count in city_breakdown.items()]
+        expansion_note = f"""
+## Wider Search — Limited Inventory in {center_city}
+Active inventory in {center_city} is limited right now, so I've also looked at nearby communities: {', '.join(city_parts)}.
+
+TONE GUIDE for the intro paragraph:
+- Acknowledge limited inventory naturally, e.g.: "There are only a few active listings in {center_city} right now, so I've also included some homes in nearby towns that are worth a look."
+- Frame nearby options positively — they're not a fallback, they're a proactive recommendation. A good agent would say: "Since inventory is tight in {center_city}, I cast a wider net and found some solid options nearby."
+- For [NEARBY] properties, mention the town name naturally in the "why" description, e.g.: "This one in Stoneham is just a few minutes from {center_city} and offers..."
+- Do NOT apologize. Do NOT say "unfortunately". This is helpful, not a compromise.
+
+"""
+
+    user_prompt = f"""{lead_section}{expansion_note}Buyer Profile:
 {buyer_summary}
 
 Properties I've selected (in order shown):
@@ -295,8 +314,9 @@ Properties I've selected (in order shown):
         why_match_text = chr(10).join(f"• {get_match_text(m)}" for m in dto['why_match'])
         what_know_text = chr(10).join(f"• {get_concern_text(c)}" for c in (dto['what_missing'] + dto['concerns']))
 
+        nearby_tag = " [NEARBY]" if dto.get('is_nearby') else ""
         user_prompt += f"""
-#{dto['number']}: {dto['address']}, {dto['city']}
+#{dto['number']}: {dto['address']}, {dto['city']}{nearby_tag}
 Price: ${price_int:,} | {beds} beds, {baths} baths, {sqft_int:,} sqft
 MLS: {dto['mlsNumber']}
 
