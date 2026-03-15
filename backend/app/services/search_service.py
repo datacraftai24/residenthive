@@ -253,12 +253,23 @@ class SearchService:
 
             logger.info(f"[SEARCH_SERVICE] Criteria search returned {len(listings)} listings")
 
-            # If too few results and we have a location, try geo-radius expansion
+            # If too few results, try criteria relaxation then geo-radius expansion
             if len(listings) < EXPANSION_THRESHOLD and enhanced.get("location"):
-                expanded = self._expand_search_radius(enhanced, listings, inferences, strategy_name)
-                if expanded and expanded.total_count > len(listings):
-                    logger.info(f"[SEARCH_SERVICE] Expansion improved results: {len(listings)} → {expanded.total_count}")
-                    return expanded
+                # Step 1: Relax criteria if needed (broadens filters, stays in same city)
+                if len(listings) == 0:
+                    relaxed_listings, relaxation_inferences = self._relax_criteria(enhanced)
+                    if relaxed_listings:
+                        listings = relaxed_listings
+                        inferences = inferences + relaxation_inferences
+                        strategy_name = f"{strategy_name}_relaxed"
+                        logger.info(f"[SEARCH_SERVICE] Relaxation found {len(listings)} listings")
+
+                # Step 2: Geo-radius expansion (broadens area, keeps filters)
+                if len(listings) < EXPANSION_THRESHOLD:
+                    expanded = self._expand_search_radius(enhanced, listings, inferences, strategy_name)
+                    if expanded and expanded.total_count > len(listings):
+                        logger.info(f"[SEARCH_SERVICE] Expansion improved results: {len(listings)} → {expanded.total_count}")
+                        return expanded
 
             return SearchResult(
                 listings=listings,
@@ -277,6 +288,86 @@ class SearchService:
                 inferences=inferences,
                 reference_property=None
             )
+
+    def _relax_criteria(
+        self,
+        profile: dict,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Progressively relax search criteria when 0 results are found.
+
+        Applies relaxation rules in priority order, stopping as soon as
+        results are found. Each rule removes the least important constraint
+        first to maximize relevance of returned listings.
+
+        Relaxation chain (ordered by impact — least disruptive first):
+        1. Drop bedrooms minimum (4BR → any)
+        2. Raise budget ceiling by 20%
+        3. Drop bedrooms + raise budget together
+        4. Drop all optional filters (beds, baths, home type), keep location + budget
+
+        Returns:
+            (listings, relaxation_inferences) — empty lists if nothing works
+        """
+        relaxation_rules = [
+            {
+                "name": "drop_bedrooms",
+                "description": "Removed bedroom minimum to broaden search",
+                "drop": ["bedrooms", "minBedrooms"],
+                "adjust": {},
+            },
+            {
+                "name": "raise_budget_20pct",
+                "description": "Raised budget ceiling by 20%",
+                "drop": [],
+                "adjust": {"budgetMax": lambda p: int(p.get("budgetMax", 0) * 1.2) if p.get("budgetMax") else None},
+            },
+            {
+                "name": "drop_beds_raise_budget",
+                "description": "Removed bedroom minimum and raised budget by 20%",
+                "drop": ["bedrooms", "minBedrooms"],
+                "adjust": {"budgetMax": lambda p: int(p.get("budgetMax", 0) * 1.2) if p.get("budgetMax") else None},
+            },
+            {
+                "name": "location_budget_only",
+                "description": "Kept only location and budget, removed all other filters",
+                "drop": ["bedrooms", "minBedrooms", "bathrooms", "homeType"],
+                "adjust": {},
+            },
+        ]
+
+        for rule in relaxation_rules:
+            relaxed = dict(profile)
+
+            # Drop specified fields
+            for field in rule["drop"]:
+                relaxed.pop(field, None)
+
+            # Apply adjustments
+            for field, adjuster in rule["adjust"].items():
+                new_val = adjuster(profile)
+                if new_val is not None:
+                    relaxed[field] = new_val
+
+            try:
+                results = self.repliers.search(relaxed)
+                logger.info(f"[SEARCH_SERVICE] Relaxation '{rule['name']}' returned {len(results)} listings")
+
+                if results:
+                    inference = {
+                        "field": "search_relaxation",
+                        "value": rule["name"],
+                        "reason": rule["description"],
+                        "source": "criteria_relaxation",
+                    }
+                    return results, [inference]
+
+            except RepliersError as e:
+                logger.warning(f"[SEARCH_SERVICE] Relaxation '{rule['name']}' failed: {e}")
+                continue
+
+        logger.info("[SEARCH_SERVICE] All relaxation rules exhausted — no results found")
+        return [], []
 
     def _expand_search_radius(
         self,

@@ -92,6 +92,15 @@ Amenity Drive Times (from Places API + Routes API):
 - Nearest Pharmacy: {amenities.get('pharmacy_drive_mins', 'N/A')} minutes
 """
 
+        if hard_data.get('train_station'):
+            train = hard_data['train_station']
+            prompt += f"""
+Train Station Data (from Places API + Directions API):
+- Nearest Station: {train.get('station_name', 'N/A')}
+- Drive Time: {train.get('drive_mins', 'N/A')} minutes
+- Walk Time: {train.get('walk_mins', 'N/A')} minutes
+"""
+
         if hard_data.get('poi'):
             poi = hard_data['poi']
             prompt += f"""
@@ -216,7 +225,9 @@ JSON SCHEMA:
     "pharmacy_drive_mins": <integer or null>,
     "cafes_drive_mins": <integer or null>,
     "primary_school_drive_mins": <integer or null>,
-    "train_station_drive_mins": <integer or null>
+    "train_station_drive_mins": <integer or null>,
+    "train_station_name": "<string or null>",
+    "train_station_walk_mins": <integer or null>
   },
   "walkability": {
     "sidewalks_present": <boolean or null>,
@@ -399,6 +410,20 @@ async def analyze_location_with_gemini(
                 gemini_model=GEMINI_MODEL
             )
         )
+
+        # Override amenities with hard data (Maps API values take precedence over Gemini guesses)
+        if hard_data:
+            if hard_data.get('train_station'):
+                train = hard_data['train_station']
+                location_analysis.amenities.train_station_drive_mins = train.get('drive_mins')
+                location_analysis.amenities.train_station_name = train.get('station_name')
+                location_analysis.amenities.train_station_walk_mins = train.get('walk_mins')
+            if hard_data.get('amenities'):
+                ha = hard_data['amenities']
+                if ha.get('grocery_drive_mins') is not None:
+                    location_analysis.amenities.grocery_drive_mins = ha['grocery_drive_mins']
+                if ha.get('pharmacy_drive_mins') is not None:
+                    location_analysis.amenities.pharmacy_drive_mins = ha['pharmacy_drive_mins']
 
         logger.info(f"Successfully analyzed location for {address}")
         return location_analysis

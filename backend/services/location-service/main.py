@@ -30,7 +30,7 @@ from models import (
     FlagCategory
 )
 from gemini_client import analyze_location_with_gemini
-from maps_client import get_commute_data, get_amenity_drive_times, get_geocoding, get_poi_counts
+from maps_client import get_commute_data, get_amenity_drive_times, get_geocoding, get_poi_counts, get_train_station_distance
 from scoring import enhance_analysis_with_scoring
 from cache import (
     connect as cache_connect,
@@ -119,12 +119,15 @@ def _build_fast_mode_analysis(
     # Extract amenity data from Maps API + POI data
     amenity_data = hard_data.get('amenities', {})
     poi_data_for_amenities = hard_data.get('poi', {})
+    train_station_data = hard_data.get('train_station', {})
     amenities = AmenitiesProximity(
         grocery_drive_mins=amenity_data.get('grocery_drive_mins'),
         pharmacy_drive_mins=amenity_data.get('pharmacy_drive_mins'),
         cafes_drive_mins=None,
         primary_school_drive_mins=poi_data_for_amenities.get('primary_school_drive_mins'),
-        train_station_drive_mins=None
+        train_station_drive_mins=train_station_data.get('drive_mins'),
+        train_station_name=train_station_data.get('station_name'),
+        train_station_walk_mins=train_station_data.get('walk_mins'),
     )
 
     # Walkability — use POI walk times if available
@@ -337,6 +340,13 @@ async def analyze_location(request: LocationRequest):
         if poi_data:
             hard_data['poi'] = poi_data
             logger.info(f"Got POI data: schools={poi_data.get('nearby_schools_count')}, parks={poi_data.get('nearby_parks_count')}, playgrounds={poi_data.get('nearby_playgrounds_count')}")
+
+        # Get train station distance
+        logger.info(f"Fetching train station data via Maps API...")
+        train_data = await get_train_station_distance(geocoding_data)
+        if train_data:
+            hard_data['train_station'] = train_data
+            logger.info(f"Got train station data: {train_data}")
 
         # Add geocoding data for street context interpretation
         hard_data['geocoding'] = geocoding_data

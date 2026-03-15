@@ -286,6 +286,74 @@ async def get_amenity_drive_times(geocoding_data: Dict) -> Dict:
         return result
 
 
+async def get_train_station_distance(geocoding_data: Dict) -> Dict:
+    """
+    Find nearest train/commuter rail station within 5 miles using Places API.
+    Returns station name, walking time, and driving time.
+
+    Args:
+        geocoding_data: Dict with lat, lng from geocoding
+
+    Returns:
+        Dict with station_name, walk_mins, drive_mins or empty dict on failure
+    """
+    if not gmaps:
+        logger.warning("Maps API not initialized - returning empty train data")
+        return {}
+
+    try:
+        if not geocoding_data.get('lat') or not geocoding_data.get('lng'):
+            logger.warning("No valid geocoding data for train station search")
+            return {}
+
+        location = {'lat': geocoding_data['lat'], 'lng': geocoding_data['lng']}
+        origin = f"{location['lat']},{location['lng']}"
+        radius_5miles = 8047  # 5 miles in meters
+
+        stations = gmaps.places_nearby(
+            location=location,
+            radius=radius_5miles,
+            type='train_station'
+        )
+
+        results = stations.get('results', [])
+        if not results:
+            logger.info("No train stations found within 5 miles")
+            return {}
+
+        nearest = results[0]
+        station_name = nearest.get('name', 'Unknown Station')
+        station_loc = nearest['geometry']['location']
+        dest = f"{station_loc['lat']},{station_loc['lng']}"
+
+        result = {"station_name": station_name}
+
+        # Get walking time
+        try:
+            walk_dirs = gmaps.directions(origin, dest, mode="walking")
+            if walk_dirs:
+                secs = walk_dirs[0]['legs'][0]['duration']['value']
+                result["walk_mins"] = round(secs / 60)
+        except Exception as e:
+            logger.warning(f"Error getting walk time to station: {e}")
+
+        # Get driving time
+        try:
+            drive_dirs = gmaps.directions(origin, dest, mode="driving")
+            if drive_dirs:
+                secs = drive_dirs[0]['legs'][0]['duration']['value']
+                result["drive_mins"] = round(secs / 60)
+        except Exception as e:
+            logger.warning(f"Error getting drive time to station: {e}")
+
+        logger.info(f"Train station: {station_name}, walk={result.get('walk_mins')}min, drive={result.get('drive_mins')}min")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error finding train station: {str(e)}", exc_info=True)
+        return {}
+
+
 async def get_poi_counts(geocoding_data: Dict) -> Dict:
     """
     Count nearby POIs (schools, parks, playgrounds) within 1 mile using Places API.

@@ -342,13 +342,26 @@ def validate_and_enhance_extraction(
     budget_max = enhanced.get("budgetMax")
     budget_str = enhanced.get("budget")  # String like "$1,250,000" or "$500K-$600K"
 
-    # Parse budget string if min/max are missing
-    if not budget_min and not budget_max and budget_str:
-        parsed = _parse_budget_string(budget_str)
-        if parsed:
-            budget_min = parsed.get("min")
-            budget_max = parsed.get("max")
-            print(f"[ENHANCE] Parsed budget string '{budget_str}' → min={budget_min}, max={budget_max}")
+    # Parse budget string if min/max are missing — use comprehensive parser from nlp.py
+    if budget_str:
+        # First try the local parser
+        parsed_local = _parse_budget_string(budget_str)
+        local_min = parsed_local.get("min") if parsed_local else None
+        local_max = parsed_local.get("max") if parsed_local else None
+
+        # Then try the comprehensive parser (handles "under", "around", "at least", etc.)
+        from .nlp import _parse_budget_string as _parse_budget_comprehensive
+        nlp_min, nlp_max = _parse_budget_comprehensive(budget_str)
+
+        # Use NLP parser values if LLM + local parser missed them
+        resolved_min = budget_min or nlp_min or local_min
+        resolved_max = budget_max or nlp_max or local_max
+
+        if resolved_min != budget_min or resolved_max != budget_max:
+            print(f"[ENHANCE] Budget override: LLM=({budget_min},{budget_max}), local=({local_min},{local_max}), nlp=({nlp_min},{nlp_max}) → ({resolved_min},{resolved_max})")
+
+        budget_min = resolved_min
+        budget_max = resolved_max
 
     if budget_min and budget_max and budget_min == budget_max:
         # Same value (listing price) → create search range
@@ -572,8 +585,8 @@ EXTRACT (return null if not stated):
 - phone: Phone if given
 - location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated (e.g., "Melrose, Wakefield, Stoneham"). If they say "relocating from X to Y", extract Y (the destination), NOT X (where they're coming from). Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
-- budgetMin: Number if explicitly mentioned
-- budgetMax: Number if explicitly mentioned
+- budgetMin: Number — interpret from budget phrase. "under $1M" → budgetMin=500000. "around $700K" → budgetMin=560000. "$500K-$600K" → budgetMin=500000. If only max is stated, set min to 50% of max.
+- budgetMax: Number — interpret from budget phrase. "under $1M" → budgetMax=1000000. "around $700K" → budgetMax=840000. "$500K-$600K" → budgetMax=600000. Always extract a number when any budget is mentioned.
 - bedrooms: Number if stated (recognize: beds, bed, bedrooms, bedroom, br, "3 bed", "3br", listing_context.beds)
 - bathrooms: Number or string if stated (recognize: baths, bath, bathrooms, bathroom, ba, "2 bath", "2.5ba", listing_context.baths)
 - homeType: Property type if mentioned (condo, townhouse, single family, etc.)
@@ -585,7 +598,7 @@ FORBIDDEN (never generate):
 - Commute times
 - Neighborhood safety scores
 - Cap rate or rent estimates
-- Any value not explicitly stated
+- Any value not explicitly stated (except budgetMin/budgetMax which should be inferred from budget phrases)
 
 THEN GENERATE:
 

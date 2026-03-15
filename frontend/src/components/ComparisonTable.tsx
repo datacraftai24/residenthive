@@ -14,7 +14,8 @@ import {
   Calendar,
   CalendarDays,
   Volume2,
-  Footprints
+  Footprints,
+  TrainFront
 } from "lucide-react";
 import React from "react";
 
@@ -67,6 +68,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "star": Star,
   "volume": Volume2,
   "footprints": Footprints,
+  "train": TrainFront,
 };
 
 export function ComparisonTable({ comparison, onRequestShowing, onViewDetails }: ComparisonTableProps) {
@@ -186,8 +188,13 @@ export function ComparisonTable({ comparison, onRequestShowing, onViewDetails }:
                         {cell.flag === "warning" && (
                           <span className="text-xs text-amber-600 flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" />
-                            Over limit
+                            {row.id === "lead_paint_risk" ? "Disclosure Required" : "Over limit"}
                           </span>
+                        )}
+
+                        {/* Verify independently on Concerns */}
+                        {row.id === "concerns" && cell.display !== "None detected" && (
+                          <span className="text-[10px] text-gray-400 italic">Verify independently</span>
                         )}
                       </div>
                     </td>

@@ -77,15 +77,22 @@ class LeadPropertyAnalyzer:
 
             # Layer 2: Vision analysis (photos via Gemini)
             photo_insights = []
+            photo_classifications = {}
             if include_vision and self.gemini_client:
                 images = listing.get("images", [])[:max_photos]
                 if images:
-                    photo_insights = self._analyze_photos_gemini(images, listing)
+                    result = self._analyze_photos_gemini(images, listing)
+                    # Handle both old (list) and new (tuple) return formats
+                    if isinstance(result, tuple):
+                        photo_insights, photo_classifications = result
+                    else:
+                        photo_insights = result
 
             # Merge results
             analysis = {
                 **text_analysis,
-                "photo_insights": photo_insights
+                "photo_insights": photo_insights,
+                "photo_classifications": photo_classifications,
             }
 
             return analysis
@@ -171,7 +178,7 @@ class LeadPropertyAnalyzer:
         """Layer 2: Analyze property photos using Gemini Vision."""
 
         if not image_urls or not self.gemini_client:
-            return []
+            return [], {}
 
         address = listing.get("address", "this property")
         price = listing.get("price", 0)
@@ -207,16 +214,25 @@ RULES:
 - If nothing serious, return only highlights or empty array
 - Empty array is fine if property looks standard
 
-Return ONLY a JSON array (max 4 items):
-[
-  {{
-    "observation": "specific factual observation",
-    "photo_index": 0,
-    "implication": "what it means for buyer",
-    "type": "highlight|concern|red_flag",
-    "confidence": "high|medium"
+Return ONLY a JSON object with this structure:
+{{
+  "insights": [
+    {{
+      "observation": "specific factual observation",
+      "photo_index": 0,
+      "implication": "what it means for buyer",
+      "type": "highlight|concern|red_flag",
+      "confidence": "high|medium"
+    }}
+  ],
+  "photo_classifications": {{
+    "backyard_photo_index": null,
+    "kitchen_photo_index": null,
+    "front_exterior_index": null
   }}
-]"""
+}}
+
+Max 4 items in insights array. Set photo_classifications indices to the 0-based index of the best photo for each category, or null if not found."""
 
         try:
             # Build content with images - download and send as bytes
@@ -236,7 +252,7 @@ Return ONLY a JSON array (max 4 items):
             # If no images were downloaded, skip vision
             if len(content_parts) <= 1:
                 print("[LEAD ANALYZER] No images downloaded, skipping vision")
-                return []
+                return [], {}
 
             response = self.gemini_client.models.generate_content(
                 model=self.vision_model,
@@ -250,7 +266,7 @@ Return ONLY a JSON array (max 4 items):
 
             if not response.text:
                 print("[LEAD ANALYZER] Gemini vision returned empty response")
-                return []
+                return [], {}
 
             result_text = response.text.strip()
             print(f"[LEAD ANALYZER] Gemini vision response: {result_text[:500]}")
@@ -269,18 +285,24 @@ Return ONLY a JSON array (max 4 items):
                     insights = json.loads(result_text)
                 except:
                     print(f"[LEAD ANALYZER] Failed to parse after cleanup: {result_text[:200]}")
-                    return []
+                    return [], {}
 
-            # Validate and filter
+            # Handle both old array format and new object format
+            photo_classifications = {}
+            if isinstance(insights, dict):
+                # New object format with insights + photo_classifications
+                photo_classifications = insights.get("photo_classifications", {})
+                insights = insights.get("insights", [])
+
             if isinstance(insights, list):
                 valid_insights = [i for i in insights[:5] if self._is_valid_photo_insight(i)]
-                print(f"[LEAD ANALYZER] Found {len(valid_insights)} valid photo insights")
-                return valid_insights
-            return []
+                print(f"[LEAD ANALYZER] Found {len(valid_insights)} valid photo insights, classifications={photo_classifications}")
+                return valid_insights, photo_classifications
+            return [], photo_classifications
 
         except Exception as e:
             print(f"[LEAD ANALYZER] Gemini vision error: {e}")
-            return []
+            return [], {}
 
     def _get_system_prompt(self) -> str:
         """System prompt for text analysis."""
