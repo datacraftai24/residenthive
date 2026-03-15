@@ -219,22 +219,30 @@ def lookup_property_details(text: str, property_address: Optional[str] = None) -
 
 def _extract_city_from_location(loc: str) -> Optional[str]:
     """
-    Extract city name from location string (handles full addresses).
+    Extract city name(s) from location string (handles full addresses AND multi-city).
+
+    Multi-city inputs are preserved so that downstream search (Repliers
+    parse_multi_city_location) can split them into separate city queries.
 
     Examples:
-        "42 Walnut St, Newton, MA" → "Newton"
-        "Newton, MA" → "Newton"
-        "Newton MA" → "Newton"
-        "Boston" → "Boston"
+        "42 Walnut St, Newton, MA"  → "Newton"
+        "Newton, MA"                → "Newton"
+        "Newton MA"                 → "Newton"
+        "Boston"                    → "Boston"
+        "Melrose, Wakefield"        → "Melrose, Wakefield"  (multi-city preserved)
+        "Boston or Quincy"          → "Boston or Quincy"     (multi-city preserved)
+        "Boston MA, Quincy MA"      → "Boston, Quincy"       (multi-city, states stripped)
     """
+    from app.services.repliers_lookup import parse_multi_city_location
+
     if not loc:
         return None
 
     loc = loc.strip()
+
+    # First check: is this a street address? (e.g. "42 Walnut St, Newton, MA")
     parts = [p.strip() for p in loc.split(",")]
     first = parts[0]
-
-    # Detect street address pattern: "123 Main St"
     is_street = bool(re.match(
         r'^\d+\s+\w+.*\s+(St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Ln|Lane|Ct|Way|Blvd|Pl|Cir|Circle|Boulevard|Place|Terrace|Ter)\.?$',
         first, re.IGNORECASE
@@ -243,15 +251,17 @@ def _extract_city_from_location(loc: str) -> Optional[str]:
     if is_street and len(parts) >= 2:
         # Full address: "123 Main St, Newton, MA" → "Newton"
         return parts[1].strip()
-    elif len(parts) >= 2:
-        # City, State format: "Newton, MA" → "Newton"
-        return parts[0].strip()
-    else:
-        # Check for state suffix: "Newton MA" → "Newton"
-        words = loc.split()
-        if len(words) >= 2 and len(words[-1]) == 2 and words[-1].isupper():
-            return " ".join(words[:-1])
-        return loc
+
+    # Use the multi-city parser to detect multi-city inputs
+    cities = parse_multi_city_location(loc)
+    if len(cities) > 1:
+        # Multi-city: return comma-joined so Repliers client can split again at search time
+        return ", ".join(cities)
+    elif len(cities) == 1:
+        return cities[0]
+
+    # Fallback: return as-is
+    return loc
 
 
 def _parse_budget_string(budget_str: str) -> Optional[dict]:
