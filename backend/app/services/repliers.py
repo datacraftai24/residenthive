@@ -58,9 +58,8 @@ class RepliersClient:
             "standardStatus": "Active",  # RESO-compliant status filter (replaces deprecated status="A")
             "type": "Sale"  # Filter out rentals - only show properties for sale
         }
-        # Budget - Repliers uses minPrice/maxPrice (not minListPrice/maxListPrice)
-        if profile.get("budgetMin"):
-            q["minPrice"] = int(profile["budgetMin"])
+        # Budget - only cap maxPrice. No minPrice filter — a buyer with
+        # an $800K budget would happily take a $500K home that fits their needs.
         if profile.get("budgetMax"):
             q["maxPrice"] = int(profile["budgetMax"])
         # Bedrooms
