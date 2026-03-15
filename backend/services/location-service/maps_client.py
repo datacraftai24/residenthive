@@ -284,3 +284,124 @@ async def get_amenity_drive_times(geocoding_data: Dict) -> Dict:
     except Exception as e:
         logger.error(f"Error getting amenity drive times: {str(e)}", exc_info=True)
         return result
+
+
+async def get_poi_counts(geocoding_data: Dict) -> Dict:
+    """
+    Count nearby POIs (schools, parks, playgrounds) within 1 mile using Places API.
+    Also gets walk time to nearest park/playground.
+
+    Args:
+        geocoding_data: Dict with lat, lng from geocoding
+
+    Returns:
+        Dict with counts and walk times
+    """
+    if not gmaps:
+        logger.warning("Maps API not initialized - returning null POI data")
+        return {}
+
+    result = {
+        "nearby_schools_count": 0,
+        "nearby_parks_count": 0,
+        "nearby_playgrounds_count": 0,
+        "primary_school_drive_mins": None,
+        "closest_park_walk_mins": None,
+        "closest_playground_walk_mins": None,
+    }
+
+    try:
+        if not geocoding_data.get('lat') or not geocoding_data.get('lng'):
+            logger.warning("No valid geocoding data for POI search")
+            return result
+
+        location = {'lat': geocoding_data['lat'], 'lng': geocoding_data['lng']}
+        origin = f"{location['lat']},{location['lng']}"
+        radius_1mile = 1609  # 1 mile in meters
+
+        # Schools within 1 mile
+        try:
+            schools = gmaps.places_nearby(
+                location=location,
+                radius=radius_1mile,
+                type='school'
+            )
+            school_results = schools.get('results', [])
+            result["nearby_schools_count"] = len(school_results)
+
+            # Drive time to nearest school
+            if school_results:
+                nearest = school_results[0]['geometry']['location']
+                directions = gmaps.directions(
+                    origin,
+                    f"{nearest['lat']},{nearest['lng']}",
+                    mode="driving"
+                )
+                if directions:
+                    secs = directions[0]['legs'][0]['duration']['value']
+                    result["primary_school_drive_mins"] = round(secs / 60)
+
+            logger.info(f"Schools: {result['nearby_schools_count']} within 1 mile")
+
+        except Exception as e:
+            logger.warning(f"Error finding schools: {str(e)}")
+
+        # Parks within 1 mile
+        try:
+            parks = gmaps.places_nearby(
+                location=location,
+                radius=radius_1mile,
+                type='park'
+            )
+            park_results = parks.get('results', [])
+            result["nearby_parks_count"] = len(park_results)
+
+            # Walk time to nearest park
+            if park_results:
+                nearest = park_results[0]['geometry']['location']
+                directions = gmaps.directions(
+                    origin,
+                    f"{nearest['lat']},{nearest['lng']}",
+                    mode="walking"
+                )
+                if directions:
+                    secs = directions[0]['legs'][0]['duration']['value']
+                    result["closest_park_walk_mins"] = round(secs / 60)
+
+            logger.info(f"Parks: {result['nearby_parks_count']} within 1 mile")
+
+        except Exception as e:
+            logger.warning(f"Error finding parks: {str(e)}")
+
+        # Playgrounds within 1 mile
+        try:
+            playgrounds = gmaps.places_nearby(
+                location=location,
+                radius=radius_1mile,
+                keyword='playground'
+            )
+            playground_results = playgrounds.get('results', [])
+            result["nearby_playgrounds_count"] = len(playground_results)
+
+            # Walk time to nearest playground
+            if playground_results:
+                nearest = playground_results[0]['geometry']['location']
+                directions = gmaps.directions(
+                    origin,
+                    f"{nearest['lat']},{nearest['lng']}",
+                    mode="walking"
+                )
+                if directions:
+                    secs = directions[0]['legs'][0]['duration']['value']
+                    result["closest_playground_walk_mins"] = round(secs / 60)
+
+            logger.info(f"Playgrounds: {result['nearby_playgrounds_count']} within 1 mile")
+
+        except Exception as e:
+            logger.warning(f"Error finding playgrounds: {str(e)}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error getting POI counts: {str(e)}", exc_info=True)
+        return result

@@ -256,6 +256,29 @@ Return JSON with:
 }"""
         lead_section = ""
 
+    # Add buyer's soft preferences (hints) to the prompt
+    hints_note = ""
+    if lead_context:
+        safe_hints = lead_context.get("safeHints", [])
+        sensitive_hints = lead_context.get("sensitiveHints", [])
+
+        if safe_hints or sensitive_hints:
+            hints_note = "\n## Buyer's Preferences\n"
+            if safe_hints:
+                hints_note += f"The buyer mentioned wanting: {', '.join(safe_hints)}.\n"
+                hints_note += "When describing properties, highlight features that match these preferences.\n"
+            if sensitive_hints:
+                hints_note += f"\nThe buyer also mentioned interest in: {', '.join(sensitive_hints)}.\n"
+                hints_note += """COMPLIANCE RULE for these topics: Use FACTUAL language only.
+- OK: "Close to several schools" / "Near public schools" / "School bus routes nearby"
+- NOT OK: "Great school district" / "Top-rated schools" / "Best schools in the area"
+- OK: "Low tax assessment" / "Recent tax records available"
+- NOT OK: "Low crime area" / "Safe neighborhood"
+Do NOT make qualitative judgments about schools, demographics, safety, or tax burden.
+Only state proximity or factual availability. Let the buyer research specifics themselves.
+"""
+            hints_note += "\n"
+
     # Add expansion context if search was expanded to nearby areas
     expansion_note = ""
     if lead_context and lead_context.get("expansionUsed"):
@@ -274,7 +297,7 @@ TONE GUIDE for the intro paragraph:
 
 """
 
-    user_prompt = f"""{lead_section}{expansion_note}Buyer Profile:
+    user_prompt = f"""{lead_section}{hints_note}{expansion_note}Buyer Profile:
 {buyer_summary}
 
 Properties I've selected (in order shown):
@@ -389,7 +412,8 @@ Return JSON only, no extra commentary.
 
         # Add rich comparison data for enhanced comparison table
         is_lead = lead_context is not None
-        rich_comparison = compute_rich_comparison(profile, listings, is_lead_report=is_lead)
+        buyer_hints = (lead_context or {}).get("allHints", [])
+        rich_comparison = compute_rich_comparison(profile, listings, is_lead_report=is_lead, buyer_hints=buyer_hints)
         synthesis["rich_comparison"] = rich_comparison
 
         # Include lead_context in synthesis for frontend rendering
@@ -452,6 +476,7 @@ def _generate_fallback_synthesis(
         )
         # Add rich comparison data
         is_lead = lead_context is not None
-        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings, is_lead_report=is_lead)
+        buyer_hints = (lead_context or {}).get("allHints", [])
+        synthesis["rich_comparison"] = compute_rich_comparison(profile, listings, is_lead_report=is_lead, buyer_hints=buyer_hints)
 
     return synthesis
