@@ -21,6 +21,14 @@ from .requirements_analyzer import (
 )
 
 
+def safe_int(value, default=0):
+    """Safely convert a value to int."""
+    try:
+        return int(value) if value else default
+    except (ValueError, TypeError):
+        return default
+
+
 def generate_report_synthesis(
     profile: Dict[str, Any],
     listings: List[Dict[str, Any]],
@@ -353,6 +361,13 @@ What you should know:
 
 ---
 """
+
+    # Lead paint alert for MA Lead Law compliance
+    if profile.get("has_kids"):
+        pre_1978 = [l for l in listings if l.get("yearBuilt") and safe_int(l.get("yearBuilt"), 2000) < 1978]
+        if pre_1978:
+            addrs = ", ".join(l.get("address", "?") for l in pre_1978)
+            user_prompt += f"\nIMPORTANT: Buyer has children. Properties built before 1978 ({addrs}) are subject to MA Lead Law. Mention lead paint disclosure requirement in things_to_consider.\n"
 
     user_prompt += f"""
 Now, synthesize a report that:

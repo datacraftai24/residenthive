@@ -715,6 +715,7 @@ HINT_ROW_MAPPING = {
     "year_built": ["new", "modern", "updated", "renovated"],
     "noise_level": ["quiet", "peaceful", "noise"],
     "walkability": ["walkable", "walk", "walking", "park", "parks", "trail", "trails"],
+    "train_station": ["train", "transit", "commuter rail", "orange line", "subway", "mbta", "station", "the t"],
 }
 
 
@@ -889,6 +890,43 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             }
         })
 
+    # 6b. Train Station (show if buyer mentions transit or data exists)
+    def _get_train_mins(l):
+        """Get train station drive mins from top-level or nested aiAnalysis path."""
+        mins = l.get("train_station_drive_mins")
+        if mins is not None:
+            return mins
+        loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
+        return (loc.get("amenities") or {}).get("train_station_drive_mins")
+
+    def _get_train_name(l):
+        """Get train station name from top-level or nested aiAnalysis path."""
+        name = l.get("train_station_name")
+        if name:
+            return name
+        loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
+        return (loc.get("amenities") or {}).get("train_station_name")
+
+    has_train_data = any(_get_train_mins(l) is not None for l in listings)
+    if "train_station" in hint_rows or has_train_data:
+        rows.append({
+            "id": "train_station",
+            "label": "Nearest Station",
+            "icon": "train",
+            "type": "text",
+            "best_is": "lowest",
+            "buyer_priority": "train_station" in hint_rows,
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": _get_train_mins(l) or 999,
+                    "display": f"{_get_train_mins(l)} min" if _get_train_mins(l) else "Unknown",
+                    "subtext": _get_train_name(l),
+                    "is_best": False
+                }
+                for l in listings
+            }
+        })
+
     # 7. Schools (show if any listing has data, buyer has kids, or hint mentions schools)
     def _get_schools_count(l):
         """Get nearby schools count from top-level or nested aiAnalysis path."""
@@ -966,7 +1004,33 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             }
         })
 
-    # 9a. Noise Level (only when buyer mentions quiet/peaceful and data exists)
+    # 9a. Lead Paint Risk (MA Lead Law: homes pre-1978 + buyer has kids)
+    has_kids = profile.get("has_kids", False)
+    has_pre_1978 = any(safe_int(l.get("yearBuilt"), 2000) < 1978 for l in listings if l.get("yearBuilt"))
+
+    if has_kids and has_pre_1978:
+        rows.append({
+            "id": "lead_paint_risk",
+            "label": "Lead Paint Risk",
+            "icon": "alert-triangle",
+            "type": "text",
+            "best_is": None,
+            "values": {
+                l.get("mlsNumber"): {
+                    "value": 1 if safe_int(l.get("yearBuilt"), 2000) < 1978 else 0,
+                    "display": (
+                        "Pre-1978 \u00b7 Disclosure Required"
+                        if safe_int(l.get("yearBuilt"), 2000) < 1978
+                        else "No concern"
+                    ),
+                    "flag": "warning" if safe_int(l.get("yearBuilt"), 2000) < 1978 else None,
+                    "is_best": safe_int(l.get("yearBuilt"), 2000) >= 1978
+                }
+                for l in listings
+            }
+        })
+
+    # 9b. Noise Level (only when buyer mentions quiet/peaceful and data exists)
     if "noise_level" in hint_rows:
         def _get_noise(l):
             loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
@@ -1060,6 +1124,22 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
         if row.get("best_is"):
             _mark_best_values(row)
 
+    # Determine if buyer wants yard/backyard (for thumbnail selection)
+    yard_keywords = {"yard", "backyard", "outdoor", "garden"}
+    buyer_wants_yard = any(kw in " ".join(buyer_hints or []).lower() for kw in yard_keywords)
+
+    def _pick_thumbnail(l):
+        """Pick best thumbnail image: prefer backyard photo if buyer wants yard."""
+        images = l.get("images") or []
+        if not images:
+            return None
+        if buyer_wants_yard:
+            classifications = ((l.get("aiAnalysis") or {}).get("photo_classifications") or {})
+            backyard_idx = classifications.get("backyard_photo_index")
+            if backyard_idx is not None and 0 <= backyard_idx < len(images):
+                return images[backyard_idx]
+        return images[0]
+
     return {
         "rows": rows,
         "listings": [
@@ -1067,7 +1147,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
                 "mlsNumber": l.get("mlsNumber"),
                 "address": l.get("address"),
                 "city": l.get("city"),
-                "image": (l.get("images") or [None])[0] if l.get("images") else None,
+                "image": _pick_thumbnail(l),
                 "rank": idx + 1,
                 "label": _get_rank_label_lead(idx) if is_lead_report else _get_rank_label(idx)
             }

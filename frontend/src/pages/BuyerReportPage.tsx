@@ -447,6 +447,12 @@ export function BuyerReportPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Compliance Footer: AI Disclaimer + Verify Independently */}
+            <div className="mt-8 text-center text-xs text-gray-400 border-t border-gray-200 pt-4 space-y-1">
+              <p>AI-generated insights based on public records and listing data. Buyer to verify all property conditions independently.</p>
+              <p>This report was prepared with the assistance of AI technology. All data is subject to human review by {report.agentName}.</p>
+            </div>
           </>
         )}
       </div>

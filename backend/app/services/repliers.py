@@ -157,7 +157,20 @@ class RepliersClient:
             raise RepliersError("Unexpected Repliers response shape")
 
         # Normalize listings and attach raw data for quality analysis
-        return [self._normalize_listing(item) for item in items]
+        normalized = [self._normalize_listing(item) for item in items]
+
+        # Filter out non-habitable property types (Land, Commercial, etc.)
+        # Repliers returns these under class=residential but they're not homes
+        EXCLUDED_TYPES = {"land", "vacant land", "lots and land", "commercial"}
+        filtered = [
+            l for l in normalized
+            if (l.get("property_type") or "").strip().lower() not in EXCLUDED_TYPES
+        ]
+        if len(filtered) < len(normalized):
+            excluded_count = len(normalized) - len(filtered)
+            print(f"[REPLIERS] Filtered out {excluded_count} non-habitable listings (Land/Commercial)")
+
+        return filtered
 
     def _normalize_listing(self, item: Dict[str, Any]) -> Dict[str, Any]:
         # Address (handle both flat and nested address objects)

@@ -109,6 +109,8 @@ class AmenitiesProximity(BaseModel):
     cafes_drive_mins: Optional[int] = Field(None, description="Drive time to cafes/restaurants")
     primary_school_drive_mins: Optional[int] = Field(None, description="Drive time to primary school")
     train_station_drive_mins: Optional[int] = Field(None, description="Drive time to train/commuter rail station")
+    train_station_name: Optional[str] = Field(None, description="Name of nearest train/commuter rail station")
+    train_station_walk_mins: Optional[int] = Field(None, description="Walk time to nearest train/commuter rail station")
 
 
 class WalkabilityScore(BaseModel):
