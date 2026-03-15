@@ -92,7 +92,8 @@ def generate_report_synthesis(
             "why_match": whats_matching,
             "what_missing": whats_missing,
             "concerns": red_flags,
-            "my_take": agent_take[:200] if agent_take else ""  # Truncate to 200 chars
+            "my_take": agent_take[:200] if agent_take else "",  # Truncate to 200 chars
+            "is_nearby": listing.get("isNearby", False),
         }
         listing_dtos.append(dto)
 
@@ -255,7 +256,23 @@ Return JSON with:
 }"""
         lead_section = ""
 
-    user_prompt = f"""{lead_section}Buyer Profile:
+    # Add expansion context if search was expanded to nearby areas
+    expansion_note = ""
+    if lead_context and lead_context.get("expansionUsed"):
+        city_breakdown = lead_context.get("cityBreakdown", {})
+        center_city = lead_context.get("expansionCenterCity", "the area")
+        city_parts = [f"{count} in {city}" for city, count in city_breakdown.items()]
+        expansion_note = f"""
+## Nearby Area Expansion
+The search was expanded beyond {center_city} to include nearby areas: {', '.join(city_parts)}.
+When describing properties from nearby cities, mention this naturally, e.g.:
+"I also found some great options in nearby [city] that are worth considering."
+Do NOT apologize for limited inventory. Frame the expansion positively — you cast a wider net to find the best options.
+For properties from nearby cities, mention the city name and approximate distance/proximity to {center_city}.
+
+"""
+
+    user_prompt = f"""{lead_section}{expansion_note}Buyer Profile:
 {buyer_summary}
 
 Properties I've selected (in order shown):
@@ -295,8 +312,9 @@ Properties I've selected (in order shown):
         why_match_text = chr(10).join(f"• {get_match_text(m)}" for m in dto['why_match'])
         what_know_text = chr(10).join(f"• {get_concern_text(c)}" for c in (dto['what_missing'] + dto['concerns']))
 
+        nearby_tag = " [NEARBY]" if dto.get('is_nearby') else ""
         user_prompt += f"""
-#{dto['number']}: {dto['address']}, {dto['city']}
+#{dto['number']}: {dto['address']}, {dto['city']}{nearby_tag}
 Price: ${price_int:,} | {beds} beds, {baths} baths, {sqft_int:,} sqft
 MLS: {dto['mlsNumber']}
 

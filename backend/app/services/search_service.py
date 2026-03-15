@@ -20,14 +20,18 @@ Usage:
     result = service.search(profile, lead, search_type="similar")
 """
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Tuple
 import logging
 
 from .repliers import RepliersClient, RepliersError
+from .repliers_lookup import parse_multi_city_location
 from .regional_config import get_regional_config
 
 logger = logging.getLogger(__name__)
+
+EXPANSION_THRESHOLD = 5  # Expand search if fewer results than this
 
 
 @dataclass
@@ -38,6 +42,11 @@ class SearchResult:
     total_count: int
     inferences: List[Dict[str, Any]]  # What was inferred and why
     reference_property: Optional[Dict[str, Any]] = None  # For similar searches
+    # Geo-radius expansion metadata
+    expansion_used: bool = False
+    expansion_radius_km: Optional[int] = None
+    expansion_center_city: Optional[str] = None
+    city_breakdown: Optional[Dict[str, int]] = None
 
 
 class SearchService:
@@ -244,6 +253,13 @@ class SearchService:
 
             logger.info(f"[SEARCH_SERVICE] Criteria search returned {len(listings)} listings")
 
+            # If too few results and we have a location, try geo-radius expansion
+            if len(listings) < EXPANSION_THRESHOLD and enhanced.get("location"):
+                expanded = self._expand_search_radius(enhanced, listings, inferences, strategy_name)
+                if expanded and expanded.total_count > len(listings):
+                    logger.info(f"[SEARCH_SERVICE] Expansion improved results: {len(listings)} → {expanded.total_count}")
+                    return expanded
+
             return SearchResult(
                 listings=listings,
                 strategy=strategy_name,
@@ -261,6 +277,120 @@ class SearchService:
                 inferences=inferences,
                 reference_property=None
             )
+
+    def _expand_search_radius(
+        self,
+        profile: dict,
+        existing_listings: list,
+        inferences: list,
+        strategy_name: str,
+    ) -> Optional[SearchResult]:
+        """
+        Expand search using geo-radius when too few results.
+
+        Grabs lat/lng from the first listing result (no geocoding service needed),
+        then re-searches with expanding radius and no city filter.
+
+        Args:
+            profile: Enhanced search profile (has location, budget, etc.)
+            existing_listings: Listings from the initial city-filtered search
+            inferences: Inferences from profile enhancement
+            strategy_name: Original strategy name
+
+        Returns:
+            SearchResult with expanded listings, or None if expansion not possible
+        """
+        # Skip if already multi-city — user explicitly defined their search area
+        cities = parse_multi_city_location(profile.get("location", ""))
+        if len(cities) > 1:
+            logger.info("[SEARCH_SERVICE] Skipping expansion — already multi-city search")
+            return None
+
+        # Need at least 1 listing to grab coordinates from
+        if not existing_listings:
+            logger.info("[SEARCH_SERVICE] Skipping expansion — no initial results to get coordinates from")
+            return None
+
+        # Extract coordinates from first listing's raw API response
+        first_raw = existing_listings[0].get("_raw", {})
+        map_obj = first_raw.get("map", {})
+        lat = map_obj.get("latitude")
+        lng = map_obj.get("longitude")
+
+        if not lat or not lng:
+            logger.info("[SEARCH_SERVICE] Skipping expansion — no coordinates in listing data")
+            return None
+
+        original_cities_lower = {c.lower() for c in cities}
+        center_city = cities[0] if cities else profile.get("location", "Unknown")
+
+        logger.info(f"[SEARCH_SERVICE] Expanding search from {center_city} ({lat}, {lng})")
+
+        # Build geo-radius profile: same filters but coordinates instead of city
+        geo_profile = dict(profile)
+        geo_profile.pop("location", None)
+        geo_profile.pop("_cities", None)
+        geo_profile["lat"] = lat
+        geo_profile["long"] = lng
+
+        # Collect existing MLS numbers to deduplicate
+        existing_mls = {l.get("mls_number") for l in existing_listings if l.get("mls_number")}
+
+        # Try expanding radius: 5km → 10km
+        best_listings = list(existing_listings)
+        used_radius = None
+
+        for radius_km in [5, 10]:
+            geo_profile["radius"] = radius_km
+
+            try:
+                geo_listings = self.repliers.search(geo_profile)
+                logger.info(f"[SEARCH_SERVICE] Radius {radius_km}km returned {len(geo_listings)} listings")
+            except RepliersError as e:
+                logger.warning(f"[SEARCH_SERVICE] Radius {radius_km}km search failed: {e}")
+                continue
+
+            # Merge: add new listings, skip duplicates
+            for listing in geo_listings:
+                mls = listing.get("mls_number")
+                if mls and mls not in existing_mls:
+                    listing_city = (listing.get("city") or "").strip().lower()
+                    listing["_is_nearby"] = listing_city not in original_cities_lower
+                    best_listings.append(listing)
+                    existing_mls.add(mls)
+
+            used_radius = radius_km
+            if len(best_listings) >= EXPANSION_THRESHOLD:
+                break
+
+        # If expansion didn't improve results, skip
+        if len(best_listings) <= len(existing_listings):
+            logger.info("[SEARCH_SERVICE] Expansion did not improve results")
+            return None
+
+        # Tag original listings as not nearby
+        for listing in existing_listings:
+            listing["_is_nearby"] = False
+
+        # Build city breakdown
+        city_counts = Counter(
+            (l.get("city") or "Unknown").strip() for l in best_listings
+        )
+
+        logger.info(f"[SEARCH_SERVICE] Expansion complete: {len(best_listings)} listings, "
+                     f"radius={used_radius}km, cities={dict(city_counts)}")
+
+        return SearchResult(
+            listings=best_listings,
+            strategy=f"{strategy_name}_expanded",
+            total_count=len(best_listings),
+            inferences=inferences,
+            reference_property=None,
+            expansion_used=True,
+            expansion_radius_km=used_radius,
+            expansion_center_city=center_city,
+            city_breakdown=dict(city_counts),
+        )
 
     def _enhance_profile(self, profile: dict, lead: dict = None) -> Tuple[dict, list]:
         """
