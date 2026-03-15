@@ -1893,7 +1893,7 @@ async def generate_lead_outreach(
 
     # Determine if hints require full Gemini analysis (schools, walkability, noise)
     # Keywords that need data only available from Gemini (not Maps API fast mode)
-    FULL_MODE_KEYWORDS = ["school", "education", "quiet", "peaceful", "noise", "walkable", "walk", "walking"]
+    FULL_MODE_KEYWORDS = ["school", "education", "quiet", "peaceful", "noise", "walkable", "walk", "walking", "park", "parks", "trail", "trails"]
     hints_list = _parse_json_field(lead_row.get("hints")) or []
     hints_text = " ".join(hints_list).lower()
     needs_full_mode = any(kw in hints_text for kw in FULL_MODE_KEYWORDS)

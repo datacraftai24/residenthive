@@ -714,7 +714,7 @@ HINT_ROW_MAPPING = {
     "schools": ["school", "education"],
     "year_built": ["new", "modern", "updated", "renovated"],
     "noise_level": ["quiet", "peaceful", "noise"],
-    "walkability": ["walkable", "walk", "walking"],
+    "walkability": ["walkable", "walk", "walking", "park", "parks", "trail", "trails"],
 }
 
 
@@ -924,7 +924,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
     # 8. Lot Size (show if meaningful variation or hint mentions yard/backyard)
     lot_sizes = [safe_float(l.get("lotAcres"), 0) for l in listings if l.get("lotAcres")]
     has_any_lot = any(l.get("lotAcres") is not None for l in listings)
-    if (lot_sizes and max(lot_sizes) > 0.1) or ("lot_size" in hint_rows and has_any_lot):
+    if (lot_sizes and max(lot_sizes) > 0.1) or ("lot_size" in hint_rows):
         rows.append({
             "id": "lot_size",
             "label": "Lot Size",
