@@ -263,12 +263,14 @@ Return JSON with:
         center_city = lead_context.get("expansionCenterCity", "the area")
         city_parts = [f"{count} in {city}" for city, count in city_breakdown.items()]
         expansion_note = f"""
-## Nearby Area Expansion
-The search was expanded beyond {center_city} to include nearby areas: {', '.join(city_parts)}.
-When describing properties from nearby cities, mention this naturally, e.g.:
-"I also found some great options in nearby [city] that are worth considering."
-Do NOT apologize for limited inventory. Frame the expansion positively — you cast a wider net to find the best options.
-For properties from nearby cities, mention the city name and approximate distance/proximity to {center_city}.
+## Wider Search — Limited Inventory in {center_city}
+Active inventory in {center_city} is limited right now, so I've also looked at nearby communities: {', '.join(city_parts)}.
+
+TONE GUIDE for the intro paragraph:
+- Acknowledge limited inventory naturally, e.g.: "There are only a few active listings in {center_city} right now, so I've also included some homes in nearby towns that are worth a look."
+- Frame nearby options positively — they're not a fallback, they're a proactive recommendation. A good agent would say: "Since inventory is tight in {center_city}, I cast a wider net and found some solid options nearby."
+- For [NEARBY] properties, mention the town name naturally in the "why" description, e.g.: "This one in Stoneham is just a few minutes from {center_city} and offers..."
+- Do NOT apologize. Do NOT say "unfortunately". This is helpful, not a compromise.
 
 """
 

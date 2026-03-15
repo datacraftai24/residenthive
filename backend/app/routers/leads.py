@@ -1818,7 +1818,7 @@ async def generate_lead_outreach(
                 "description": listing.get("description"),
                 "yearBuilt": listing.get("year_built"),
                 "daysOnMarket": listing.get("days_on_market"),
-                "matchLabel": "Nearby" if listing.get("_is_nearby") else ("Similar" if search_result.strategy == "similar" else "Match"),
+                "matchLabel": "Also Worth a Look" if listing.get("_is_nearby") else ("Similar" if search_result.strategy == "similar" else "Match"),
                 "isNearby": listing.get("_is_nearby", False),
                 # Lead analysis will be added AFTER top 5 selection (vision analysis is slow)
                 "leadAnalysis": None,
