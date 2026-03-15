@@ -92,6 +92,18 @@ Amenity Drive Times (from Places API + Routes API):
 - Nearest Pharmacy: {amenities.get('pharmacy_drive_mins', 'N/A')} minutes
 """
 
+        if hard_data.get('poi'):
+            poi = hard_data['poi']
+            prompt += f"""
+POI Data (from Places API - within 1 mile radius):
+- Nearby Schools: {poi.get('nearby_schools_count', 0)}
+- Nearby Parks: {poi.get('nearby_parks_count', 0)}
+- Nearby Playgrounds: {poi.get('nearby_playgrounds_count', 0)}
+- Primary School Drive: {poi.get('primary_school_drive_mins', 'N/A')} minutes
+- Closest Park Walk: {poi.get('closest_park_walk_mins', 'N/A')} minutes
+- Closest Playground Walk: {poi.get('closest_playground_walk_mins', 'N/A')} minutes
+"""
+
         prompt += """
 YOU MUST USE THESE EXACT VALUES IN YOUR RESPONSE. DO NOT RECALCULATE.
 """
@@ -113,13 +125,10 @@ Buyer Preferences:
         prompt += """
 
 CRITICAL INSTRUCTIONS:
-1. USE THE EXACT VALUES from the HARD DATA above for commute and amenities
+1. USE THE EXACT VALUES from the HARD DATA above for commute, amenities, and POI counts
 2. DO NOT recalculate or verify those numbers - they are from authoritative APIs
-3. Use Google Maps grounding ONLY for:
-   - Counting POIs (schools, parks, playgrounds within 1 mile)
-   - Distance to major roads
-   - Sidewalk presence
-   - Walking times to parks/playgrounds
+3. For family_indicators and walkability fields, use the POI data provided above
+4. Your job is REASONING and SYNTHESIS only - classify street context, derive walkability labels, generate flags
 
 # STREET CONTEXT INTERPRETATION RULES
 
@@ -281,8 +290,43 @@ async def analyze_location_with_gemini(
         # Build prompt
         prompt = build_analysis_prompt(address, buyer_prefs, hard_data)
 
-        # Call Gemini 2.5 Flash with Google Maps tool
-        # Note: response_mime_type="application/json" is not supported with Google Maps tool
+        # When hard_data includes POI counts (schools, parks, etc.), we have all the
+        # data Gemini needs — drop the Google Maps tool and enable response_mime_type
+        # for guaranteed valid JSON. Only use Maps tool when POI data is missing.
+        has_poi_data = hard_data and 'poi' in hard_data
+        if has_poi_data:
+            logger.info("POI data available — using JSON mode (no Maps tool)")
+            gen_config = types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=4096,
+                response_mime_type="application/json",
+            )
+        else:
+            logger.info("No POI data — using Google Maps tool (no JSON mode)")
+            gen_config = types.GenerateContentConfig(
+                tools=[types.Tool(google_maps=types.GoogleMaps())],
+                temperature=0.1,
+                max_output_tokens=4096,
+                safety_settings=[
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HARASSMENT",
+                        threshold="BLOCK_NONE"
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_HATE_SPEECH",
+                        threshold="BLOCK_NONE"
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold="BLOCK_NONE"
+                    ),
+                    types.SafetySetting(
+                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold="BLOCK_NONE"
+                    ),
+                ]
+            )
+
         # Retry up to 3 times on empty response (Gemini sometimes returns None)
         max_retries = 3
         response_text = None
@@ -291,30 +335,7 @@ async def analyze_location_with_gemini(
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_maps=types.GoogleMaps())],
-                    temperature=0.1,  # Low temperature for consistency
-                    max_output_tokens=4096,
-                    # Reduce safety filters - we're just analyzing real estate locations
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_NONE"
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_NONE"
-                        ),
-                    ]
-                )
+                config=gen_config
             )
 
             # Check if response has content

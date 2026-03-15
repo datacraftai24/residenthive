@@ -83,6 +83,16 @@ STYLE_ALIASES = {
 }
 
 
+# All US state abbreviations — used to distinguish "City, State" from "City1, City2"
+US_STATE_ABBREVIATIONS = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC",
+}
+
 # Massachusetts region definitions for multi-city expansion
 # Source: Common real estate market areas
 # Last updated: 2025-01-12
@@ -231,6 +241,12 @@ def parse_multi_city_location(location: str) -> List[str]:
     # "Boston, Quincy, Brookline" or "Boston MA, Quincy MA"
     if "," in normalized:
         parts = normalized.split(",")
+        # Detect "City, State" pattern (e.g., "Melrose, MA") vs multi-city
+        if len(parts) == 2:
+            second = parts[1].strip()
+            if second.upper() in US_STATE_ABBREVIATIONS:
+                city = _extract_city(parts[0].strip())
+                return [city] if city else []
         for part in parts:
             city = _extract_city(part.strip())
             if city:

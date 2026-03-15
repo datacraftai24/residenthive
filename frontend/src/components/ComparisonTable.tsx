@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Star,
   Calendar,
-  CalendarDays
+  CalendarDays,
+  Volume2,
+  Footprints
 } from "lucide-react";
 import React from "react";
 
@@ -21,6 +23,7 @@ interface ComparisonRow {
   label: string;
   icon: string;
   type: string;
+  buyer_priority?: boolean;
   values: Record<string, {
     value: number | string;
     display: string;
@@ -62,6 +65,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "calendar": CalendarDays,
   "alert-triangle": AlertTriangle,
   "star": Star,
+  "volume": Volume2,
+  "footprints": Footprints,
 };
 
 export function ComparisonTable({ comparison, onRequestShowing, onViewDetails }: ComparisonTableProps) {
@@ -128,6 +133,11 @@ export function ComparisonTable({ comparison, onRequestShowing, onViewDetails }:
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                     <span className="text-sm">{row.label}</span>
+                    {row.buyer_priority && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 whitespace-nowrap">
+                        Your Priority
+                      </span>
+                    )}
                   </div>
                 </td>
 

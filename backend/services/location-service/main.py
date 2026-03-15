@@ -30,7 +30,7 @@ from models import (
     FlagCategory
 )
 from gemini_client import analyze_location_with_gemini
-from maps_client import get_commute_data, get_amenity_drive_times, get_geocoding
+from maps_client import get_commute_data, get_amenity_drive_times, get_geocoding, get_poi_counts
 from scoring import enhance_analysis_with_scoring
 from cache import (
     connect as cache_connect,
@@ -116,30 +116,45 @@ def _build_fast_mode_analysis(
         is_cul_de_sac=is_cul_de_sac
     )
 
-    # Extract amenity data from Maps API
+    # Extract amenity data from Maps API + POI data
     amenity_data = hard_data.get('amenities', {})
+    poi_data_for_amenities = hard_data.get('poi', {})
     amenities = AmenitiesProximity(
         grocery_drive_mins=amenity_data.get('grocery_drive_mins'),
         pharmacy_drive_mins=amenity_data.get('pharmacy_drive_mins'),
-        cafes_drive_mins=None,  # Not fetched in fast mode
-        primary_school_drive_mins=None,
+        cafes_drive_mins=None,
+        primary_school_drive_mins=poi_data_for_amenities.get('primary_school_drive_mins'),
         train_station_drive_mins=None
     )
 
-    # Walkability requires Gemini - set to null in fast mode
+    # Walkability — use POI walk times if available
+    poi = hard_data.get('poi', {})
+    park_walk = poi.get('closest_park_walk_mins')
+    playground_walk = poi.get('closest_playground_walk_mins')
+
+    # Derive walkability label from walk times
+    walkability_label = None
+    if park_walk is not None:
+        if park_walk <= 10:
+            walkability_label = "high"
+        elif park_walk <= 20:
+            walkability_label = "moderate"
+        else:
+            walkability_label = "low"
+
     walkability = WalkabilityScore(
         sidewalks_present=None,
-        closest_park_walk_mins=None,
-        closest_playground_walk_mins=None,
-        overall_walkability_label=None,
+        closest_park_walk_mins=park_walk,
+        closest_playground_walk_mins=playground_walk,
+        overall_walkability_label=walkability_label,
         walk_score_estimate=None
     )
 
-    # Family indicators require Gemini POI counting - set to 0 in fast mode
+    # Family indicators — use POI counts from Maps API
     family_indicators = FamilyIndicators(
-        nearby_playgrounds_count=0,
-        nearby_parks_count=0,
-        nearby_schools_count=0
+        nearby_playgrounds_count=poi.get('nearby_playgrounds_count', 0),
+        nearby_parks_count=poi.get('nearby_parks_count', 0),
+        nearby_schools_count=poi.get('nearby_schools_count', 0)
     )
 
     # Build flags based on hard data
@@ -315,6 +330,13 @@ async def analyze_location(request: LocationRequest):
         if amenity_data:
             hard_data['amenities'] = amenity_data
             logger.info(f"Got amenity data: {amenity_data}")
+
+        # Get POI counts (schools, parks, playgrounds within 1 mile)
+        logger.info(f"Fetching POI counts via Maps API...")
+        poi_data = await get_poi_counts(geocoding_data)
+        if poi_data:
+            hard_data['poi'] = poi_data
+            logger.info(f"Got POI data: schools={poi_data.get('nearby_schools_count')}, parks={poi_data.get('nearby_parks_count')}, playgrounds={poi_data.get('nearby_playgrounds_count')}")
 
         # Add geocoding data for street context interpretation
         hard_data['geocoding'] = geocoding_data

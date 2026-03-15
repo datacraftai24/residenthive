@@ -708,7 +708,24 @@ def compute_category_winners(
 # RICH COMPARISON TABLE (New - for visual comparison)
 # =============================================================================
 
-def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, Any]], is_lead_report: bool = False) -> Dict[str, Any]:
+# Maps comparison row IDs to buyer hint keywords that trigger them
+HINT_ROW_MAPPING = {
+    "lot_size": ["yard", "backyard", "outdoor", "garden", "lot", "land", "acre"],
+    "schools": ["school", "education"],
+    "year_built": ["new", "modern", "updated", "renovated"],
+    "noise_level": ["quiet", "peaceful", "noise"],
+    "walkability": ["walkable", "walk", "walking"],
+}
+
+
+def _resolve_hint_rows(hints: list) -> set:
+    """Return set of row IDs triggered by buyer hints."""
+    hint_text = " ".join(hints or []).lower()
+    return {row_id for row_id, keywords in HINT_ROW_MAPPING.items()
+            if any(kw in hint_text for kw in keywords)}
+
+
+def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, Any]], is_lead_report: bool = False, buyer_hints: list = None) -> Dict[str, Any]:
     """
     Generate rich comparison data with actual values, not just pass/fail flags.
 
@@ -717,7 +734,9 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
     - Best-in-category highlighting (⭐)
     - Property thumbnails in headers
     - Progress bars for match scores
+    - Hint-driven rows tagged with buyer_priority when buyer mentions preferences
     """
+    hint_rows = _resolve_hint_rows(buyer_hints)
     if not listings:
         return {"rows": [], "listings": []}
 
@@ -870,21 +889,30 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             }
         })
 
-    # 7. Schools (show if any listing has data or buyer has kids)
-    has_school_data = any(l.get("nearby_schools_count") is not None for l in listings)
-    if has_school_data or profile.get("has_kids"):
+    # 7. Schools (show if any listing has data, buyer has kids, or hint mentions schools)
+    def _get_schools_count(l):
+        """Get nearby schools count from top-level or nested aiAnalysis path."""
+        count = l.get("nearby_schools_count")
+        if count is not None:
+            return count
+        loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
+        return (loc.get("family_indicators") or {}).get("nearby_schools_count")
+
+    has_school_data = any(_get_schools_count(l) is not None for l in listings)
+    if has_school_data or profile.get("has_kids") or "schools" in hint_rows:
         rows.append({
             "id": "schools",
             "label": "Schools Nearby",
             "icon": "graduation-cap",
             "type": "number",
             "best_is": "highest",
+            "buyer_priority": "schools" in hint_rows,
             "values": {
                 l.get("mlsNumber"): {
-                    "value": safe_int(l.get("nearby_schools_count"), 0),
+                    "value": safe_int(_get_schools_count(l), 0),
                     "display": (
-                        f"{l.get('nearby_schools_count')} nearby"
-                        if l.get("nearby_schools_count") is not None
+                        f"{_get_schools_count(l)} nearby"
+                        if _get_schools_count(l) is not None
                         else "Unknown"
                     ),
                     "is_best": False
@@ -893,15 +921,17 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             }
         })
 
-    # 8. Lot Size (show if meaningful variation)
+    # 8. Lot Size (show if meaningful variation or hint mentions yard/backyard)
     lot_sizes = [safe_float(l.get("lotAcres"), 0) for l in listings if l.get("lotAcres")]
-    if lot_sizes and max(lot_sizes) > 0.1:
+    has_any_lot = any(l.get("lotAcres") is not None for l in listings)
+    if (lot_sizes and max(lot_sizes) > 0.1) or ("lot_size" in hint_rows and has_any_lot):
         rows.append({
             "id": "lot_size",
             "label": "Lot Size",
             "icon": "trees",
             "type": "area",
             "best_is": "highest",
+            "buyer_priority": "lot_size" in hint_rows,
             "values": {
                 l.get("mlsNumber"): {
                     "value": safe_float(l.get("lotAcres"), 0),
@@ -925,6 +955,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             "icon": "calendar",
             "type": "number",
             "best_is": "highest",  # Newer is better
+            "buyer_priority": "year_built" in hint_rows,
             "values": {
                 l.get("mlsNumber"): {
                     "value": safe_int(l.get("yearBuilt"), 0),
@@ -934,6 +965,56 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
                 for l in listings
             }
         })
+
+    # 9a. Noise Level (only when buyer mentions quiet/peaceful and data exists)
+    if "noise_level" in hint_rows:
+        def _get_noise(l):
+            loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
+            return (loc.get("street_context") or {}).get("noise_risk")
+
+        if any(_get_noise(l) for l in listings):
+            noise_val = {"low": 1, "moderate": 2, "high": 3}
+            rows.append({
+                "id": "noise_level",
+                "label": "Noise Level",
+                "icon": "volume",
+                "type": "text",
+                "best_is": "lowest",
+                "buyer_priority": True,
+                "values": {
+                    l.get("mlsNumber"): {
+                        "value": noise_val.get(_get_noise(l) or "", 2),
+                        "display": (_get_noise(l) or "Unknown").capitalize(),
+                        "is_best": False
+                    }
+                    for l in listings
+                }
+            })
+
+    # 9b. Walkability (only when buyer mentions walkable and data exists)
+    if "walkability" in hint_rows:
+        def _get_walk(l):
+            loc = (l.get("aiAnalysis") or {}).get("location_summary") or {}
+            return (loc.get("walkability") or {}).get("overall_walkability_label")
+
+        if any(_get_walk(l) for l in listings):
+            walk_val = {"low": 1, "moderate": 2, "high": 3}
+            rows.append({
+                "id": "walkability",
+                "label": "Walkability",
+                "icon": "footprints",
+                "type": "text",
+                "best_is": "highest",
+                "buyer_priority": True,
+                "values": {
+                    l.get("mlsNumber"): {
+                        "value": walk_val.get(_get_walk(l) or "", 2),
+                        "display": (_get_walk(l) or "Unknown").capitalize(),
+                        "is_best": False
+                    }
+                    for l in listings
+                }
+            })
 
     # 10. Concerns (always show)
     rows.append({

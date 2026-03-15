@@ -1891,8 +1891,19 @@ async def generate_lead_outreach(
     location_service_url = os.environ.get("LOCATION_SERVICE_URL", "http://localhost:8002")
     logger.info(f"[OUTREACH] Running location analysis on {len(top_5_listings)} listings via {location_service_url}")
 
+    # Determine if hints require full Gemini analysis (schools, walkability, noise)
+    # Keywords that need data only available from Gemini (not Maps API fast mode)
+    FULL_MODE_KEYWORDS = ["school", "education", "quiet", "peaceful", "noise", "walkable", "walk", "walking"]
+    hints_list = _parse_json_field(lead_row.get("hints")) or []
+    hints_text = " ".join(hints_list).lower()
+    needs_full_mode = any(kw in hints_text for kw in FULL_MODE_KEYWORDS)
+    if needs_full_mode:
+        logger.info(f"[OUTREACH] Hints require full location analysis (schools/walkability/noise)")
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # Full mode takes longer per property (~20s vs ~3s), increase timeout
+        client_timeout = 60.0 if needs_full_mode else 30.0
+        async with httpx.AsyncClient(timeout=client_timeout) as client:
             for listing in top_5_listings:
                 mls_number = listing.get("mlsNumber")
                 if not mls_number:
@@ -1914,8 +1925,10 @@ async def generate_lead_outreach(
                         f"{location_service_url}/analyze",
                         json={
                             "address": full_address,
-                            "buyer_prefs": None,
-                            "fast_mode": True,
+                            "buyer_prefs": {
+                                "hints": hints_list,
+                            } if hints_list else None,
+                            "fast_mode": not needs_full_mode,
                         },
                     )
                     resp.raise_for_status()
@@ -1969,6 +1982,23 @@ async def generate_lead_outreach(
         "expansionCenterCity": search_result.expansion_center_city,
         "cityBreakdown": search_result.city_breakdown,
     }
+
+    # Add soft criteria (hints) with compliance classification
+    hints = _parse_json_field(lead_row.get("hints")) or []
+    if hints:
+        from ..services.chat_insights import RISK_TOPICS
+        safe_hints = []
+        sensitive_hints = []
+        for hint in hints:
+            hint_lower = hint.lower()
+            if any(topic in hint_lower for topic in RISK_TOPICS):
+                sensitive_hints.append(hint)
+            else:
+                safe_hints.append(hint)
+        lead_context["safeHints"] = safe_hints
+        lead_context["sensitiveHints"] = sensitive_hints
+        lead_context["allHints"] = hints
+        logger.info(f"[OUTREACH] Hints: safe={safe_hints}, sensitive={sensitive_hints}")
 
     # Generate synthesis
     try:
@@ -2181,6 +2211,10 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
             print(f"[PROFILE] Location '{location}' → city '{city}'")
             location = city
 
+    # Map hints to nice_to_haves for the buyer profile
+    hints = _parse_json_field(lead_row.get("hints")) or []
+    nice_to_haves = json.dumps(hints) if hints else "[]"
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             try:
@@ -2191,6 +2225,7 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                         home_type, bedrooms, bathrooms,
                         raw_input, input_method,
                         agent_id, parent_lead_id, created_by_method,
+                        nice_to_haves,
                         created_at
                     ) VALUES (
                         %s, %s, %s, %s,
@@ -2198,6 +2233,7 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                         %s, %s, %s,
                         %s, 'lead',
                         %s, %s, 'lead',
+                        %s,
                         NOW()
                     )
                     RETURNING id
@@ -2214,7 +2250,8 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                     bathrooms,
                     lead_row.get("raw_input"),
                     agent_id,
-                    lead_id
+                    lead_id,
+                    nice_to_haves
                 ))
                 profile_result = fetchone_dict(cur)
                 profile_id = profile_result["id"]
