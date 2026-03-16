@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr
 import os
 import json
 import uuid
+import asyncio
 
 from ..logging_config import get_logger
 
@@ -89,6 +90,12 @@ class SendReportEmailRequest(BaseModel):
     to_email: EmailStr
     subject: Optional[str] = None
     body: Optional[str] = None
+
+
+class RequestShowingRequest(BaseModel):
+    """Request to schedule a showing for a listing"""
+    listingAddress: str
+    mlsNumber: Optional[str] = None
 
 
 @router.get("/{share_id}", response_model=BuyerReportResponse)
@@ -535,6 +542,22 @@ def create_buyer_report(
 
             print(f"[BUYER REPORT] Created report with shareId={share_id}, {len(top_5_ids)} listings")
 
+    # Fire-and-forget WhatsApp notification to agent for approval
+    try:
+        from ..services.whatsapp.notifications import WhatsAppNotifications
+        buyer_name = profile.get("name", "Buyer")
+        notifier = WhatsAppNotifications()
+        asyncio.get_event_loop().create_task(
+            notifier.notify_report_generated(
+                agent_id=agent_id,
+                buyer_name=buyer_name,
+                share_id=share_id,
+                listing_count=len(top_5_ids),
+            )
+        )
+    except Exception as e:
+        logger.warning(f"[BUYER REPORT] WhatsApp notification failed (non-blocking): {e}")
+
     # Return response with share link and preview
     return {
         "success": True,
@@ -543,6 +566,50 @@ def create_buyer_report(
         "synthesis": synthesis,
         "includedCount": len(top_5_ids)
     }
+
+
+@router.post("/{share_id}/request-showing")
+async def request_showing(
+    share_id: str,
+    request: RequestShowingRequest,
+):
+    """
+    PUBLIC endpoint (no auth) - Buyer requests a showing from their report.
+    Sends a WhatsApp alert to the agent.
+    """
+    # Look up report → agent
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT br.agent_id, bp.name as buyer_name
+                FROM buyer_reports br
+                JOIN buyer_profiles bp ON br.profile_id = bp.id
+                WHERE br.share_id = %s
+                """,
+                (share_id,)
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    agent_id_val, buyer_name = row
+
+    # Send WhatsApp notification (fire-and-forget)
+    try:
+        from ..services.whatsapp.notifications import WhatsAppNotifications
+        notifier = WhatsAppNotifications()
+        await notifier.notify_showing_request(
+            agent_id=agent_id_val,
+            buyer_name=buyer_name,
+            listing_address=request.listingAddress,
+            share_id=share_id,
+        )
+    except Exception as e:
+        logger.warning(f"[SHOWING REQUEST] WhatsApp notification failed: {e}")
+
+    return {"success": True, "message": "Showing request sent to your agent"}
 
 
 @router.get("/{share_id}/outreach", response_model=OutreachDraftResponse)

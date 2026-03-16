@@ -47,6 +47,9 @@ services:
       PORT: 8000
       LOCATION_SERVICE_URL: http://location-service:8002
       REDIS_URL: redis://redis:6379
+      WHATSAPP_PHONE_NUMBER_ID: "1013325431863810"
+      WHATSAPP_VERIFY_TOKEN: "residence-hive-offer-owais"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN}"
     ports:
       - "8001:8000"  # Use 8001 on host to avoid conflicts
     volumes:
