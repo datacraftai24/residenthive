@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # Gemini configuration — upgraded to Gemini 3 Flash for agentic workflows
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 gemini_client = None
 if GEMINI_API_KEY:
@@ -629,6 +629,9 @@ async def run_agent(message: str, session) -> AgentResult:
                 config=types.GenerateContentConfig(
                     temperature=0.2,
                     tools=[AGENT_TOOLS],
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level="MEDIUM",
+                    ),
                 ),
             )
 
