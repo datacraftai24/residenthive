@@ -22,7 +22,7 @@ from ..services.whatsapp.client import (
     get_status_update,
 )
 from ..services.whatsapp.session import SessionManager, SessionState
-from ..services.whatsapp.buyer_codes import backfill_buyer_codes
+from ..services.whatsapp.buyer_codes import backfill_buyer_codes, backfill_lead_codes
 from ..services.whatsapp.handlers import WhatsAppHandlers
 
 logger = logging.getLogger(__name__)
@@ -101,10 +101,14 @@ async def connect_whatsapp(
                 if not cur.fetchone():
                     raise HTTPException(status_code=404, detail="Agent not found")
         
-        # Backfill buyer codes for existing buyers
+        # Backfill codes for existing buyers and leads
         code_assignments = backfill_buyer_codes(agent_id)
-        
-        logger.info(f"Agent {agent_id} connected WhatsApp: {phone}, assigned {len(code_assignments)} buyer codes")
+        lead_code_assignments = backfill_lead_codes(agent_id)
+
+        logger.info(
+            f"Agent {agent_id} connected WhatsApp: {phone}, "
+            f"assigned {len(code_assignments)} buyer codes, {len(lead_code_assignments)} lead codes"
+        )
         
         return ConnectWhatsAppResponse(
             success=True,

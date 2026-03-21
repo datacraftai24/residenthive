@@ -4,6 +4,9 @@ WhatsApp Action Handlers
 Executes actions based on parsed intents, calling existing backend APIs
 and formatting responses for WhatsApp.
 
+Layer 1 intents are routed directly to handlers.
+Layer 2 (UNKNOWN) intents are routed to the coordinator agent.
+
 Each handler:
 1. Validates the request
 2. Calls existing backend APIs
@@ -11,16 +14,18 @@ Each handler:
 4. Returns formatted response
 """
 
+import asyncio
 import logging
 from typing import Dict, Any, Optional, List
 
 from .session import SessionManager, AgentSession, SessionState
-from .intent import IntentParser, Intent, IntentType, resolve_buyer_from_intent
+from .intent import IntentParser, Intent, IntentType, resolve_buyer_from_intent, run_agent, AgentResult
 from .messages import MessageBuilder
 from .buyer_codes import (
     get_buyer_by_code,
     get_buyers_by_name,
     resolve_buyer_reference,
+    resolve_entity_reference,
     assign_code_to_buyer,
     format_buyer_code_display
 )
@@ -53,15 +58,21 @@ class WhatsAppHandlers:
     ) -> Dict[str, Any]:
         """
         Main entry point for handling a WhatsApp message.
-        
+
+        Layer 1: Pattern matching (buttons, codes, obvious commands) -> instant
+        Layer 2: Coordinator Agent (Gemini 3 Flash) for natural language
+
         Args:
             message: Message text or button/list ID
             input_type: "text", "button", or "list"
-            
+
         Returns:
             Response dict for WhatsAppClient
         """
         try:
+            # Save inbound message to history
+            self.session.add_message("user", message)
+
             # Get buyers for context
             buyers = self._get_all_buyers()
 
@@ -70,7 +81,7 @@ class WhatsAppHandlers:
             if self.session.active_buyer_id:
                 active_buyer = self._get_buyer_by_id(self.session.active_buyer_id)
 
-            # Parse intents (may return multiple for chained actions)
+            # Parse intents via Layer 1 (pattern matching only)
             intents = self.intent_parser.parse_multi(
                 message=message,
                 input_type=input_type,
@@ -79,25 +90,51 @@ class WhatsAppHandlers:
                 buyers=buyers,
             )
 
-            # Resolve buyer references
-            for i, intent in enumerate(intents):
-                intents[i] = resolve_buyer_from_intent(intent, self.agent_id, active_buyer)
+            intent = intents[0]
 
-            if len(intents) == 1:
-                # Single-intent path (unchanged behaviour)
-                intent = intents[0]
-                logger.info(
-                    f"Parsed intent: type={intent.type.value}, "
-                    f"buyer_ref={intent.buyer_reference}, buyer_id={intent.buyer_id}"
-                )
-                response = await self._route_intent(intent, active_buyer, buyers)
-                response["intent"] = intent.type.value
+            # ── Layer 1 matched → route directly ──
+            if intent.type != IntentType.UNKNOWN:
+                # Resolve buyer references
+                for i, it in enumerate(intents):
+                    intents[i] = resolve_buyer_from_intent(it, self.agent_id, active_buyer)
+
+                if len(intents) == 1:
+                    intent = intents[0]
+                    logger.info(
+                        f"[L1] Intent: {intent.type.value}, "
+                        f"buyer_ref={intent.buyer_reference}, buyer_id={intent.buyer_id}"
+                    )
+                    response = await self._route_intent(intent, active_buyer, buyers)
+                    response["intent"] = intent.type.value
+                else:
+                    intent_types = ", ".join(i.type.value for i in intents)
+                    logger.info(f"[L1] Multi-intent ({len(intents)} steps): {intent_types}")
+                    response = await self.preview_action_sequence(intents)
+                    response["intent"] = "action_sequence"
+
+            # ── Layer 2: Coordinator Agent ──
             else:
-                # Multi-intent path — preview and ask for confirmation
-                intent_types = ", ".join(i.type.value for i in intents)
-                logger.info(f"Parsed multi-intent sequence ({len(intents)} steps): {intent_types}")
-                response = await self.preview_action_sequence(intents)
-                response["intent"] = "action_sequence"
+                logger.info(f"[L2] Routing to coordinator agent: {message[:100]}")
+                agent_result = await run_agent(message, self.session)
+
+                # Apply pending action from agent
+                if agent_result.pending_action:
+                    await SessionManager.set_pending_action(
+                        self.phone,
+                        agent_result.pending_action["type"],
+                        agent_result.pending_action["data"],
+                    )
+
+                # Build WhatsApp message from agent result
+                if agent_result.actions:
+                    response = MessageBuilder.buttons(agent_result.text, agent_result.actions)
+                else:
+                    response = MessageBuilder.text(agent_result.text)
+                response["intent"] = "agent"
+
+            # Save outbound to history
+            self.session.add_message("assistant", response.get("body", ""))
+            await SessionManager.save(self.session)
 
             return response
 
@@ -126,6 +163,10 @@ class WhatsAppHandlers:
             IntentType.SEND_REPORT: lambda: self._handle_send_report(intent, active_buyer),
             IntentType.APPROVE_REPORT: lambda: self._handle_approve_report(),
             IntentType.REJECT_REPORT: lambda: self._handle_reject_report(),
+            IntentType.SEND_OUTREACH: lambda: self._handle_send_outreach(),
+            IntentType.APPROVE_OUTREACH: lambda: self._handle_approve_outreach(),
+            IntentType.REJECT_OUTREACH: lambda: self._handle_reject_outreach(),
+            IntentType.PROCESS_LEAD: lambda: self._handle_process_lead(intent),
             IntentType.CREATE_BUYER: lambda: self._handle_create_buyer(intent),
             IntentType.EDIT_BUYER: lambda: self._handle_edit_buyer(intent, active_buyer),
             IntentType.CONFIRM: lambda: self._handle_confirm(),
@@ -634,12 +675,208 @@ class WhatsAppHandlers:
         )
 
     # =========================================================================
+    # Lead Processing & Outreach Handlers
+    # =========================================================================
+
+    async def _handle_process_lead(self, intent: Intent) -> Dict[str, Any]:
+        """Process raw lead text — return summary immediately, fire outreach as background task.
+
+        Bug #1 fix: The old implementation awaited generate_lead_outreach() inline,
+        causing webhook timeouts (~30s). Now we return the lead summary in <5s and
+        fire the outreach generation as a background task that pushes a notification
+        when ready.
+        """
+        raw_text = intent.params.get("raw_text", intent.raw_text)
+        source = intent.params.get("source", "unknown")
+
+        try:
+            from .agent import process_lead_from_text
+            from .buyer_codes import assign_code_to_lead
+
+            lead_data = process_lead_from_text(raw_text, source, self.agent_id)
+            if not lead_data:
+                return MessageBuilder.error(
+                    "I couldn't process that as a lead. Please try again or use the web dashboard."
+                )
+
+            lead_id = lead_data["lead_id"]
+            lead_name = lead_data.get("name") or "Lead"
+            lead_email = lead_data.get("email")
+
+            # Assign WhatsApp code to the new lead
+            assign_code_to_lead(lead_id, self.agent_id, lead_name)
+
+            # Fire outreach generation as BACKGROUND task (Bug #1 fix)
+            asyncio.create_task(
+                self._background_generate_outreach(lead_id, lead_name, lead_email)
+            )
+
+            # Return lead summary immediately (~2s response)
+            return MessageBuilder.lead_processed(lead_data)
+
+        except Exception as e:
+            logger.error(f"Failed to process lead: {e}", exc_info=True)
+            return MessageBuilder.error(
+                "Something went wrong processing that lead. Please try again."
+            )
+
+    async def _background_generate_outreach(self, lead_id: int, lead_name: str, lead_email: str):
+        """Background task: generate outreach report and push approval notification."""
+        try:
+            from ...routers.leads import generate_lead_outreach
+            from .notifications import on_lead_outreach_ready
+
+            result = await generate_lead_outreach(
+                lead_id=lead_id,
+                send_email=False,
+                agent_id=self.agent_id,
+                _notify_whatsapp=False,
+            )
+
+            share_id = result.get("reportShareId")
+            if share_id:
+                await on_lead_outreach_ready(
+                    self.agent_id, lead_name, lead_email, lead_id, share_id
+                )
+                logger.info(f"Background outreach ready for lead {lead_id}: {share_id}")
+            else:
+                logger.warning(f"Background outreach returned no share_id for lead {lead_id}")
+
+        except Exception as e:
+            logger.error(f"Background outreach failed for lead {lead_id}: {e}", exc_info=True)
+
+    async def _handle_send_outreach(self) -> Dict[str, Any]:
+        """Generate outreach report for a lead (without sending email yet)."""
+        pending = self.session.pending_action
+        if not pending or pending.get("type") != "send_outreach":
+            return MessageBuilder.text("No lead pending. Process a lead first.")
+
+        data = pending.get("data", {})
+        lead_id = data.get("lead_id")
+        lead_name = data.get("lead_name", "Lead")
+        lead_email = data.get("lead_email")
+
+        if not lead_id:
+            await SessionManager.clear_pending_action(self.phone)
+            return MessageBuilder.error("Missing lead information. Please try again.")
+
+        try:
+            from ...routers.leads import generate_lead_outreach
+
+            # Generate report WITHOUT sending email
+            result = await generate_lead_outreach(
+                lead_id=lead_id,
+                send_email=False,
+                agent_id=self.agent_id,
+                _notify_whatsapp=False,
+            )
+
+            share_id = result.get("reportShareId")
+            report_url = result.get("fullReportUrl", "")
+            listing_count = result.get("propertiesIncluded", 0)
+
+            if not share_id:
+                await SessionManager.clear_pending_action(self.phone)
+                return MessageBuilder.error(
+                    f"Could not generate outreach report for {lead_name}. "
+                    "Please try from the web dashboard."
+                )
+
+            # Store approval pending action
+            await SessionManager.set_pending_action(
+                self.phone,
+                "approve_outreach",
+                {
+                    "share_id": share_id,
+                    "share_url": report_url,
+                    "lead_id": lead_id,
+                    "lead_name": lead_name,
+                    "lead_email": lead_email,
+                    "listing_count": listing_count,
+                }
+            )
+
+            return MessageBuilder.outreach_approval_request(
+                lead_name=lead_name,
+                share_url=report_url,
+                listing_count=listing_count,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to generate outreach report: {e}", exc_info=True)
+            await SessionManager.clear_pending_action(self.phone)
+            return MessageBuilder.error(
+                f"Failed to generate outreach report for {lead_name}. Please try again."
+            )
+
+    async def _handle_approve_outreach(self) -> Dict[str, Any]:
+        """Approve and send the pending outreach report to the lead."""
+        pending = self.session.pending_action
+        if not pending or pending.get("type") != "approve_outreach":
+            return MessageBuilder.text("No outreach report pending approval.")
+
+        data = pending.get("data", {})
+        share_id = data.get("share_id")
+        lead_email = data.get("lead_email")
+        lead_name = data.get("lead_name", "Lead")
+
+        if not lead_email:
+            await SessionManager.clear_pending_action(self.phone)
+            return MessageBuilder.text(
+                f"No email address found for {lead_name}.\n"
+                "Add their email on the web dashboard first, then regenerate."
+            )
+
+        try:
+            from ...routers.buyer_reports import send_buyer_report_email, SendReportEmailRequest
+
+            request = SendReportEmailRequest(to_email=lead_email)
+            send_buyer_report_email(share_id, request, agent_id=self.agent_id)
+
+            await SessionManager.clear_pending_action(self.phone)
+
+            return MessageBuilder.buttons(
+                f"📧 Outreach report sent to *{lead_name}*!\n\n"
+                f"Delivered to: {lead_email}\n\n"
+                "You'll be notified when they view it or engage.",
+                [
+                    {"id": "view_buyers", "title": "View Buyers"},
+                    {"id": "done", "title": "Done"}
+                ]
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send outreach report: {e}", exc_info=True)
+            await SessionManager.clear_pending_action(self.phone)
+            return MessageBuilder.error(
+                f"Failed to send outreach report to {lead_email}. Please try again."
+            )
+
+    async def _handle_reject_outreach(self) -> Dict[str, Any]:
+        """Reject the pending outreach report."""
+        pending = self.session.pending_action
+        if not pending or pending.get("type") != "approve_outreach":
+            return MessageBuilder.text("No outreach report pending approval.")
+
+        lead_name = pending.get("data", {}).get("lead_name", "Lead")
+        await SessionManager.clear_pending_action(self.phone)
+
+        return MessageBuilder.buttons(
+            f"❌ Outreach report for *{lead_name}* was not sent.\n\n"
+            "You can generate a new one from the web dashboard.",
+            [
+                {"id": "view_buyers", "title": "View Buyers"},
+                {"id": "done", "title": "Done"}
+            ]
+        )
+
+    # =========================================================================
     # Create/Edit Handlers
     # =========================================================================
-    
+
     async def _handle_create_buyer(self, intent: Intent) -> Dict[str, Any]:
         """Start or process buyer creation."""
-        
+
         # If just entering create mode
         if self.session.state != SessionState.CREATING_BUYER:
             self.session.state = SessionState.CREATING_BUYER
@@ -744,22 +981,28 @@ class WhatsAppHandlers:
         pending = self.session.pending_action
         if not pending:
             return MessageBuilder.text("Nothing to confirm.")
-        
+
         action_type = pending.get("type")
         action_data = pending.get("data", {})
-        
+
         try:
             if action_type == "create_buyer":
                 return await self._execute_create_buyer(action_data)
             elif action_type == "edit_buyer":
                 return await self._execute_edit_buyer(action_data)
+            elif action_type == "edit_entity":
+                return await self._execute_edit_entity(action_data)
             elif action_type == "approve_report":
                 return await self._handle_approve_report()
+            elif action_type == "send_outreach":
+                return await self._handle_send_outreach()
+            elif action_type == "approve_outreach":
+                return await self._handle_approve_outreach()
             elif action_type == "action_sequence":
                 return await self._execute_action_sequence(action_data)
             else:
                 return MessageBuilder.error(f"Unknown action type: {action_type}")
-                
+
         finally:
             await SessionManager.clear_pending_action(self.phone)
     
@@ -881,15 +1124,142 @@ class WhatsAppHandlers:
             logger.error(f"Edit buyer failed: {e}", exc_info=True)
             return MessageBuilder.error("Failed to update buyer. Please try again.")
     
+    # Field mapping from agent-facing names to lead table columns
+    LEAD_FIELD_MAP = {
+        "budgetMin": "extracted_budget_min",
+        "budgetMax": "extracted_budget_max",
+        "location": "extracted_location",
+        "email": "extracted_email",
+        "phone": "extracted_phone",
+        "bedrooms": "extracted_bedrooms",
+        "name": "extracted_name",
+        "homeType": "extracted_home_type",
+    }
+
+    async def _execute_edit_entity(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute entity edit after confirmation (handles both leads and buyers)."""
+        entity_id = action_data.get("entity_id")
+        entity_type = action_data.get("entity_type", "buyer")
+        changes_description = action_data.get("changes_description", "")
+
+        if entity_type == "buyer":
+            # Re-use existing buyer edit flow: parse changes then apply
+            buyer = self._get_buyer_by_id(entity_id)
+            if not buyer:
+                return MessageBuilder.error("Buyer not found.")
+
+            try:
+                changes = await self._parse_edit_changes(buyer, changes_description)
+                if not changes:
+                    return MessageBuilder.text(
+                        "I couldn't parse the changes. Try being more specific."
+                    )
+                return await self._execute_edit_buyer({"buyer_id": entity_id, "changes": changes})
+            except Exception as e:
+                logger.error(f"Edit entity (buyer) failed: {e}", exc_info=True)
+                return MessageBuilder.error("Failed to update buyer.")
+
+        else:
+            # Lead edit: parse changes description and update lead table directly
+            try:
+                changes = await self._parse_lead_edit_changes(entity_id, changes_description)
+                if not changes:
+                    return MessageBuilder.text(
+                        "I couldn't parse the changes for this lead."
+                    )
+
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        for field_name, new_value in changes.items():
+                            col = self.LEAD_FIELD_MAP.get(field_name, field_name)
+                            # Sanitize numeric values
+                            new_value = self._sanitize_change_value(field_name, new_value)
+                            cur.execute(
+                                f"UPDATE leads SET {col} = %s WHERE id = %s AND agent_id = %s",
+                                (new_value, entity_id, self.agent_id),
+                            )
+
+                return MessageBuilder.buttons(
+                    f"✅ Lead updated.\n\nChanges: {changes_description}",
+                    [
+                        {"id": "done", "title": "Done"},
+                    ],
+                )
+
+            except Exception as e:
+                logger.error(f"Edit entity (lead) failed: {e}", exc_info=True)
+                return MessageBuilder.error("Failed to update lead.")
+
+    async def _parse_lead_edit_changes(self, lead_id: int, changes_description: str) -> Dict[str, Any]:
+        """Parse natural language changes for a lead into field:value pairs."""
+        import json as _json
+        import os
+
+        # Get current lead data for context
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT * FROM leads WHERE id = %s AND agent_id = %s",
+                    (lead_id, self.agent_id),
+                )
+                lead = fetchone_dict(cur)
+
+        if not lead:
+            return {}
+
+        from google import genai as _genai
+        from google.genai import types as _types
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return {}
+
+        client = _genai.Client(api_key=api_key)
+        model = os.getenv("GEMINI_MODEL", "gemini-3-flash")
+
+        prompt = f"""Parse this edit request for a real estate lead profile into JSON key:value pairs.
+
+Current lead:
+- Name: {lead.get('extracted_name')}
+- Email: {lead.get('extracted_email')}
+- Phone: {lead.get('extracted_phone')}
+- Location: {lead.get('extracted_location')}
+- Budget: {lead.get('extracted_budget_min')} - {lead.get('extracted_budget_max')}
+- Bedrooms: {lead.get('extracted_bedrooms')}
+
+Edit request: "{changes_description}"
+
+Return ONLY a JSON object with the fields to update. Keys must be one of: budgetMin, budgetMax, location, email, phone, bedrooms, name, homeType.
+For budget changes like "increase by $50K", calculate the new value.
+Example: {{"budgetMax": 850000, "email": "new@email.com"}}"""
+
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=[_types.Content(role="user", parts=[_types.Part(text=prompt)])],
+                config=_types.GenerateContentConfig(temperature=0.1),
+            )
+            text = resp.candidates[0].content.parts[0].text.strip()
+            # Strip markdown code blocks
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            return _json.loads(text)
+        except Exception as e:
+            logger.error(f"Failed to parse lead edit changes: {e}")
+            return {}
+
     async def _handle_cancel(self) -> Dict[str, Any]:
         """Handle cancellation of pending action."""
         await SessionManager.clear_pending_action(self.phone)
-        
+
         # Return to appropriate state
         if self.session.active_buyer_id:
             buyer = self._get_buyer_by_id(self.session.active_buyer_id)
             return MessageBuilder.buyer_context_entered(buyer) if buyer else MessageBuilder.context_exited()
-        
+
         return MessageBuilder.context_exited()
     
     # =========================================================================
@@ -898,18 +1268,23 @@ class WhatsAppHandlers:
     
     async def _handle_unknown(self, intent: Intent) -> Dict[str, Any]:
         """Handle unknown/unrecognized intents."""
-        
+
         # If in edit mode, treat as edit text
         if self.session.state == SessionState.EDITING_BUYER:
             active_buyer = self._get_buyer_by_id(self.session.active_buyer_id)
             intent.params["edit_text"] = intent.raw_text
             return await self._handle_edit_buyer(intent, active_buyer)
-        
+
         # If in create mode, treat as buyer info
         if self.session.state == SessionState.CREATING_BUYER:
             return await self._handle_create_buyer(intent)
-        
-        # Otherwise, suggest help
+
+        # If Gemini returned a text response (conversational), show it
+        gemini_text = intent.params.get("gemini_text")
+        if gemini_text:
+            return MessageBuilder.text(gemini_text)
+
+        # Fallback help message
         if self.session.is_in_buyer_context():
             return MessageBuilder.text(
                 f"I didn't understand that.\n\n"
@@ -917,7 +1292,7 @@ class WhatsAppHandlers:
                 "Try 'search', 'report', 'edit', or 'done'.\n"
                 "Type 'help' for all commands."
             )
-        
+
         return MessageBuilder.help_message()
     
     # =========================================================================

@@ -1,16 +1,20 @@
 """
-In-memory search context store for photo analysis and location analysis.
+PostgreSQL-backed search context store for photo analysis and location analysis.
 Stores profile + ranked listings by searchId for later retrieval.
+
+Replaces the previous in-memory cache with persistent storage so search
+contexts survive process restarts and are shared across workers.
 """
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+import json
 import uuid
+import logging
+from typing import Dict, Any, Optional, List
 
+from ..db import get_conn, fetchone_dict
 
-# In-memory cache: {searchId: {profile, ranked_listings, timestamp}}
-_cache: Dict[str, Dict[str, Any]] = {}
+logger = logging.getLogger(__name__)
 
-# TTL for cached search contexts (2 hours)
+# TTL for cached search contexts (2 hours) — enforced at query time
 TTL_HOURS = 2
 
 
@@ -33,19 +37,35 @@ def store_search_context(
         ranked_listings: POST-ranking list with fit_score, priority_tag,
                         final_score, rank, is_top20, images already attached
     """
-    _cache[search_id] = {
-        "profile": profile,
-        "ranked_listings": ranked_listings,
-        "analysis_status": {
-            "text_complete": True,  # Set to true since text analysis is done when storing
-            "vision_complete_for_top5": False,  # Will be set later by photo analysis
-            "location_complete_for_top5": False  # Will be set later by location analysis
-        },
-        "timestamp": datetime.now()
+    analysis_status = {
+        "text_complete": True,
+        "vision_complete_for_top5": False,
+        "location_complete_for_top5": False,
     }
-
-    # Best-effort cleanup of old entries (simple eviction)
-    _cleanup_expired()
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO search_contexts
+                        (search_id, profile, ranked_listings, analysis_status)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (search_id) DO UPDATE SET
+                        profile = EXCLUDED.profile,
+                        ranked_listings = EXCLUDED.ranked_listings,
+                        analysis_status = EXCLUDED.analysis_status,
+                        expires_at = NOW() + INTERVAL '2 hours'
+                    """,
+                    (
+                        search_id,
+                        json.dumps(profile),
+                        json.dumps(ranked_listings),
+                        json.dumps(analysis_status),
+                    ),
+                )
+    except Exception as e:
+        logger.error(f"Failed to store search context {search_id}: {e}")
+        raise
 
 
 def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:
@@ -55,26 +75,29 @@ def get_search_context(search_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Dict with 'profile', 'ranked_listings', and 'analysis_status', or None if not found/expired
     """
-    context = _cache.get(search_id)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT profile, ranked_listings, analysis_status
+                    FROM search_contexts
+                    WHERE search_id = %s AND expires_at > NOW()
+                    """,
+                    (search_id,),
+                )
+                row = fetchone_dict(cur)
+                if not row:
+                    return None
 
-    if not context:
+                return {
+                    "profile": row["profile"] if isinstance(row["profile"], dict) else json.loads(row["profile"]),
+                    "ranked_listings": row["ranked_listings"] if isinstance(row["ranked_listings"], list) else json.loads(row["ranked_listings"]),
+                    "analysis_status": row["analysis_status"] if isinstance(row["analysis_status"], dict) else json.loads(row["analysis_status"]),
+                }
+    except Exception as e:
+        logger.error(f"Failed to get search context {search_id}: {e}")
         return None
-
-    # Check TTL
-    if datetime.now() - context["timestamp"] > timedelta(hours=TTL_HOURS):
-        # Expired, remove and return None
-        del _cache[search_id]
-        return None
-
-    return {
-        "profile": context["profile"],
-        "ranked_listings": context["ranked_listings"],
-        "analysis_status": context.get("analysis_status", {
-            "text_complete": False,
-            "vision_complete_for_top5": False,
-            "location_complete_for_top5": False
-        })
-    }
 
 
 def mark_vision_complete(search_id: str) -> bool:
@@ -84,24 +107,30 @@ def mark_vision_complete(search_id: str) -> bool:
     Returns:
         True if search_id found and updated, False otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE search_contexts
+                    SET analysis_status = jsonb_set(
+                        COALESCE(analysis_status, '{}'),
+                        '{vision_complete_for_top5}', 'true'
+                    )
+                    WHERE search_id = %s AND expires_at > NOW()
+                    RETURNING search_id
+                    """,
+                    (search_id,),
+                )
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Failed to mark vision complete for {search_id}: {e}")
         return False
-
-    if "analysis_status" not in context:
-        context["analysis_status"] = {
-            "text_complete": True,
-            "vision_complete_for_top5": False,
-            "location_complete_for_top5": False
-        }
-
-    context["analysis_status"]["vision_complete_for_top5"] = True
-    return True
 
 
 def store_photo_analysis_results(search_id: str, photo_analysis: Dict[str, Any]) -> bool:
     """
-    Store photo analysis results in cache to prevent re-running expensive vision calls.
+    Store photo analysis results to prevent re-running expensive vision calls.
 
     Args:
         search_id: Unique identifier for this search
@@ -110,12 +139,22 @@ def store_photo_analysis_results(search_id: str, photo_analysis: Dict[str, Any])
     Returns:
         True if search_id found and updated, False otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE search_contexts
+                    SET photo_analysis = %s
+                    WHERE search_id = %s AND expires_at > NOW()
+                    RETURNING search_id
+                    """,
+                    (json.dumps(photo_analysis), search_id),
+                )
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Failed to store photo analysis for {search_id}: {e}")
         return False
-
-    context["photo_analysis"] = photo_analysis
-    return True
 
 
 def get_photo_analysis_results(search_id: str) -> Optional[Dict[str, Any]]:
@@ -125,11 +164,24 @@ def get_photo_analysis_results(search_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Dict of {mlsNumber: photo_result} if cached, None otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT photo_analysis FROM search_contexts
+                    WHERE search_id = %s AND expires_at > NOW()
+                    """,
+                    (search_id,),
+                )
+                row = fetchone_dict(cur)
+                if not row or row.get("photo_analysis") is None:
+                    return None
+                pa = row["photo_analysis"]
+                return pa if isinstance(pa, dict) else json.loads(pa)
+    except Exception as e:
+        logger.error(f"Failed to get photo analysis for {search_id}: {e}")
         return None
-
-    return context.get("photo_analysis")
 
 
 def mark_location_complete(search_id: str) -> bool:
@@ -139,24 +191,30 @@ def mark_location_complete(search_id: str) -> bool:
     Returns:
         True if search_id found and updated, False otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE search_contexts
+                    SET analysis_status = jsonb_set(
+                        COALESCE(analysis_status, '{}'),
+                        '{location_complete_for_top5}', 'true'
+                    )
+                    WHERE search_id = %s AND expires_at > NOW()
+                    RETURNING search_id
+                    """,
+                    (search_id,),
+                )
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Failed to mark location complete for {search_id}: {e}")
         return False
-
-    if "analysis_status" not in context:
-        context["analysis_status"] = {
-            "text_complete": True,
-            "vision_complete_for_top5": False,
-            "location_complete_for_top5": False
-        }
-
-    context["analysis_status"]["location_complete_for_top5"] = True
-    return True
 
 
 def store_location_analysis_results(search_id: str, location_analysis: Dict[str, Any]) -> bool:
     """
-    Store location analysis results in cache to prevent re-running expensive location calls.
+    Store location analysis results to prevent re-running expensive location calls.
 
     Args:
         search_id: Unique identifier for this search
@@ -165,12 +223,22 @@ def store_location_analysis_results(search_id: str, location_analysis: Dict[str,
     Returns:
         True if search_id found and updated, False otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE search_contexts
+                    SET location_analysis = %s
+                    WHERE search_id = %s AND expires_at > NOW()
+                    RETURNING search_id
+                    """,
+                    (json.dumps(location_analysis), search_id),
+                )
+                return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Failed to store location analysis for {search_id}: {e}")
         return False
-
-    context["location_analysis"] = location_analysis
-    return True
 
 
 def get_location_analysis_results(search_id: str) -> Optional[Dict[str, Any]]:
@@ -180,19 +248,21 @@ def get_location_analysis_results(search_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Dict of {mlsNumber: location_result} if cached, None otherwise
     """
-    context = _cache.get(search_id)
-    if not context:
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT location_analysis FROM search_contexts
+                    WHERE search_id = %s AND expires_at > NOW()
+                    """,
+                    (search_id,),
+                )
+                row = fetchone_dict(cur)
+                if not row or row.get("location_analysis") is None:
+                    return None
+                la = row["location_analysis"]
+                return la if isinstance(la, dict) else json.loads(la)
+    except Exception as e:
+        logger.error(f"Failed to get location analysis for {search_id}: {e}")
         return None
-
-    return context.get("location_analysis")
-
-
-def _cleanup_expired() -> None:
-    """Remove expired entries from cache (best-effort, runs on store)."""
-    cutoff = datetime.now() - timedelta(hours=TTL_HOURS)
-    expired_keys = [
-        key for key, val in _cache.items()
-        if val["timestamp"] < cutoff
-    ]
-    for key in expired_keys:
-        del _cache[key]

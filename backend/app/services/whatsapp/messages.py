@@ -32,6 +32,30 @@ class MessageBuilder:
     """Build formatted WhatsApp messages."""
 
     @staticmethod
+    def _ai_text(item) -> str:
+        """Extract display text from an AI analysis item.
+
+        Handles plain strings and dicts with various key shapes
+        (text, reason, requirement+evidence, etc.).
+        """
+        if isinstance(item, str):
+            return item
+        if isinstance(item, dict):
+            # Prefer explicit text/reason keys
+            if item.get("text"):
+                return item["text"]
+            if item.get("reason"):
+                return item["reason"]
+            # requirement + evidence pattern from whats_matching
+            if item.get("requirement"):
+                evidence = item.get("evidence", "")
+                if evidence:
+                    return f"{item['requirement']}: {evidence}"
+                return item["requirement"]
+            return str(item)
+        return str(item)
+
+    @staticmethod
     def _fmt_amount(val: int) -> str:
         """Format a dollar amount: 1000000→$1M, 1500000→$1.5M, 640000→$640K."""
         if not val:
@@ -273,6 +297,115 @@ class MessageBuilder:
         )
     
     @staticmethod
+    def unified_list(
+        buyers: List[Dict[str, Any]],
+        leads: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Build a combined list of buyers and leads as an interactive list message.
+        Shows both entity types in separate sections with codes.
+        """
+        if not buyers and not leads:
+            return MessageBuilder.buttons(
+                "You don't have any buyers or leads yet.\n\nCreate your first to get started!",
+                [
+                    {"id": "new_buyer", "title": "Create Buyer"},
+                    {"id": "help", "title": "Help"},
+                ],
+            )
+
+        sections = []
+
+        if leads:
+            sections.append({
+                "title": "Leads",
+                "rows": [MessageBuilder._entity_row(l, "lead") for l in leads[:5]],
+            })
+
+        if buyers:
+            sections.append({
+                "title": "Buyers",
+                "rows": [MessageBuilder._buyer_row(b) for b in buyers[:5]],
+            })
+
+        total = len(buyers) + len(leads)
+        body = f"📋 *Your Pipeline* ({total} total)\n\nTap to focus on a lead or buyer."
+
+        return MessageBuilder.list(
+            body=body,
+            button_text="Select",
+            sections=sections,
+            footer="Reply with code (e.g., SC1) or name",
+        )
+
+    @staticmethod
+    def _entity_row(entity: Dict[str, Any], entity_type: str = "lead") -> Dict[str, str]:
+        """Build a single entity row for list selection."""
+        code = entity.get("whatsapp_code", "")
+        name = (entity.get("extracted_name") or entity.get("name", "Unknown"))[:20]
+
+        desc_parts = []
+        location = entity.get("extracted_location") or entity.get("location")
+        if location:
+            desc_parts.append(str(location)[:20])
+        budget_min = entity.get("extracted_budget_min") or entity.get("budget_min")
+        budget_max = entity.get("extracted_budget_max") or entity.get("budget_max")
+        if budget_min and budget_max:
+            desc_parts.append(f"{MessageBuilder._fmt_amount(budget_min)}-{MessageBuilder._fmt_amount(budget_max)}")
+
+        description = " · ".join(desc_parts)[:72] if desc_parts else entity_type
+
+        return {
+            "id": f"select_buyer_{code}" if code else f"select_buyer_{entity.get('id')}",
+            "title": f"{name} ({code})" if code else name,
+            "description": description,
+        }
+
+    @staticmethod
+    def lead_context_entered(lead: Dict[str, Any]) -> Dict[str, Any]:
+        """Message when entering lead context."""
+        code = lead.get("whatsapp_code", "")
+        name = lead.get("extracted_name") or lead.get("name", "Unknown")
+
+        lines = [f"🎯 Now focused on lead *{name}* ({code})" if code else f"🎯 Now focused on lead *{name}*"]
+        if lead.get("extracted_email"):
+            lines.append(f"📧 {lead['extracted_email']}")
+        if lead.get("extracted_location"):
+            lines.append(f"📍 {lead['extracted_location']}")
+        lines.append("")
+        lines.append("What would you like to do?")
+
+        body = "\n".join(lines)
+
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=[
+                {"id": "edit", "title": "Edit"},
+                {"id": "btn_send_outreach", "title": "Send Outreach"},
+                {"id": "done", "title": "Back"},
+            ],
+        )
+
+    @staticmethod
+    def entity_edit_preview(
+        name: str,
+        changes_description: str,
+    ) -> Dict[str, Any]:
+        """Show proposed entity changes for confirmation."""
+        body = (
+            f"📝 Proposed changes to *{name}*:\n\n"
+            f"{changes_description}\n\n"
+            "_Confirm to apply these changes._"
+        )
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=[
+                {"id": "confirm", "title": "Confirm"},
+                {"id": "cancel", "title": "Cancel"},
+            ],
+        )
+
+    @staticmethod
     def disambiguation(matches: List[Dict[str, Any]], query: str) -> Dict[str, Any]:
         """Ask user to choose between multiple buyer matches."""
         count = len(matches)
@@ -352,9 +485,7 @@ class MessageBuilder:
             analysis = listing.get("aiAnalysis") or {}
             whats_matching = analysis.get("whats_matching", [])
             if whats_matching:
-                item = whats_matching[0]
-                text = item if isinstance(item, str) else item.get("text") or item.get("reason") or str(item)
-                lines.append(f"   ✓ {text[:40]}")
+                lines.append(f"   ✓ {MessageBuilder._ai_text(whats_matching[0])[:40]}")
             
             lines.append("")
         
@@ -394,17 +525,14 @@ class MessageBuilder:
         
         # AI Analysis
         analysis = listing.get("aiAnalysis") or {}
-        
-        def _ai_text(item) -> str:
-            return item if isinstance(item, str) else item.get("text") or item.get("reason") or str(item)
 
         whats_matching = analysis.get("whats_matching", [])
         for item in whats_matching[:2]:
-            lines.append(f"   ✓ {_ai_text(item)[:50]}")
-        
+            lines.append(f"   ✓ {MessageBuilder._ai_text(item)[:50]}")
+
         red_flags = analysis.get("red_flags", [])
         for item in red_flags[:1]:
-            lines.append(f"   ⚠️ {_ai_text(item)[:50]}")
+            lines.append(f"   ⚠️ {MessageBuilder._ai_text(item)[:50]}")
         
         return "\n".join(lines)
     
@@ -435,6 +563,150 @@ class MessageBuilder:
         
         return MessageBuilder.buttons(body=body, buttons=buttons)
     
+    # =========================================================================
+    # Lead messages
+    # =========================================================================
+
+    @staticmethod
+    def lead_processed(lead_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build lead summary message after Gemini processes a lead.
+        Shows extracted info + Send Outreach Report button.
+        """
+        name = lead_data.get("name") or "Unknown"
+        lines = ["📥 *New Lead Processed!*", ""]
+
+        lines.append(f"👤 {name}")
+
+        if lead_data.get("location"):
+            lines.append(f"📍 {lead_data['location']}")
+
+        budget_min = lead_data.get("budget_min")
+        budget_max = lead_data.get("budget_max")
+        if budget_min and budget_max:
+            lines.append(f"💰 {MessageBuilder._fmt_amount(budget_min)} - {MessageBuilder._fmt_amount(budget_max)}")
+        elif budget_max:
+            lines.append(f"💰 Up to {MessageBuilder._fmt_amount(budget_max)}")
+        elif budget_min:
+            lines.append(f"💰 From {MessageBuilder._fmt_amount(budget_min)}")
+
+        parts = []
+        if lead_data.get("bedrooms"):
+            parts.append(f"{lead_data['bedrooms']}BR")
+        if lead_data.get("home_type"):
+            parts.append(lead_data["home_type"])
+        if parts:
+            lines.append(f"🏠 {' '.join(parts)}")
+
+        if lead_data.get("source") and lead_data["source"] != "unknown":
+            lines.append(f"📱 Source: {lead_data['source'].title()}")
+
+        if lead_data.get("intent_score"):
+            lines.append(f"🎯 Intent: {lead_data['intent_score']}/100")
+
+        # Clarifying question if any
+        if lead_data.get("clarifying_question"):
+            lines.append("")
+            lines.append(f"❓ {lead_data['clarifying_question']}")
+
+        body = "\n".join(lines)
+
+        buttons = [{"id": "btn_send_outreach", "title": "Send Outreach Report"}]
+        if lead_data.get("email"):
+            buttons.append({"id": "done", "title": "Dismiss"})
+        else:
+            buttons.append({"id": "done", "title": "Dismiss"})
+
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=buttons,
+            header="Lead Processed",
+        )
+
+    @staticmethod
+    def lead_processed_with_report(
+        lead_data: Dict[str, Any],
+        report_url: str,
+        listing_count: int,
+    ) -> Dict[str, Any]:
+        """
+        Combined lead summary + outreach report URL + Approve/Reject buttons.
+        Shown when lead is processed and report auto-generated in one step.
+        """
+        name = lead_data.get("name") or "Unknown"
+        lines = ["📥 *New Lead Processed!*", ""]
+
+        lines.append(f"👤 {name}")
+
+        if lead_data.get("location"):
+            lines.append(f"📍 {lead_data['location']}")
+
+        budget_min = lead_data.get("budget_min")
+        budget_max = lead_data.get("budget_max")
+        if budget_min and budget_max:
+            lines.append(f"💰 {MessageBuilder._fmt_amount(budget_min)} - {MessageBuilder._fmt_amount(budget_max)}")
+        elif budget_max:
+            lines.append(f"💰 Up to {MessageBuilder._fmt_amount(budget_max)}")
+        elif budget_min:
+            lines.append(f"💰 From {MessageBuilder._fmt_amount(budget_min)}")
+
+        parts = []
+        if lead_data.get("bedrooms"):
+            parts.append(f"{lead_data['bedrooms']}BR")
+        if lead_data.get("home_type"):
+            parts.append(lead_data["home_type"])
+        if parts:
+            lines.append(f"🏠 {' '.join(parts)}")
+
+        if lead_data.get("source") and lead_data["source"] != "unknown":
+            lines.append(f"📱 Source: {lead_data['source'].title()}")
+
+        if lead_data.get("intent_score"):
+            lines.append(f"🎯 Intent: {lead_data['intent_score']}/100")
+
+        # Report section
+        lines.append("")
+        lines.append(f"📄 *Outreach report ready* ({listing_count} properties)")
+        lines.append(f"🔗 {report_url}")
+        lines.append("")
+        lines.append("Review the report, then approve to email it to the lead.")
+
+        body = "\n".join(lines)
+
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=[
+                {"id": "btn_approve_outreach", "title": "Approve & Send"},
+                {"id": "btn_reject_outreach", "title": "Reject"},
+            ],
+            header="Lead + Outreach Report",
+        )
+
+    @staticmethod
+    def outreach_approval_request(
+        lead_name: str,
+        share_url: str,
+        listing_count: int,
+    ) -> Dict[str, Any]:
+        """
+        Ask agent to approve or reject sending an outreach report to a lead.
+        Same pattern as report_approval_request but for leads.
+        """
+        body = (
+            f"📄 *Outreach report ready for {lead_name}*\n\n"
+            f"🔗 {share_url}\n\n"
+            f"Includes {listing_count} properties with AI analysis.\n\n"
+            "Review the report, then approve to email it to the lead."
+        )
+        return MessageBuilder.buttons(
+            body=body,
+            buttons=[
+                {"id": "btn_approve_outreach", "title": "Approve & Send"},
+                {"id": "btn_reject_outreach", "title": "Reject"},
+            ],
+            header="Outreach Approval",
+        )
+
     @staticmethod
     def report_approval_request(
         buyer_name: str,

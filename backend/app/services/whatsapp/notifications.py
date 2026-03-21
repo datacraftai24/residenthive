@@ -262,6 +262,198 @@ class WhatsAppNotifications:
             logger.error(f"Failed to send showing request notification: {e}")
             return False
 
+    # =========================================================================
+    # Lead Notifications
+    # =========================================================================
+
+    async def notify_new_lead(
+        self,
+        agent_id: int,
+        lead_data: Dict[str, Any],
+    ) -> bool:
+        """
+        Notify agent when a new lead is processed (from web UI or WhatsApp).
+
+        Args:
+            agent_id: Agent's database ID
+            lead_data: Dict with lead info (name, email, location, budget, etc.)
+
+        Returns:
+            True if notification sent
+        """
+        phone = self._get_agent_whatsapp(agent_id)
+        if not phone:
+            return False
+
+        try:
+            msg = MessageBuilder.lead_processed(lead_data)
+
+            # Store pending action so buttons work
+            from .session import SessionManager
+            session = await SessionManager.get_by_agent(agent_id)
+            if session:
+                await SessionManager.set_pending_action(
+                    session.phone,
+                    "send_outreach",
+                    {
+                        "lead_id": lead_data.get("lead_id"),
+                        "lead_name": lead_data.get("name") or "Lead",
+                        "lead_email": lead_data.get("email"),
+                    }
+                )
+
+            await self.client.send_interactive_buttons(
+                phone,
+                msg["body"],
+                msg["buttons"],
+            )
+
+            logger.info(f"Sent new lead notification to agent {agent_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send new lead notification: {e}")
+            return False
+
+    async def notify_lead_outreach_ready(
+        self,
+        agent_id: int,
+        lead_name: str,
+        lead_email: str,
+        lead_id: int,
+        share_id: str,
+    ) -> bool:
+        """
+        Notify agent that an outreach report is ready for review.
+        Human-in-the-loop: agent must approve before email is sent.
+        """
+        phone = self._get_agent_whatsapp(agent_id)
+        if not phone:
+            return False
+
+        try:
+            frontend_url = os.getenv("FRONTEND_BASE_URL", "https://residencehive.com")
+            report_url = f"{frontend_url}/buyer-report/{share_id}"
+
+            msg = (
+                f"📄 *Outreach report ready for {lead_name}*\n\n"
+                f"🔗 {report_url}\n\n"
+                "Review the report, then approve to email it to the lead."
+            )
+
+            await self.client.send_interactive_buttons(
+                to=phone,
+                body=msg,
+                buttons=[
+                    {"id": "btn_approve_outreach", "title": "Approve & Send"},
+                    {"id": "btn_reject_outreach", "title": "Reject"},
+                ],
+                header="Outreach Approval",
+            )
+
+            # Store pending action so button tap triggers approval
+            from .session import SessionManager
+            await SessionManager.set_pending_action(
+                phone,
+                "approve_outreach",
+                {
+                    "share_id": share_id,
+                    "share_url": report_url,
+                    "lead_id": lead_id,
+                    "lead_name": lead_name,
+                    "lead_email": lead_email,
+                }
+            )
+
+            logger.info(f"Sent outreach approval request to agent {agent_id} for lead {lead_name}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send outreach approval request: {e}")
+            return False
+
+    async def notify_lead_email_sent(
+        self,
+        agent_id: int,
+        lead_name: str,
+        subject: str,
+    ) -> bool:
+        """Notify agent that an email was sent to a lead."""
+        phone = self._get_agent_whatsapp(agent_id)
+        if not phone:
+            return False
+
+        try:
+            await self.client.send_text(
+                phone,
+                f"📨 Email sent to *{lead_name}*\n\n"
+                f"Subject: _{subject}_"
+            )
+            logger.info(f"Sent lead email notification to agent {agent_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send lead email notification: {e}")
+            return False
+
+    async def notify_lead_activity(
+        self,
+        agent_id: int,
+        activity_type: str,
+        lead_name: str,
+        share_id: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Push lead engagement signals to agent's WhatsApp.
+
+        Args:
+            agent_id: Agent's database ID
+            activity_type: "viewed_report" | "chatbot_engaged" | "cta_clicked" | "left_notes"
+            lead_name: Lead's name
+            share_id: Report share ID
+            details: Optional extra details
+
+        Returns:
+            True if notification sent
+        """
+        phone = self._get_agent_whatsapp(agent_id)
+        if not phone:
+            return False
+
+        try:
+            frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residenthive.com")
+            report_url = f"{frontend_url}/buyer-report/{share_id}"
+
+            messages = {
+                "viewed_report": f"👀 *{lead_name}* just opened their report!\n\n🔗 {report_url}",
+                "chatbot_engaged": (
+                    f"💬 *{lead_name}* is chatting with the AI assistant"
+                    + (f" ({details.get('message_count', '?')} messages)" if details else "")
+                    + f"\n\n🔗 {report_url}"
+                ),
+                "cta_clicked": (
+                    f"🔥 *{lead_name}* clicked "
+                    + (details.get("cta_name", "a CTA") if details else "a CTA")
+                    + "! High intent — consider calling now."
+                    + f"\n\n🔗 {report_url}"
+                ),
+                "left_notes": f"📝 *{lead_name}* left feedback on a property\n\n🔗 {report_url}",
+            }
+
+            msg = messages.get(activity_type)
+            if not msg:
+                logger.warning(f"Unknown lead activity type: {activity_type}")
+                return False
+
+            await self.client.send_text(phone, msg)
+            logger.info(f"Sent lead activity ({activity_type}) notification to agent {agent_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send lead activity notification: {e}")
+            return False
+
     def _get_buyer_email_for_report(self, share_id: str) -> Optional[str]:
         """Look up the buyer email from a report's share_id."""
         try:
@@ -458,6 +650,75 @@ async def on_buyer_notes_updated(share_id: str, notes: str):
             buyer_code=row.get("whatsapp_code", ""),
             notes_preview=notes,
             share_id=share_id
+        )
+
+
+async def on_lead_processed(agent_id: int, lead_data: Dict[str, Any]):
+    """
+    Trigger notification when a lead is processed (from web UI).
+    Called from leads.py process_lead_endpoint().
+    """
+    notifier = WhatsAppNotifications()
+    await notifier.notify_new_lead(agent_id=agent_id, lead_data=lead_data)
+
+
+async def on_lead_outreach_ready(
+    agent_id: int, lead_name: str, lead_email: str, lead_id: int, share_id: str,
+):
+    """
+    Trigger approval request when outreach report is generated.
+    Called from leads.py generate_lead_outreach().
+    Human-in-the-loop: agent must approve before email goes out.
+    """
+    notifier = WhatsAppNotifications()
+    await notifier.notify_lead_outreach_ready(
+        agent_id=agent_id,
+        lead_name=lead_name,
+        lead_email=lead_email,
+        lead_id=lead_id,
+        share_id=share_id,
+    )
+
+
+async def on_lead_email_sent(agent_id: int, lead_name: str, subject: str):
+    """
+    Trigger notification when email is sent to a lead.
+    Called from leads.py send_lead_email().
+    """
+    notifier = WhatsAppNotifications()
+    await notifier.notify_lead_email_sent(
+        agent_id=agent_id,
+        lead_name=lead_name,
+        subject=subject,
+    )
+
+
+async def on_lead_activity(share_id: str, activity_type: str, details: Optional[Dict[str, Any]] = None):
+    """
+    Trigger notification for lead engagement signals.
+    Called from buyer_reports.py when lead views report, leaves notes, etc.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT br.agent_id, bp.name as buyer_name
+                FROM buyer_reports br
+                JOIN buyer_profiles bp ON br.profile_id = bp.id
+                WHERE br.share_id = %s
+                """,
+                (share_id,)
+            )
+            row = fetchone_dict(cur)
+
+    if row and row.get("agent_id"):
+        notifier = WhatsAppNotifications()
+        await notifier.notify_lead_activity(
+            agent_id=row["agent_id"],
+            activity_type=activity_type,
+            lead_name=row.get("buyer_name", "Lead"),
+            share_id=share_id,
+            details=details,
         )
 
 

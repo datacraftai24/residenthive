@@ -1,29 +1,52 @@
 """
-OpenAI-Powered Intent Parser for WhatsApp Messages
+Gemini-Powered Coordinator Agent for WhatsApp Messages
 
-Uses GPT-4o-mini to parse natural language messages and extract:
-- Intent (what the user wants to do)
-- Buyer reference (if any)
-- Action parameters
+Architecture:
+  Layer 1: Pattern matching (buttons, codes, "help") -> instant response (no LLM)
+  Layer 2: Coordinator Agent (Gemini 3 Flash) with vertical tool loop
 
-Supports both explicit commands and natural language.
+The coordinator agent:
+- Receives conversation history + session state + available entities
+- Calls vertical tools (resolve_entity, search, report, outreach, etc.)
+- Runs up to 5 iterations of the tool loop
+- Returns a natural language response with optional action buttons
+
+Safety guardrails:
+- READ freely (resolve, get_details, search)
+- PROPOSE edits (returns preview -> agent confirms via button)
+- CANNOT send emails or modify data without explicit agent approval
+- All mutations go through pending_action -> confirm/cancel flow
 """
 
 import os
 import json
 import re
+import asyncio
 import logging
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from dataclasses import dataclass, field
-from openai import OpenAI
+
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-# OpenAI configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-INTENT_MODEL = os.getenv("WHATSAPP_INTENT_MODEL", "gpt-4o-mini")
+# Gemini configuration — upgraded to Gemini 3 Flash for agentic workflows
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash")
 
+gemini_client = None
+if GEMINI_API_KEY:
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    logger.info(f"Initialized Gemini client for WhatsApp coordinator agent: model={GEMINI_MODEL}")
+else:
+    logger.warning("GEMINI_API_KEY not set — coordinator agent will use pattern matching only")
+
+
+# ============================================================================
+# INTENT TYPES (kept for Layer 1 pattern matching + backward compat)
+# ============================================================================
 
 class IntentType(str, Enum):
     """Possible user intents"""
@@ -32,33 +55,39 @@ class IntentType(str, Enum):
     SELECT_BUYER = "select_buyer"
     EXIT_CONTEXT = "exit_context"
     HELP = "help"
-    
+
     # Read operations
     VIEW_PROFILE = "view_profile"
     VIEW_SAVED = "view_saved"
     VIEW_NOTES = "view_notes"
-    
+
     # Search & Reports
     SEARCH = "search"
     VIEW_RESULTS = "view_results"
     GENERATE_REPORT = "generate_report"
     SEND_REPORT = "send_report"
-    
+
     # Write operations
     CREATE_BUYER = "create_buyer"
     EDIT_BUYER = "edit_buyer"
-    
+
     # Report approval
     APPROVE_REPORT = "approve_report"
     REJECT_REPORT = "reject_report"
 
+    # Lead outreach
+    SEND_OUTREACH = "send_outreach"
+    APPROVE_OUTREACH = "approve_outreach"
+    REJECT_OUTREACH = "reject_outreach"
+    PROCESS_LEAD = "process_lead"
+
     # Confirmations
     CONFIRM = "confirm"
     CANCEL = "cancel"
-    
+
     # Session
     RESET = "reset"
-    
+
     # Unknown
     UNKNOWN = "unknown"
     GREETING = "greeting"
@@ -83,85 +112,288 @@ class ActionStep:
     depends_on_previous: bool = True
 
 
+# ============================================================================
+# AGENT TOOL RESULT
+# ============================================================================
+
+@dataclass
+class ToolResult:
+    """Result from a tool execution that Gemini can reason about."""
+    success: bool
+    data: Dict[str, Any]
+    message: str
+    error: Optional[str] = None
+    needs_confirmation: bool = False
+    pending_action: Optional[Dict[str, Any]] = None
+    actions: Optional[List[Dict[str, str]]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = {
+            "success": self.success,
+            "data": self.data,
+            "message": self.message,
+        }
+        if self.error:
+            d["error"] = self.error
+        return d
+
+
+@dataclass
+class AgentResult:
+    """Final result from the coordinator agent."""
+    text: str
+    actions: Optional[List[Dict[str, str]]] = None
+    pending_action: Optional[Dict[str, Any]] = None
+
+
+# ============================================================================
+# AGENT TOOL DECLARATIONS (for Gemini function calling)
+# ============================================================================
+
+AGENT_TOOLS = types.Tool(function_declarations=[
+    # READ tools (no confirmation needed)
+    types.FunctionDeclaration(
+        name="resolve_entity",
+        description=(
+            "Find a lead or buyer by name, code, or description. "
+            "Use when the agent mentions someone by name or code."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "reference": types.Schema(
+                    type=types.Type.STRING,
+                    description="Name, code (e.g. SC1), or description of the person to find.",
+                ),
+            },
+            required=["reference"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="get_entity_details",
+        description="Get full profile details for a lead or buyer.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+            },
+            required=["entity_id", "entity_type"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="list_all_entities",
+        description="List all leads and buyers for this agent with their codes.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={},
+        ),
+    ),
+
+    # ACTION tools (may need confirmation)
+    types.FunctionDeclaration(
+        name="process_new_lead",
+        description=(
+            "Extract and save a new lead from pasted text (Zillow, email, open house notes). "
+            "Call this when the agent sends raw text containing a person's name AND (email OR phone) AND property preferences."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "raw_text": types.Schema(type=types.Type.STRING, description="The full raw text containing lead information."),
+                "source": types.Schema(
+                    type=types.Type.STRING,
+                    description="Detected source of the lead.",
+                    enum=["zillow", "redfin", "google", "referral", "open_house", "email", "unknown"],
+                ),
+            },
+            required=["raw_text"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="update_entity",
+        description=(
+            "Propose changes to a lead or buyer profile. "
+            "Returns a preview for agent confirmation. Do NOT call this without first resolving the entity."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+                "changes_description": types.Schema(
+                    type=types.Type.STRING,
+                    description="Natural language description of the changes (e.g. 'increase budget to $800K').",
+                ),
+            },
+            required=["entity_id", "entity_type", "changes_description"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="search_properties",
+        description="Search for properties matching a buyer or lead's criteria.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+            },
+            required=["entity_id", "entity_type"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="generate_report",
+        description="Generate a buyer report from latest search results.",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+            },
+            required=["entity_id", "entity_type"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="send_outreach",
+        description=(
+            "Generate and prepare an outreach report for a lead. "
+            "Requires agent approval before email is sent."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "lead_id": types.Schema(type=types.Type.INTEGER, description="The lead's database ID."),
+            },
+            required=["lead_id"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="respond_to_agent",
+        description=(
+            "Send a conversational response when no tool action is needed. "
+            "Use for greetings, clarifications, or when you have enough info to answer."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "message": types.Schema(type=types.Type.STRING, description="The response message to send."),
+            },
+            required=["message"],
+        ),
+    ),
+])
+
+
+# ============================================================================
+# SYSTEM PROMPT (for coordinator agent)
+# ============================================================================
+
+COORDINATOR_SYSTEM_PROMPT = """You are the WhatsApp assistant for a real estate agent on the ResidentHive platform. You help manage leads and buyers.
+
+CONVERSATION HISTORY:
+{history}
+
+CURRENT STATE:
+- Session: {state}
+- Active: {active_entity}
+- Pending action: {pending_action}
+
+AVAILABLE ENTITIES:
+{entities}
+
+RULES:
+- Use resolve_entity when the agent mentions someone by name or when you need to look up a person
+- Use process_new_lead when pasted text contains contact info + property preferences
+- Use update_entity to propose edits — always describe changes clearly
+- Use search_properties only when in entity context or after resolving an entity
+- Use send_outreach for lead outreach — this generates a report for approval
+- Use respond_to_agent for greetings, clarifications, and conversational responses
+- If missing info (no email, no budget), tell the agent and suggest adding it
+- Keep responses concise — this is WhatsApp, not email
+- Never assume or hallucinate contact info
+- For ambiguous names, show all matches and ask which one
+- When the agent says "search for [name]", first resolve the entity, then search
+- When the agent says "update [name]'s budget", first resolve, then update"""
+
+
+# ============================================================================
+# INTENT PARSER CLASS (Layer 1 — pattern matching, unchanged)
+# ============================================================================
+
 class IntentParser:
     """
     Parse WhatsApp messages into structured intents.
-    
-    Uses a combination of:
-    1. Pattern matching for explicit commands and codes
-    2. OpenAI for natural language understanding
+
+    Layer 1: Pattern matching for explicit commands and codes (no LLM)
+    Layer 2: Now handled by run_agent() coordinator
     """
-    
+
     def __init__(self):
-        if not OPENAI_API_KEY:
-            logger.warning("OPENAI_API_KEY not set, using pattern matching only")
-            self.client = None
-        else:
-            self.client = OpenAI(api_key=OPENAI_API_KEY)
-    
+        self.gemini_client = gemini_client
+
     def parse(
         self,
         message: str,
         input_type: str,
         session_state: str,
         active_buyer: Optional[Dict[str, Any]] = None,
-        buyers: Optional[List[Dict[str, Any]]] = None
+        buyers: Optional[List[Dict[str, Any]]] = None,
     ) -> Intent:
+        """Parse a message into a single intent."""
+        result = self.parse_multi(message, input_type, session_state, active_buyer, buyers)
+        return result[0]
+
+    def parse_multi(
+        self,
+        message: str,
+        input_type: str,
+        session_state: str,
+        active_buyer: Optional[Dict[str, Any]] = None,
+        buyers: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Intent]:
         """
-        Parse a message into an intent.
-        
-        Args:
-            message: User's message text
-            input_type: "text", "button", or "list"
-            session_state: Current session state
-            active_buyer: Currently selected buyer (if any)
-            buyers: List of all agent's buyers (for name matching)
-            
-        Returns:
-            Parsed Intent
+        Parse a message into one or more intents.
+
+        Layer 1 (pattern matching) handles buttons, codes, obvious commands.
+        Returns UNKNOWN if no pattern matches — caller should use run_agent().
         """
         message = message.strip()
-        
-        # Handle button/list replies first (these have explicit IDs)
+
+        # ── Layer 1: Interactive replies (buttons/lists) ──
         if input_type in ("button", "list"):
-            return self._parse_interactive_reply(message)
-        
-        # Check for explicit commands/patterns
+            return [self._parse_interactive_reply(message)]
+
+        # ── Layer 1: Pattern matching ──
         pattern_intent = self._parse_patterns(message, session_state, active_buyer)
         if pattern_intent.type != IntentType.UNKNOWN:
-            return pattern_intent
-        
-        # Check for buyer code
+            return [pattern_intent]
+
+        # ── Layer 1: Buyer/entity code shortcuts ──
         code_match = re.match(r'^([A-Za-z]{2}\d+)\s*(.*)?$', message)
         if code_match:
             code = code_match.group(1).upper()
             rest = code_match.group(2) or ""
-            
-            # If there's additional text, it might be a shortcut command
             if rest.strip():
                 shortcut_intent = self._parse_shortcut(code, rest.strip())
                 if shortcut_intent:
-                    return shortcut_intent
-            
-            # Just the code - select buyer
-            return Intent(
+                    return [shortcut_intent]
+            return [Intent(
                 type=IntentType.SELECT_BUYER,
                 buyer_reference=code,
-                raw_text=message
-            )
-        
-        # Use OpenAI for natural language understanding
-        if self.client:
-            return self._parse_with_llm(message, session_state, active_buyer, buyers)
-        
-        # Fallback - treat as unknown
-        return Intent(type=IntentType.UNKNOWN, raw_text=message)
-    
+                raw_text=message,
+            )]
+
+        # ── No pattern match — return UNKNOWN for coordinator agent ──
+        return [Intent(type=IntentType.UNKNOWN, raw_text=message)]
+
+    # =========================================================================
+    # Layer 1: Pattern Matching (no LLM)
+    # =========================================================================
+
     def _parse_interactive_reply(self, reply_id: str) -> Intent:
         """Parse button or list reply by ID."""
         reply_id = reply_id.lower()
-        
-        # Common button IDs
+
         button_mapping = {
             "view_buyers": IntentType.VIEW_BUYERS,
             "all_buyers": IntentType.VIEW_BUYERS,
@@ -193,82 +425,84 @@ class IntentParser:
             "approve_report": IntentType.APPROVE_REPORT,
             "btn_reject_report": IntentType.REJECT_REPORT,
             "reject_report": IntentType.REJECT_REPORT,
+            "btn_send_outreach": IntentType.SEND_OUTREACH,
+            "btn_approve_outreach": IntentType.APPROVE_OUTREACH,
+            "btn_reject_outreach": IntentType.REJECT_OUTREACH,
             "confirm": IntentType.CONFIRM,
             "yes": IntentType.CONFIRM,
             "cancel": IntentType.CANCEL,
             "no": IntentType.CANCEL,
             "help": IntentType.HELP,
         }
-        
+
         if reply_id in button_mapping:
             return Intent(type=button_mapping[reply_id], raw_text=reply_id)
-        
-        # Check if it's a buyer selection (format: select_buyer_SC1 or select_buyer_123)
+
+        # Buyer selection (format: select_buyer_SC1 or select_buyer_123)
         if reply_id.startswith("select_buyer_"):
             ref = reply_id.replace("select_buyer_", "")
-            # If purely numeric, it's a database ID (fallback when no whatsapp_code)
             if ref.isdigit():
                 return Intent(
                     type=IntentType.SELECT_BUYER,
                     buyer_id=int(ref),
-                    raw_text=reply_id
+                    raw_text=reply_id,
                 )
             return Intent(
                 type=IntentType.SELECT_BUYER,
                 buyer_reference=ref.upper(),
-                raw_text=reply_id
+                raw_text=reply_id,
             )
-        
-        # Check if it's a buyer code directly
+
+        # Direct buyer code
         if re.match(r'^[a-z]{2}\d+$', reply_id):
             return Intent(
                 type=IntentType.SELECT_BUYER,
                 buyer_reference=reply_id.upper(),
-                raw_text=reply_id
+                raw_text=reply_id,
             )
-        
+
         return Intent(type=IntentType.UNKNOWN, raw_text=reply_id)
-    
+
     def _parse_patterns(
         self,
         message: str,
         session_state: str,
-        active_buyer: Optional[Dict[str, Any]]
+        active_buyer: Optional[Dict[str, Any]],
     ) -> Intent:
         """Parse explicit commands and common patterns."""
         msg_lower = message.lower().strip()
-        
+
         # Help
         if msg_lower in ("help", "?", "commands"):
             return Intent(type=IntentType.HELP, raw_text=message)
-        
+
         # Greetings
         if msg_lower in ("hi", "hello", "hey", "good morning", "good afternoon"):
             return Intent(type=IntentType.GREETING, raw_text=message)
-        
+
         # View buyers
         if msg_lower in ("all", "list", "buyers", "my buyers", "show buyers", "view buyers", "show my buyers"):
             return Intent(type=IntentType.VIEW_BUYERS, raw_text=message)
-        
+
         # Reset session
         if msg_lower in ("reset", "start over", "clear", "restart"):
             return Intent(type=IntentType.RESET, raw_text=message)
-        
+
         # Exit context
         if msg_lower in ("done", "back", "exit", "next", "finish", "thanks", "thank you"):
             return Intent(type=IntentType.EXIT_CONTEXT, raw_text=message)
-        
-        # Create buyer
+
+        # Create buyer (short command only — no details)
         if msg_lower in ("new", "new buyer", "add buyer", "create", "add"):
             return Intent(type=IntentType.CREATE_BUYER, raw_text=message)
-        
+
         # Confirmations
         if msg_lower in ("yes", "confirm", "ok", "okay", "yep", "sure", "do it"):
             return Intent(type=IntentType.CONFIRM, raw_text=message)
         if msg_lower in ("no", "cancel", "nevermind", "stop", "abort"):
             return Intent(type=IntentType.CANCEL, raw_text=message)
-        
-        # In buyer context - check for context-specific commands
+
+        # In buyer context — context-specific commands
         if active_buyer:
             if msg_lower in ("search", "find", "find properties", "search properties", "run search"):
                 return Intent(type=IntentType.SEARCH, raw_text=message)
@@ -284,14 +518,13 @@ class IntentParser:
                 return Intent(type=IntentType.VIEW_NOTES, raw_text=message)
             if msg_lower in ("edit", "update", "change", "modify"):
                 return Intent(type=IntentType.EDIT_BUYER, raw_text=message)
-        
+
         return Intent(type=IntentType.UNKNOWN, raw_text=message)
-    
+
     def _parse_shortcut(self, buyer_code: str, command: str) -> Optional[Intent]:
         """Parse shortcut commands like 'SC1 s' or 'MJ1 report send'."""
         cmd = command.lower().strip()
-        
-        # Single letter shortcuts
+
         shortcuts = {
             "s": IntentType.SEARCH,
             "search": IntentType.SEARCH,
@@ -302,324 +535,840 @@ class IntentParser:
             "p": IntentType.VIEW_PROFILE,
             "profile": IntentType.VIEW_PROFILE,
         }
-        
+
         if cmd in shortcuts:
             return Intent(
                 type=shortcuts[cmd],
                 buyer_reference=buyer_code,
-                raw_text=f"{buyer_code} {command}"
+                raw_text=f"{buyer_code} {command}",
             )
-        
-        # Compound shortcuts like "r send" (report + send)
+
+        # Compound shortcuts
         if cmd in ("r send", "report send", "rs"):
             return Intent(
                 type=IntentType.SEND_REPORT,
                 buyer_reference=buyer_code,
                 params={"generate_first": True},
-                raw_text=f"{buyer_code} {command}"
+                raw_text=f"{buyer_code} {command}",
             )
-        
+
         return None
-    
-    def _parse_with_llm(
-        self,
-        message: str,
-        session_state: str,
-        active_buyer: Optional[Dict[str, Any]],
-        buyers: Optional[List[Dict[str, Any]]]
-    ) -> Intent:
-        """Use OpenAI to parse natural language."""
-        
-        # Build context for the LLM
-        context_parts = [f"Session state: {session_state}"]
-        
-        if active_buyer:
-            context_parts.append(
-                f"Currently focused on: {active_buyer.get('name')} ({active_buyer.get('whatsapp_code')})"
-            )
-        
-        if buyers:
-            buyer_list = ", ".join([
-                f"{b.get('name')} ({b.get('whatsapp_code')})"
-                for b in buyers[:10]  # Limit to 10
-            ])
-            context_parts.append(f"Available buyers: {buyer_list}")
-        
-        context = "\n".join(context_parts)
-        
-        prompt = f"""You are parsing a WhatsApp message from a real estate agent managing buyer profiles.
 
-Context:
-{context}
 
-User message: "{message}"
+# ============================================================================
+# COORDINATOR AGENT (Layer 2)
+# ============================================================================
 
-Determine the intent. Return a JSON object with:
-- "intent": one of [view_buyers, select_buyer, view_profile, search, generate_report, send_report, create_buyer, edit_buyer, exit_context, help, confirm, cancel, greeting, unknown]
-- "buyer_reference": if the message mentions a buyer, extract their name or code (e.g., "SC1" or "Sarah")
-- "edit_text": if intent is edit_buyer, include the natural language change request
-- "confidence": 0.0-1.0 confidence score
+async def run_agent(message: str, session) -> AgentResult:
+    """
+    Run the coordinator agent with a tool loop (max 5 iterations).
 
-Examples:
-- "search for Sarah" -> {{"intent": "search", "buyer_reference": "Sarah", "confidence": 0.9}}
-- "she wants a bigger budget" -> {{"intent": "edit_buyer", "buyer_reference": null, "edit_text": "increase budget", "confidence": 0.8}}
-- "how's Mike doing" -> {{"intent": "view_profile", "buyer_reference": "Mike", "confidence": 0.7}}
-- "show all" -> {{"intent": "view_buyers", "buyer_reference": null, "confidence": 0.95}}
+    This is the core agentic function that replaces the old Gemini classifier.
+    Gemini sees conversation history, session state, and available entities,
+    then calls tools to resolve entities, search, edit, etc.
 
-Return only the JSON object, no other text."""
+    Args:
+        message: The agent's WhatsApp message text
+        session: AgentSession object
 
-        try:
-            response = self.client.chat.completions.create(
-                model=INTENT_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=200
-            )
-            
-            content = response.choices[0].message.content.strip()
-            
-            # Parse JSON response
-            # Handle potential markdown code blocks
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-                content = content.strip()
-            
-            result = json.loads(content)
-            
-            intent_str = result.get("intent", "unknown")
-            try:
-                intent_type = IntentType(intent_str)
-            except ValueError:
-                intent_type = IntentType.UNKNOWN
-            
-            return Intent(
-                type=intent_type,
-                buyer_reference=result.get("buyer_reference"),
-                params={"edit_text": result.get("edit_text")} if result.get("edit_text") else {},
-                raw_text=message,
-                confidence=result.get("confidence", 0.5)
-            )
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response as JSON: {e}")
-            return Intent(type=IntentType.UNKNOWN, raw_text=message, confidence=0.0)
-        except Exception as e:
-            logger.error(f"LLM intent parsing failed: {e}")
-            return Intent(type=IntentType.UNKNOWN, raw_text=message, confidence=0.0)
-
-    def parse_multi(
-        self,
-        message: str,
-        input_type: str,
-        session_state: str,
-        active_buyer: Optional[Dict[str, Any]] = None,
-        buyers: Optional[List[Dict[str, Any]]] = None
-    ) -> List[Intent]:
-        """
-        Parse a message into one or more intents for multi-action chaining.
-
-        For button/list replies and simple pattern-matched commands, returns a
-        single-element list (same as ``parse()``).  For natural-language text
-        that may contain multiple actions, uses the LLM to extract an ordered
-        sequence of intents.
-
-        Args:
-            message: User's message text
-            input_type: "text", "button", or "list"
-            session_state: Current session state
-            active_buyer: Currently selected buyer (if any)
-            buyers: List of all agent's buyers (for name matching)
-
-        Returns:
-            Ordered list of Intent objects (always at least one element)
-        """
-        message = message.strip()
-
-        # Interactive replies are always single-action
-        if input_type in ("button", "list"):
-            return [self._parse_interactive_reply(message)]
-
-        # Pattern-matched commands are single-action
-        pattern_intent = self._parse_patterns(message, session_state, active_buyer)
-        if pattern_intent.type != IntentType.UNKNOWN:
-            return [pattern_intent]
-
-        # Buyer-code shortcuts are single-action
-        code_match = re.match(r'^([A-Za-z]{2}\d+)\s*(.*)?$', message)
-        if code_match:
-            code = code_match.group(1).upper()
-            rest = code_match.group(2) or ""
-            if rest.strip():
-                shortcut_intent = self._parse_shortcut(code, rest.strip())
-                if shortcut_intent:
-                    return [shortcut_intent]
-            return [Intent(
-                type=IntentType.SELECT_BUYER,
-                buyer_reference=code,
-                raw_text=message,
-            )]
-
-        # Use LLM for multi-intent extraction
-        if self.client:
-            return self._parse_multi_with_llm(message, session_state, active_buyer, buyers)
-
-        return [Intent(type=IntentType.UNKNOWN, raw_text=message)]
-
-    def _parse_multi_with_llm(
-        self,
-        message: str,
-        session_state: str,
-        active_buyer: Optional[Dict[str, Any]],
-        buyers: Optional[List[Dict[str, Any]]]
-    ) -> List[Intent]:
-        """Use OpenAI to extract an ordered list of intents from natural language."""
-
-        context_parts = [f"Session state: {session_state}"]
-
-        if active_buyer:
-            context_parts.append(
-                f"Currently focused on: {active_buyer.get('name')} ({active_buyer.get('whatsapp_code')})"
-            )
-
-        if buyers:
-            buyer_list = ", ".join([
-                f"{b.get('name')} ({b.get('whatsapp_code')})"
-                for b in buyers[:10]
-            ])
-            context_parts.append(f"Available buyers: {buyer_list}")
-
-        context = "\n".join(context_parts)
-
-        valid_intents = (
-            "view_buyers, select_buyer, view_profile, search, generate_report, "
-            "send_report, create_buyer, edit_buyer, exit_context, help, confirm, "
-            "cancel, greeting, unknown"
+    Returns:
+        AgentResult with text response and optional actions/pending_action
+    """
+    if not gemini_client:
+        return AgentResult(
+            text="I couldn't process that. Try using specific commands like 'search', 'all', or type 'help'."
         )
 
-        prompt = f"""You are parsing a WhatsApp message from a real estate agent managing buyer profiles.
-The message may contain ONE or MULTIPLE actions. Extract ALL actions in the correct execution order.
+    from .buyer_codes import get_all_entities, resolve_entity_reference
 
-Context:
-{context}
+    # Build context
+    history_text = _format_history(session.message_history)
+    entities = get_all_entities(session.agent_id)
+    entities_text = _format_entities(entities)
 
-User message: "{message}"
+    # Active entity display
+    active_entity = "None"
+    if session.active_buyer_name:
+        active_entity = f"{session.active_buyer_name} ({session.active_buyer_code}) — buyer"
+    elif session.active_lead_name:
+        active_entity = f"{session.active_lead_name} ({session.active_lead_code}) — lead"
 
-Return a JSON object with:
-- "actions": an array of action objects **in execution order**. Each object has:
-  - "intent": one of [{valid_intents}]
-  - "buyer_reference": buyer name or code if mentioned (e.g. "SC1" or "Sarah"), else null
-  - "edit_text": if intent is edit_buyer, the natural language change request, else omit
-- "confidence": 0.0-1.0 overall confidence
+    pending_text = "None"
+    if session.pending_action:
+        pending_text = f"{session.pending_action.get('type')}"
 
-IMPORTANT RULES:
-- If the message contains only one action, return a single-element array.
-- Expand implicit steps. For example "send Sarah a report" requires:
-  select_buyer (Sarah) -> search -> generate_report -> send_report
-- If a buyer is already focused (see context), do NOT add a redundant select_buyer step.
-- The buyer_reference only needs to appear on the FIRST action that references that buyer.
+    # Build system prompt with context
+    system_prompt = COORDINATOR_SYSTEM_PROMPT.format(
+        history=history_text or "(no prior messages)",
+        state=session.state.value,
+        active_entity=active_entity,
+        pending_action=pending_text,
+        entities=entities_text or "(no entities yet)",
+    )
 
-Examples:
-- "search for Sarah and send her the report"
-  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "Sarah"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}, {{"intent": "send_report"}}], "confidence": 0.9}}
-- "show me all buyers"
-  -> {{"actions": [{{"intent": "view_buyers"}}], "confidence": 0.95}}
-- "run a search for SC1 and generate a report"
-  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "SC1"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}], "confidence": 0.9}}
-- "she wants a bigger budget" (with active buyer)
-  -> {{"actions": [{{"intent": "edit_buyer", "edit_text": "increase budget"}}], "confidence": 0.8}}
-- "search and then email the report to Mike"
-  -> {{"actions": [{{"intent": "select_buyer", "buyer_reference": "Mike"}}, {{"intent": "search"}}, {{"intent": "generate_report"}}, {{"intent": "send_report"}}], "confidence": 0.85}}
+    # Build conversation for Gemini
+    gemini_contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part(text=f"{system_prompt}\n\nAgent message: \"{message}\"")],
+        )
+    ]
 
-Return only the JSON object, no other text."""
+    logger.info(f"[AGENT] ── Request ──")
+    logger.info(f"[AGENT] Model: {GEMINI_MODEL}")
+    logger.info(f"[AGENT] Message: {message[:200]}")
+    logger.info(f"[AGENT] State: {session.state.value}, Active: {active_entity}")
 
-        try:
-            response = self.client.chat.completions.create(
-                model=INTENT_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=500,
+    try:
+        for iteration in range(5):
+            logger.info(f"[AGENT] ── Iteration {iteration + 1} ──")
+
+            response = gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=gemini_contents,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    tools=[AGENT_TOOLS],
+                ),
             )
 
-            content = response.choices[0].message.content.strip()
+            if not response or not response.candidates:
+                logger.warning("[AGENT] Empty response (no candidates)")
+                return AgentResult(text="I had trouble understanding that. Could you rephrase?")
 
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-                content = content.strip()
+            candidate = response.candidates[0]
+            if not candidate.content or not candidate.content.parts:
+                logger.warning("[AGENT] No content parts")
+                return AgentResult(text="I had trouble understanding that. Could you rephrase?")
 
-            result = json.loads(content)
-            actions_raw = result.get("actions", [])
-            overall_confidence = result.get("confidence", 0.5)
+            # Check for function call
+            function_call = None
+            text_response = None
+            for part in candidate.content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    function_call = part.function_call
+                    break
+                if hasattr(part, "text") and part.text:
+                    text_response = part.text.strip()
 
-            if not actions_raw:
-                return [Intent(type=IntentType.UNKNOWN, raw_text=message, confidence=0.0)]
+            # If Gemini responded with text (no tool call), return it
+            if not function_call:
+                if text_response:
+                    logger.info(f"[AGENT] Text response: {text_response[:200]}")
+                    return AgentResult(text=text_response)
+                return AgentResult(text="I had trouble processing that. Try being more specific.")
 
-            intents: List[Intent] = []
-            for action in actions_raw:
-                intent_str = action.get("intent", "unknown")
-                try:
-                    intent_type = IntentType(intent_str)
-                except ValueError:
-                    intent_type = IntentType.UNKNOWN
+            tool_name = function_call.name
+            tool_args = dict(function_call.args) if function_call.args else {}
+            logger.info(f"[AGENT] Tool call: {tool_name}({json.dumps(tool_args, default=str)[:200]})")
 
-                params: Dict[str, Any] = {}
-                if action.get("edit_text"):
-                    params["edit_text"] = action["edit_text"]
+            # Handle respond_to_agent specially — it's the agent's final answer
+            if tool_name == "respond_to_agent":
+                msg = tool_args.get("message", "")
+                logger.info(f"[AGENT] Final response via respond_to_agent: {msg[:200]}")
+                return AgentResult(text=msg)
 
-                intents.append(Intent(
-                    type=intent_type,
-                    buyer_reference=action.get("buyer_reference"),
-                    params=params,
-                    raw_text=message,
-                    confidence=overall_confidence,
-                ))
+            # Execute tool
+            tool_result = await _execute_tool(tool_name, tool_args, session)
+            logger.info(f"[AGENT] Tool result: success={tool_result.success}, msg={tool_result.message[:100]}")
 
-            return intents if intents else [Intent(type=IntentType.UNKNOWN, raw_text=message)]
+            # If tool requires user confirmation, break loop
+            if tool_result.needs_confirmation:
+                return AgentResult(
+                    text=tool_result.message,
+                    actions=tool_result.actions,
+                    pending_action=tool_result.pending_action,
+                )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse multi-intent LLM response as JSON: {e}")
-            return [self._parse_with_llm(message, session_state, active_buyer, buyers)]
-        except Exception as e:
-            logger.error(f"Multi-intent LLM parsing failed: {e}")
-            return [self._parse_with_llm(message, session_state, active_buyer, buyers)]
+            # Feed result back to Gemini for next iteration
+            gemini_contents.append(
+                types.Content(
+                    role="model",
+                    parts=[types.Part(function_call=types.FunctionCall(
+                        name=tool_name,
+                        args=tool_args,
+                    ))],
+                )
+            )
+            gemini_contents.append(
+                types.Content(
+                    role="user",
+                    parts=[types.Part(function_response=types.FunctionResponse(
+                        name=tool_name,
+                        response=tool_result.to_dict(),
+                    ))],
+                )
+            )
 
+        # Exhausted iterations
+        logger.warning("[AGENT] Exhausted 5 iterations")
+        return AgentResult(text="I had trouble processing that. Try being more specific.")
+
+    except Exception as e:
+        logger.error(f"[AGENT] Error: {e}", exc_info=True)
+        return AgentResult(
+            text="Something went wrong. Please try again or type 'help' for commands."
+        )
+
+
+# ============================================================================
+# TOOL EXECUTORS
+# ============================================================================
+
+async def _execute_tool(name: str, args: Dict[str, Any], session) -> ToolResult:
+    """Dispatch tool call to the appropriate executor."""
+    try:
+        if name == "resolve_entity":
+            return await _tool_resolve_entity(args, session)
+        elif name == "get_entity_details":
+            return await _tool_get_entity_details(args, session)
+        elif name == "list_all_entities":
+            return await _tool_list_all_entities(args, session)
+        elif name == "process_new_lead":
+            return await _tool_process_lead(args, session)
+        elif name == "update_entity":
+            return await _tool_update_entity(args, session)
+        elif name == "search_properties":
+            return await _tool_search(args, session)
+        elif name == "generate_report":
+            return await _tool_generate_report(args, session)
+        elif name == "send_outreach":
+            return await _tool_send_outreach(args, session)
+        else:
+            return ToolResult(
+                success=False, data={}, message=f"Unknown tool: {name}",
+                error=f"No tool named '{name}' is available.",
+            )
+    except Exception as e:
+        logger.error(f"[AGENT] Tool {name} failed: {e}", exc_info=True)
+        return ToolResult(
+            success=False, data={}, message=f"Tool failed: {name}",
+            error=str(e),
+        )
+
+
+async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
+    """Find a lead or buyer by name, code, or description."""
+    from .buyer_codes import resolve_entity_reference
+    from .session import SessionManager
+
+    reference = args.get("reference", "")
+    if not reference:
+        return ToolResult(
+            success=False, data={}, message="No reference provided.",
+            error="Please specify a name or code to look up.",
+        )
+
+    matches = resolve_entity_reference(session.agent_id, reference)
+
+    if len(matches) == 0:
+        return ToolResult(
+            success=True,
+            data={"found": False, "reference": reference},
+            message=f"No lead or buyer matching '{reference}'",
+        )
+
+    if len(matches) == 1:
+        entity = matches[0]
+        entity_type = entity.get("entity_type", "buyer")
+
+        # Set session context
+        if entity_type == "buyer":
+            session.set_buyer_context(
+                entity["id"],
+                entity.get("whatsapp_code", ""),
+                entity.get("name", "Unknown"),
+            )
+        else:
+            session.set_lead_context(
+                entity["id"],
+                entity.get("whatsapp_code", ""),
+                entity.get("name") or entity.get("extracted_name", "Unknown"),
+            )
+        await SessionManager.save(session)
+
+        return ToolResult(
+            success=True,
+            data={
+                "found": True,
+                "entity_id": entity["id"],
+                "entity_type": entity_type,
+                "name": entity.get("name") or entity.get("extracted_name", "Unknown"),
+                "code": entity.get("whatsapp_code", ""),
+                "email": entity.get("email") or entity.get("extracted_email"),
+                "location": entity.get("location") or entity.get("extracted_location"),
+                "budget_min": entity.get("budget_min") or entity.get("extracted_budget_min"),
+                "budget_max": entity.get("budget_max") or entity.get("extracted_budget_max"),
+            },
+            message=f"Found {entity.get('name') or entity.get('extracted_name')} ({entity.get('whatsapp_code', '')}) — {entity_type}",
+        )
+
+    # Multiple matches — return all for Gemini to disambiguate
+    match_list = []
+    for m in matches:
+        match_list.append({
+            "name": m.get("name") or m.get("extracted_name", "Unknown"),
+            "code": m.get("whatsapp_code", ""),
+            "entity_type": m.get("entity_type", "buyer"),
+            "location": m.get("location") or m.get("extracted_location"),
+            "budget_min": m.get("budget_min") or m.get("extracted_budget_min"),
+            "budget_max": m.get("budget_max") or m.get("extracted_budget_max"),
+        })
+
+    return ToolResult(
+        success=True,
+        data={"found": True, "ambiguous": True, "matches": match_list},
+        message=f"Found {len(matches)} matches for '{reference}'",
+    )
+
+
+async def _tool_get_entity_details(args: Dict, session) -> ToolResult:
+    """Get full profile details for a lead or buyer."""
+    from ...db import get_conn, fetchone_dict
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+
+    if not entity_id:
+        return ToolResult(success=False, data={}, message="No entity_id provided.", error="entity_id is required.")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if entity_type == "buyer":
+                cur.execute(
+                    "SELECT * FROM buyer_profiles WHERE id = %s AND agent_id = %s",
+                    (entity_id, session.agent_id),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM leads WHERE id = %s AND agent_id = %s",
+                    (entity_id, session.agent_id),
+                )
+            row = fetchone_dict(cur)
+
+    if not row:
+        return ToolResult(
+            success=False, data={}, message=f"{entity_type.title()} not found.",
+            error=f"No {entity_type} with id={entity_id} found for this agent.",
+        )
+
+    # Serialize datetime fields
+    data = {}
+    for k, v in row.items():
+        if hasattr(v, "isoformat"):
+            data[k] = v.isoformat()
+        elif isinstance(v, (dict, list)):
+            data[k] = v
+        else:
+            data[k] = v
+
+    name = row.get("name") or row.get("extracted_name", "Unknown")
+    return ToolResult(
+        success=True,
+        data=data,
+        message=f"Details for {name} ({row.get('whatsapp_code', '')})",
+    )
+
+
+async def _tool_list_all_entities(args: Dict, session) -> ToolResult:
+    """List all leads and buyers for this agent."""
+    from .buyer_codes import get_all_entities
+
+    entities = get_all_entities(session.agent_id)
+
+    if not entities:
+        return ToolResult(
+            success=True,
+            data={"count": 0, "entities": []},
+            message="No leads or buyers found. The agent hasn't added any yet.",
+        )
+
+    entity_list = []
+    for e in entities:
+        entity_list.append({
+            "name": e.get("name", "Unknown"),
+            "code": e.get("code", ""),
+            "entity_type": e.get("entity_type", "buyer"),
+            "email": e.get("email"),
+            "location": e.get("location"),
+            "budget_display": e.get("budget_display", ""),
+        })
+
+    return ToolResult(
+        success=True,
+        data={"count": len(entity_list), "entities": entity_list},
+        message=f"Found {len(entity_list)} entities ({sum(1 for e in entity_list if e['entity_type'] == 'buyer')} buyers, {sum(1 for e in entity_list if e['entity_type'] == 'lead')} leads)",
+    )
+
+
+async def _tool_process_lead(args: Dict, session) -> ToolResult:
+    """Extract and save a new lead from pasted text."""
+    from .agent import process_lead_from_text
+    from .buyer_codes import assign_code_to_lead
+
+    raw_text = args.get("raw_text", "")
+    source = args.get("source", "unknown")
+
+    if not raw_text:
+        return ToolResult(
+            success=False, data={}, message="No text provided.",
+            error="raw_text is required to process a lead.",
+        )
+
+    try:
+        lead_data = process_lead_from_text(raw_text, source, session.agent_id)
+        if not lead_data:
+            return ToolResult(
+                success=False, data={}, message="Could not extract lead information.",
+                error="The text didn't contain enough information to create a lead.",
+            )
+
+        lead_id = lead_data["lead_id"]
+        lead_name = lead_data.get("name") or "Lead"
+
+        # Assign code to the new lead
+        code = assign_code_to_lead(lead_id, session.agent_id, lead_name)
+
+        # Fire outreach generation as background task
+        asyncio.create_task(
+            _background_generate_outreach(lead_id, lead_name, lead_data.get("email"), session)
+        )
+
+        return ToolResult(
+            success=True,
+            data={
+                "lead_id": lead_id,
+                "name": lead_name,
+                "code": code,
+                "email": lead_data.get("email"),
+                "phone": lead_data.get("phone"),
+                "location": lead_data.get("location"),
+                "budget_min": lead_data.get("budget_min"),
+                "budget_max": lead_data.get("budget_max"),
+                "bedrooms": lead_data.get("bedrooms"),
+                "source": lead_data.get("source"),
+                "intent_score": lead_data.get("intent_score"),
+            },
+            message=f"Lead processed: {lead_name} ({code or 'no code'}). Outreach report is being generated in background — you'll be notified when ready.",
+        )
+    except Exception as e:
+        return ToolResult(
+            success=False, data={}, message="Failed to process lead.",
+            error=str(e),
+        )
+
+
+async def _background_generate_outreach(lead_id: int, lead_name: str, lead_email: str, session):
+    """Background task: generate outreach report and notify agent when ready."""
+    try:
+        from ...routers.leads import generate_lead_outreach
+        from .notifications import on_lead_outreach_ready
+
+        result = await generate_lead_outreach(
+            lead_id=lead_id,
+            send_email=False,
+            agent_id=session.agent_id,
+            _notify_whatsapp=False,
+        )
+
+        share_id = result.get("reportShareId")
+        report_url = result.get("fullReportUrl", "")
+        listing_count = result.get("propertiesIncluded", 0)
+
+        if share_id:
+            await on_lead_outreach_ready(
+                session.agent_id, lead_name, lead_email, lead_id, share_id
+            )
+            logger.info(f"[AGENT] Background outreach ready for lead {lead_id}: {share_id}")
+        else:
+            logger.warning(f"[AGENT] Background outreach generation returned no share_id for lead {lead_id}")
+
+    except Exception as e:
+        logger.error(f"[AGENT] Background outreach failed for lead {lead_id}: {e}", exc_info=True)
+
+
+async def _tool_update_entity(args: Dict, session) -> ToolResult:
+    """Propose changes to a lead or buyer profile — returns preview for confirmation."""
+    from .session import SessionManager
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+    changes_description = args.get("changes_description", "")
+
+    if not entity_id or not changes_description:
+        return ToolResult(
+            success=False, data={}, message="Missing required fields.",
+            error="entity_id and changes_description are required.",
+        )
+
+    # Store pending action for confirmation
+    await SessionManager.set_pending_action(
+        session.phone,
+        "edit_entity",
+        {
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "changes_description": changes_description,
+        },
+    )
+
+    return ToolResult(
+        success=True,
+        data={"entity_id": entity_id, "entity_type": entity_type, "changes": changes_description},
+        message=f"Proposed changes to {entity_type} #{entity_id}: {changes_description}",
+        needs_confirmation=True,
+        pending_action={"type": "edit_entity", "data": {
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "changes_description": changes_description,
+        }},
+        actions=[
+            {"id": "confirm", "title": "Confirm"},
+            {"id": "cancel", "title": "Cancel"},
+        ],
+    )
+
+
+async def _tool_search(args: Dict, session) -> ToolResult:
+    """Search for properties matching a buyer/lead's criteria."""
+    from ..search_context_store import generate_search_id, store_search_context
+    from .session import SessionManager, SessionState
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+
+    if not entity_id:
+        return ToolResult(
+            success=False, data={}, message="No entity specified.",
+            error="entity_id is required to search.",
+        )
+
+    try:
+        from ...routers.listings import listings_search, _load_profile
+
+        # For buyers, load profile directly. For leads, we need to map to buyer profile ID.
+        if entity_type == "buyer":
+            profile_id = entity_id
+        else:
+            # Check if lead has been converted to a buyer profile
+            from ...db import get_conn, fetchone_dict
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                        (entity_id, session.agent_id),
+                    )
+                    row = fetchone_dict(cur)
+                    if row:
+                        profile_id = row["id"]
+                    else:
+                        return ToolResult(
+                            success=False, data={},
+                            message="This lead hasn't been converted to a buyer profile yet.",
+                            error="Convert the lead to a buyer profile first, or add search criteria.",
+                        )
+
+        profile = _load_profile(profile_id)
+        result = listings_search({"profileId": profile_id, "profile": {}})
+
+        all_listings = result.get("top_picks", []) + result.get("other_matches", [])
+
+        listings = []
+        for item in all_listings[:20]:
+            listing = item.get("listing", item)
+            listings.append({
+                "mlsNumber": listing.get("mls_number") or listing.get("id"),
+                "address": listing.get("address"),
+                "city": listing.get("city"),
+                "listPrice": listing.get("price"),
+                "bedrooms": listing.get("bedrooms"),
+                "bathrooms": listing.get("bathrooms"),
+                "sqft": listing.get("square_feet"),
+                "fitScore": item.get("fitScore") or item.get("match_score"),
+                "aiAnalysis": item.get("ai_analysis"),
+            })
+
+        search_id = generate_search_id()
+        store_search_context(search_id, profile, listings)
+
+        session.last_search_id = search_id
+        session.state = SessionState.BUYER_CONTEXT if entity_type == "buyer" else SessionState.LEAD_CONTEXT
+        session.sub_state = "results"
+        await SessionManager.save(session)
+
+        total_found = result.get("search_summary", {}).get("total_found", len(listings))
+
+        # Return top 5 as summary for Gemini
+        top5_summary = []
+        for l in listings[:5]:
+            top5_summary.append({
+                "address": l.get("address", "Unknown"),
+                "city": l.get("city", ""),
+                "price": l.get("listPrice", 0),
+                "bedrooms": l.get("bedrooms"),
+                "bathrooms": l.get("bathrooms"),
+                "match_score": l.get("fitScore", 0),
+            })
+
+        return ToolResult(
+            success=True,
+            data={"total_found": total_found, "count": len(listings), "top_5": top5_summary, "search_id": search_id},
+            message=f"Found {total_found} properties. Top {min(5, len(listings))} selected.",
+        )
+
+    except Exception as e:
+        error_msg = str(e)
+        if "MLS" in error_msg or "Repliers" in error_msg:
+            return ToolResult(
+                success=False, data={}, message="Property search failed.",
+                error="The MLS database is temporarily unavailable. Try again in a few minutes.",
+            )
+        if "No listings" in error_msg or "budget" in error_msg.lower():
+            return ToolResult(
+                success=False, data={}, message="No properties found.",
+                error="No properties match the current criteria. Consider adjusting budget or location.",
+            )
+        raise
+
+
+async def _tool_generate_report(args: Dict, session) -> ToolResult:
+    """Generate a buyer report from latest search results."""
+    from .session import SessionManager
+    import os
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+
+    if not session.last_search_id:
+        return ToolResult(
+            success=False, data={}, message="No search results available.",
+            error="Run a property search first, then generate the report.",
+        )
+
+    try:
+        from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
+
+        # For leads, we need the buyer profile ID
+        if entity_type == "buyer":
+            profile_id = entity_id
+        else:
+            from ...db import get_conn, fetchone_dict
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                        (entity_id, session.agent_id),
+                    )
+                    row = fetchone_dict(cur)
+                    if row:
+                        profile_id = row["id"]
+                    else:
+                        return ToolResult(
+                            success=False, data={},
+                            message="No buyer profile found for this lead.",
+                            error="Convert the lead first.",
+                        )
+
+        request = CreateBuyerReportRequest(
+            searchId=session.last_search_id,
+            profileId=profile_id,
+            allowPartial=True,
+        )
+        result = create_buyer_report(request, agent_id=session.agent_id)
+
+        share_id = result.get("shareId")
+        share_url = result.get("shareUrl", f"/buyer-report/{share_id}")
+        frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residenthive.com")
+        full_url = f"{frontend_url}{share_url}"
+        listing_count = result.get("includedCount", 5)
+
+        # Get buyer email for the approval message
+        from ...db import get_conn, fetchone_dict
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT name, email FROM buyer_profiles WHERE id = %s", (profile_id,))
+                buyer = fetchone_dict(cur)
+
+        buyer_name = buyer.get("name", "Buyer") if buyer else "Buyer"
+        buyer_email = buyer.get("email") if buyer else None
+
+        # Store pending approval
+        await SessionManager.set_pending_action(
+            session.phone,
+            "approve_report",
+            {
+                "share_id": share_id,
+                "share_url": full_url,
+                "buyer_id": profile_id,
+                "buyer_name": buyer_name,
+                "buyer_email": buyer_email,
+                "listing_count": listing_count,
+            },
+        )
+
+        return ToolResult(
+            success=True,
+            data={"share_id": share_id, "share_url": full_url, "listing_count": listing_count},
+            message=f"Report ready for {buyer_name} ({listing_count} properties). Review and approve to send: {full_url}",
+            needs_confirmation=True,
+            pending_action={"type": "approve_report", "data": {
+                "share_id": share_id, "share_url": full_url,
+                "buyer_id": profile_id, "buyer_name": buyer_name,
+                "buyer_email": buyer_email, "listing_count": listing_count,
+            }},
+            actions=[
+                {"id": "btn_approve_report", "title": "Approve & Send"},
+                {"id": "btn_reject_report", "title": "Reject"},
+            ],
+        )
+
+    except Exception as e:
+        return ToolResult(
+            success=False, data={}, message="Report generation failed.",
+            error=str(e),
+        )
+
+
+async def _tool_send_outreach(args: Dict, session) -> ToolResult:
+    """Generate outreach report for a lead (without sending email yet)."""
+    from .session import SessionManager
+
+    lead_id = args.get("lead_id")
+    if not lead_id:
+        return ToolResult(
+            success=False, data={}, message="No lead specified.",
+            error="lead_id is required.",
+        )
+
+    try:
+        from ...routers.leads import generate_lead_outreach
+
+        result = await generate_lead_outreach(
+            lead_id=lead_id,
+            send_email=False,
+            agent_id=session.agent_id,
+            _notify_whatsapp=False,
+        )
+
+        share_id = result.get("reportShareId")
+        report_url = result.get("fullReportUrl", "")
+        listing_count = result.get("propertiesIncluded", 0)
+
+        if not share_id:
+            return ToolResult(
+                success=False, data={}, message="Could not generate outreach report.",
+                error="Report generation returned no share ID.",
+            )
+
+        # Get lead details for approval message
+        from ...db import get_conn, fetchone_dict
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT extracted_name, extracted_email FROM leads WHERE id = %s AND agent_id = %s",
+                    (lead_id, session.agent_id),
+                )
+                lead = fetchone_dict(cur)
+
+        lead_name = lead.get("extracted_name", "Lead") if lead else "Lead"
+        lead_email = lead.get("extracted_email") if lead else None
+
+        await SessionManager.set_pending_action(
+            session.phone,
+            "approve_outreach",
+            {
+                "share_id": share_id,
+                "share_url": report_url,
+                "lead_id": lead_id,
+                "lead_name": lead_name,
+                "lead_email": lead_email,
+                "listing_count": listing_count,
+            },
+        )
+
+        return ToolResult(
+            success=True,
+            data={"share_id": share_id, "report_url": report_url, "listing_count": listing_count},
+            message=f"Outreach report ready for {lead_name} ({listing_count} properties). Review: {report_url}",
+            needs_confirmation=True,
+            pending_action={"type": "approve_outreach", "data": {
+                "share_id": share_id, "share_url": report_url,
+                "lead_id": lead_id, "lead_name": lead_name,
+                "lead_email": lead_email, "listing_count": listing_count,
+            }},
+            actions=[
+                {"id": "btn_approve_outreach", "title": "Approve & Send"},
+                {"id": "btn_reject_outreach", "title": "Reject"},
+            ],
+        )
+
+    except Exception as e:
+        return ToolResult(
+            success=False, data={}, message="Outreach generation failed.",
+            error=str(e),
+        )
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _format_history(messages: List[Dict[str, str]]) -> str:
+    """Format message history for the system prompt."""
+    if not messages:
+        return ""
+    lines = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")[:200]
+        lines.append(f"{role}: {content}")
+    return "\n".join(lines)
+
+
+def _format_entities(entities: List[Dict[str, Any]]) -> str:
+    """Format entity list for the system prompt."""
+    if not entities:
+        return ""
+    lines = []
+    for e in entities[:15]:
+        name = e.get("name", "Unknown")
+        code = e.get("code", "")
+        etype = e.get("entity_type", "buyer")
+        location = e.get("location", "")
+        budget = e.get("budget_display", "")
+
+        parts = [f"{name} ({code})" if code else name, etype]
+        if location:
+            parts.append(location)
+        if budget:
+            parts.append(budget)
+        lines.append(" — ".join(parts))
+
+    return "\n".join(lines)
+
+
+# ============================================================================
+# BUYER RESOLUTION (backward compat for handlers that still use it)
+# ============================================================================
 
 def resolve_buyer_from_intent(
     intent: Intent,
     agent_id: int,
-    active_buyer: Optional[Dict[str, Any]] = None
+    active_buyer: Optional[Dict[str, Any]] = None,
 ) -> Intent:
-    """
-    Resolve buyer reference in intent to actual buyer ID.
-    
-    Args:
-        intent: Parsed intent with potential buyer_reference
-        agent_id: Agent's ID
-        active_buyer: Currently selected buyer
-        
-    Returns:
-        Intent with buyer_id populated if found
-    """
-    from .buyer_codes import resolve_buyer_reference, get_buyer_by_code
-    
-    # If no buyer reference but we have an active buyer, use that
+    """Resolve buyer reference in intent to actual buyer ID."""
+    from .buyer_codes import resolve_buyer_reference
+
     if not intent.buyer_reference and active_buyer:
         intent.buyer_id = active_buyer.get("id")
         return intent
-    
-    # If we have a reference, resolve it
+
     if intent.buyer_reference:
         matches = resolve_buyer_reference(agent_id, intent.buyer_reference)
-        
         if len(matches) == 1:
             intent.buyer_id = matches[0].get("id")
             intent.buyer_reference = matches[0].get("whatsapp_code")
         elif len(matches) > 1:
-            # Multiple matches - store them in params for disambiguation
             intent.params["ambiguous_matches"] = matches
-        # If no matches, buyer_id stays None
-    
+
     return intent

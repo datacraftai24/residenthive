@@ -656,8 +656,15 @@ CRITICAL RULES:
 INPUT:
 {raw_text}
 
-PROPERTY DETAILS (from MLS - use in response):
+─── DETERMINISTIC CLASSIFICATION (pre-computed) ───
+
+Our system detected an address in the text and matched it to this MLS listing:
+- Role: {det_role} (reason: {det_role_reason})
+- Lead Type: {det_lead_type} (reason: {det_lead_type_reason})
+
+MLS PROPERTY MATCHED:
 - Address: {property_address}
+- City: {property_city}
 - List Price: ${property_price:,}
 - Bedrooms: {property_beds}
 - Bathrooms: {property_baths}
@@ -665,11 +672,30 @@ PROPERTY DETAILS (from MLS - use in response):
 - Status: {property_status}
 - Days on Market: {property_dom}
 
+─── YOUR JOB: VALIDATE THE CLASSIFICATION ───
+
+The deterministic system matched an address from the text to the MLS property above.
+But sometimes an address is NOT a property the lead wants to buy — it could be:
+• An open house VENUE where the agent met the lead ("my open house at 45 Maple St")
+• The agent's office or meeting location
+• A property the lead is SELLING, not buying
+• Just a location reference
+
+You MUST validate by reasoning about:
+1. How is the address used in context? ("open house at X" = venue, "interested in X" = property)
+2. Does the MLS property match the lead's stated preferences? (location, budget, property type)
+3. Would it make sense for THIS person to be interested in THIS property?
+
+Set "isPropertyOfInterest" to true ONLY if the lead genuinely wants THIS property.
+Set "propertyValidationReason" to a short explanation of WHY (always required).
+
+Also validate the role classification. If the deterministic role is wrong, override it.
+
 EXTRACT (return null if not stated):
 - name: Buyer's name if given
 - email: Email if given
 - phone: Phone if given
-- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated. If they say "relocating from X to Y", extract Y (the destination), NOT X. Use "{property_city}" if they're interested in this property's area. Correct MA city spelling errors.
+- location: The TARGET/DESIRED city or area where the buyer wants to purchase, comma-separated. If they say "relocating from X to Y", extract Y (the destination), NOT X. Use "{property_city}" ONLY if isPropertyOfInterest is true. Correct MA city spelling errors.
 - budget: Budget string like "$500K-$600K" if stated
 - budgetMin: Number if explicitly mentioned
 - budgetMax: Number if explicitly mentioned
@@ -678,6 +704,8 @@ EXTRACT (return null if not stated):
 - homeType: Property type if mentioned (condo, townhouse, etc.)
 - timeline: Timeline if mentioned ("this weekend", "ASAP", "next month")
 - hints: Verbatim phrases from input signaling preferences (e.g., "good schools", "quiet area")
+- isPropertyOfInterest: true/false — is the MLS property above actually what the lead wants?
+- propertyValidationReason: Short explanation of why (e.g., "Address is the open house venue, not the property of interest. Lead wants Wellesley $800K-1.1M but matched property is in Townsend at $529K.")
 
 FORBIDDEN (never generate):
 - School ratings or assignments
@@ -689,16 +717,15 @@ FORBIDDEN (never generate):
 THEN GENERATE:
 
 1. suggestedMessage (max 400 characters):
-   - Acknowledge their interest in THIS SPECIFIC property
-   - Reference key property details (price, beds, etc.) naturally
-   - Sound knowledgeable about this listing
-   - One clear next step (schedule showing is ideal for property-specific leads)
-   - Sound like a senior agent who knows this property, not a chatbot
+   - If isPropertyOfInterest is TRUE: reference the specific property naturally
+   - If isPropertyOfInterest is FALSE: acknowledge the lead's stated preferences instead
+   - Sound like a senior agent, not a chatbot
+   - One clear next step / call to action
    - Do NOT mention AI, automation, or analysis. Write as if you personally reviewed the request.
 
 2. clarifyingQuestion (ONE question or null):
-   - For property-specific leads, focus on scheduling: "Would you like to see it this week?"
-   - Or ask about financing if relevant
+   - If isPropertyOfInterest is TRUE: focus on scheduling ("Would you like to see it this week?")
+   - If isPropertyOfInterest is FALSE: ask about the most important missing info
    - ONLY return ONE question, never multiple
    - If everything seems covered, return null
 
@@ -723,7 +750,9 @@ OUTPUT JSON ONLY (no markdown, no explanation):
     "bathrooms": "string or null",
     "homeType": "string or null",
     "timeline": "string or null",
-    "hints": ["array of strings"]
+    "hints": ["array of strings"],
+    "isPropertyOfInterest": "boolean",
+    "propertyValidationReason": "string"
   }},
   "classifiedRole": "buyer_lead | investor | agent | unknown",
   "suggestedMessage": "Your response here...",
@@ -731,12 +760,17 @@ OUTPUT JSON ONLY (no markdown, no explanation):
 }}"""
 
 
-def extract_lead_with_llm(raw_text: str, property_details: Optional[dict] = None) -> dict:
+def extract_lead_with_llm(
+    raw_text: str,
+    property_details: Optional[dict] = None,
+    classification: Optional[dict] = None,
+) -> dict:
     """Extract lead data using LLM. Returns extracted fields + response.
 
     Args:
         raw_text: The lead message text
         property_details: Optional property data from Repliers API lookup
+        classification: Optional deterministic classification for LLM validation
     """
     content = None
     try:
@@ -753,6 +787,7 @@ def extract_lead_with_llm(raw_text: str, property_details: Optional[dict] = None
             if property_details.get("state"):
                 full_address += f", {property_details['state']}"
 
+            det = classification or {}
             prompt = LEAD_EXTRACTION_PROMPT_WITH_PROPERTY.format(
                 raw_text=raw_text,
                 property_address=full_address,
@@ -762,7 +797,11 @@ def extract_lead_with_llm(raw_text: str, property_details: Optional[dict] = None
                 property_sqft=property_details.get("sqft") or "N/A",
                 property_status=property_details.get("status") or "Unknown",
                 property_dom=property_details.get("daysOnMarket") or "N/A",
-                property_city=property_details.get("city") or ""
+                property_city=property_details.get("city") or "",
+                det_role=det.get("role", "unknown"),
+                det_role_reason=det.get("roleReason", "N/A"),
+                det_lead_type=det.get("leadType", "unknown"),
+                det_lead_type_reason=det.get("leadTypeReason", "N/A"),
             )
         else:
             print("[LLM] Using standard extraction prompt", flush=True)
@@ -1102,7 +1141,7 @@ def process_lead(
 
     # === STEP 2: LLM Extraction (with property context if available) ===
     try:
-        extraction = extract_lead_with_llm(request.rawText, property_details)
+        extraction = extract_lead_with_llm(request.rawText, property_details, classification)
     except Exception as e:
         logger.error(f"LLM extraction failed, using fallback: {e}")
         extraction = {
@@ -1137,6 +1176,26 @@ def process_lead(
             print(f"[LEAD] Role override: deterministic='{det_role}' → LLM='{llm_role}'", flush=True)
             classification["role"] = "investor"
             classification["roleReason"] = f"LLM classified as investor"
+
+    # === LLM Property Relevance Validation ===
+    # Deterministic matched an address → MLS property. LLM validates if it's actually relevant.
+    # Default to True (trust deterministic) if LLM didn't return the field.
+    is_property_of_interest = extracted.get("isPropertyOfInterest", True)
+    validation_reason = extracted.get("propertyValidationReason", "")
+    if property_details:
+        if is_property_of_interest:
+            print(f"[LEAD] LLM VALIDATED property match: {validation_reason}", flush=True)
+        else:
+            print(f"[LEAD] LLM REJECTED property match: {validation_reason}", flush=True)
+            print(f"[LEAD] Discarding MLS match ({property_details.get('address')}, "
+                  f"${property_details.get('listPrice')})", flush=True)
+            property_details = None
+            property_address = None
+            # Reclassify as area_search since the lead has preferences but no specific property
+            if classification["leadType"] == "property_specific":
+                classification["leadType"] = "area_search"
+                classification["leadTypeReason"] = f"LLM override: {validation_reason}"
+                print(f"[LEAD] Reclassified: property_specific → area_search", flush=True)
 
     # Validate and enhance extraction for search readiness
     extracted = validate_and_enhance_extraction(
@@ -1392,7 +1451,40 @@ def process_lead_endpoint(
     agent_id: int = Depends(get_current_agent_id)
 ):
     """Process a lead from raw text input."""
-    return process_lead(request, agent_id)
+    result = process_lead(request, agent_id)
+
+    # Fire-and-forget WhatsApp notification to agent
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_processed
+
+        lead = result.lead
+        lead_data = {
+            "lead_id": lead.id,
+            "name": lead.extractedName,
+            "email": lead.extractedEmail,
+            "phone": lead.extractedPhone,
+            "location": lead.extractedLocation,
+            "budget_min": lead.extractedBudgetMin,
+            "budget_max": lead.extractedBudgetMax,
+            "bedrooms": lead.extractedBedrooms,
+            "home_type": lead.extractedHomeType,
+            "source": lead.source,
+            "intent_score": lead.intentScore,
+            "role": lead.role,
+            "lead_type": lead.leadType,
+            "clarifying_question": result.card.clarifyingQuestion,
+        }
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_processed(agent_id, lead_data))
+        except RuntimeError:
+            pass  # No event loop — skip notification
+    except Exception as e:
+        logger.warning(f"Failed to fire WhatsApp lead notification: {e}")
+
+    return result
 
 
 @router.get("/leads", response_model=List[Lead])
@@ -1605,7 +1697,8 @@ def update_lead_status(
 async def generate_lead_outreach(
     lead_id: int,
     send_email: bool = Query(False, description="Whether to send email after generating report"),
-    agent_id: int = Depends(get_current_agent_id)
+    agent_id: int = Depends(get_current_agent_id),
+    _notify_whatsapp: bool = True,
 ):
     """
     One-click lead outreach:
@@ -2145,6 +2238,27 @@ async def generate_lead_outreach(
     else:
         logger.info(f"[OUTREACH] Complete for lead {lead_id}: report={share_id}, no email sent")
 
+    # Fire-and-forget WhatsApp approval request (human-in-the-loop)
+    # Only for web UI calls — WhatsApp handler manages its own approval flow.
+    if _notify_whatsapp:
+        try:
+            import asyncio
+            from ..services.whatsapp.notifications import on_lead_outreach_ready
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(on_lead_outreach_ready(
+                    agent_id=agent_id,
+                    lead_name=lead_row.get("extracted_name") or "Lead",
+                    lead_email=lead_email,
+                    lead_id=lead_id,
+                    share_id=share_id,
+                ))
+            except RuntimeError:
+                pass
+        except Exception as e:
+            logger.warning(f"Failed to fire WhatsApp outreach notification: {e}")
+
     return {
         "success": True,
         "profileId": profile_id,
@@ -2614,6 +2728,20 @@ def send_lead_email(
             """, (lead_id,))
 
     logger.info(f"[LEAD_EMAIL] Sent email for lead {lead_id} to {payload.to_email}")
+
+    # Fire-and-forget WhatsApp notification
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_email_sent
+
+        lead_name = lead_row.get("extracted_name") or "Lead"
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_email_sent(agent_id, lead_name, payload.subject))
+        except RuntimeError:
+            pass
+    except Exception as e:
+        logger.warning(f"Failed to fire WhatsApp email notification: {e}")
 
     return {
         "success": True,

@@ -303,6 +303,19 @@ def get_buyer_report(share_id: str):
             source=lc.get('source')
         )
 
+    # Fire-and-forget: notify agent that report was viewed
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_activity
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_activity(share_id, "viewed_report"))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass  # Never block report serving for notification failure
+
     return BuyerReportResponse(
         shareId=share_id,
         buyerName=report_row['buyer_name'],
@@ -610,6 +623,42 @@ async def request_showing(
         logger.warning(f"[SHOWING REQUEST] WhatsApp notification failed: {e}")
 
     return {"success": True, "message": "Showing request sent to your agent"}
+
+
+class ReportActivityRequest(BaseModel):
+    """Request body for report activity webhook (chatbot signals)."""
+    type: str  # "cta_clicked" | "chatbot_engaged"
+    message_count: Optional[int] = None
+    cta_name: Optional[str] = None
+
+
+@router.post("/{share_id}/activity")
+async def report_activity(
+    share_id: str,
+    payload: ReportActivityRequest,
+):
+    """
+    PUBLIC endpoint (no auth) - Webhook for lead engagement signals.
+    Called by the chatbot when a lead clicks a CTA or engages with chat.
+    """
+    from ..services.whatsapp.notifications import on_lead_activity
+
+    details = {}
+    if payload.message_count:
+        details["message_count"] = payload.message_count
+    if payload.cta_name:
+        details["cta_name"] = payload.cta_name
+
+    try:
+        await on_lead_activity(
+            share_id=share_id,
+            activity_type=payload.type,
+            details=details or None,
+        )
+    except Exception as e:
+        logger.warning(f"[ACTIVITY] Failed to send notification: {e}")
+
+    return {"success": True}
 
 
 @router.get("/{share_id}/outreach", response_model=OutreachDraftResponse)
@@ -1235,6 +1284,19 @@ def update_buyer_notes(
             updated_at = result[0].isoformat() if result[0] else None
 
     logger.info(f"[BUYER_NOTES] Updated notes for share_id={share_id}, agent_id={report_row['agent_id']}")
+
+    # Fire-and-forget: notify agent that notes were updated
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_activity
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_activity(share_id, "left_notes"))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
     return {
         "success": True,

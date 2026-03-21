@@ -2,10 +2,11 @@
 Redis-based Session Manager for WhatsApp Conversations
 
 Manages agent conversation state including:
-- Current mode (inbox vs buyer context)
-- Active buyer selection
+- Current mode (inbox vs buyer/lead context)
+- Active entity selection (buyer or lead)
 - Pending actions awaiting confirmation
 - Search context for reports
+- Message history for coordinator agent
 
 Sessions expire after 15 minutes of inactivity but can be refreshed.
 Falls back to in-memory storage if Redis is unavailable.
@@ -14,9 +15,9 @@ Falls back to in-memory storage if Redis is unavailable.
 import os
 import json
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class SessionState(str, Enum):
     EDITING_BUYER = "editing_buyer"
     CONFIRMING = "confirming"
     SEARCHING = "searching"
+    LEAD_CONTEXT = "lead_context"
 
 
 @dataclass
@@ -51,15 +53,30 @@ class AgentSession:
     agent_id: int
     phone: str
     state: SessionState = SessionState.IDLE
+
+    # Buyer context
     active_buyer_id: Optional[int] = None
     active_buyer_code: Optional[str] = None
     active_buyer_name: Optional[str] = None
+
+    # Lead context
+    active_lead_id: Optional[int] = None
+    active_lead_code: Optional[str] = None
+    active_lead_name: Optional[str] = None
+
+    # Generic entity type for the active context ("buyer" or "lead")
+    active_entity_type: Optional[str] = None
+
     sub_state: Optional[str] = None
     last_search_id: Optional[str] = None
     pending_action: Optional[Dict[str, Any]] = None
+
+    # Conversation history for coordinator agent (last 10 messages)
+    message_history: List[Dict[str, str]] = field(default_factory=list)
+
     last_activity_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
         return {
@@ -69,13 +86,18 @@ class AgentSession:
             "active_buyer_id": self.active_buyer_id,
             "active_buyer_code": self.active_buyer_code,
             "active_buyer_name": self.active_buyer_name,
+            "active_lead_id": self.active_lead_id,
+            "active_lead_code": self.active_lead_code,
+            "active_lead_name": self.active_lead_name,
+            "active_entity_type": self.active_entity_type,
             "sub_state": self.sub_state,
             "last_search_id": self.last_search_id,
             "pending_action": self.pending_action,
+            "message_history": self.message_history,
             "last_activity_at": self.last_activity_at,
             "created_at": self.created_at,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AgentSession":
         """Create from dictionary"""
@@ -85,7 +107,7 @@ class AgentSession:
                 state = SessionState(state)
             except ValueError:
                 state = SessionState.IDLE
-        
+
         return cls(
             agent_id=data["agent_id"],
             phone=data["phone"],
@@ -93,36 +115,88 @@ class AgentSession:
             active_buyer_id=data.get("active_buyer_id"),
             active_buyer_code=data.get("active_buyer_code"),
             active_buyer_name=data.get("active_buyer_name"),
+            active_lead_id=data.get("active_lead_id"),
+            active_lead_code=data.get("active_lead_code"),
+            active_lead_name=data.get("active_lead_name"),
+            active_entity_type=data.get("active_entity_type"),
             sub_state=data.get("sub_state"),
             last_search_id=data.get("last_search_id"),
             pending_action=data.get("pending_action"),
+            message_history=data.get("message_history", []),
             last_activity_at=data.get("last_activity_at", datetime.utcnow().isoformat()),
             created_at=data.get("created_at", datetime.utcnow().isoformat()),
         )
-    
+
     def is_in_buyer_context(self) -> bool:
         """Check if currently focused on a specific buyer"""
         return self.state == SessionState.BUYER_CONTEXT and self.active_buyer_id is not None
-    
+
+    def is_in_lead_context(self) -> bool:
+        """Check if currently focused on a specific lead"""
+        return self.state == SessionState.LEAD_CONTEXT and self.active_lead_id is not None
+
+    def is_in_entity_context(self) -> bool:
+        """Check if currently focused on any entity (buyer or lead)"""
+        return self.is_in_buyer_context() or self.is_in_lead_context()
+
     def clear_buyer_context(self):
         """Exit buyer context, return to idle"""
         self.state = SessionState.IDLE
         self.active_buyer_id = None
         self.active_buyer_code = None
         self.active_buyer_name = None
+        self.active_entity_type = None
         self.sub_state = None
         self.last_search_id = None
         self.pending_action = None
-    
+
     def set_buyer_context(self, buyer_id: int, buyer_code: str, buyer_name: str):
         """Enter buyer context"""
         self.state = SessionState.BUYER_CONTEXT
         self.active_buyer_id = buyer_id
         self.active_buyer_code = buyer_code
         self.active_buyer_name = buyer_name
+        self.active_entity_type = "buyer"
+        # Clear lead context
+        self.active_lead_id = None
+        self.active_lead_code = None
+        self.active_lead_name = None
         self.sub_state = None
         self.pending_action = None
-    
+
+    def set_lead_context(self, lead_id: int, lead_code: str, lead_name: str):
+        """Enter lead context"""
+        self.state = SessionState.LEAD_CONTEXT
+        self.active_lead_id = lead_id
+        self.active_lead_code = lead_code
+        self.active_lead_name = lead_name
+        self.active_entity_type = "lead"
+        # Clear buyer context
+        self.active_buyer_id = None
+        self.active_buyer_code = None
+        self.active_buyer_name = None
+        self.sub_state = None
+        self.pending_action = None
+
+    def clear_all_context(self):
+        """Exit all entity context, return to idle"""
+        self.state = SessionState.IDLE
+        self.active_buyer_id = None
+        self.active_buyer_code = None
+        self.active_buyer_name = None
+        self.active_lead_id = None
+        self.active_lead_code = None
+        self.active_lead_name = None
+        self.active_entity_type = None
+        self.sub_state = None
+        self.last_search_id = None
+        self.pending_action = None
+
+    def add_message(self, role: str, content: str):
+        """Add a message to conversation history (keep last 10)."""
+        self.message_history.append({"role": role, "content": content})
+        self.message_history = self.message_history[-10:]
+
     def touch(self):
         """Update last activity timestamp"""
         self.last_activity_at = datetime.utcnow().isoformat()
@@ -131,13 +205,13 @@ class AgentSession:
 async def _get_redis():
     """Get or create Redis connection"""
     global _redis_client, _redis_available
-    
+
     if _redis_available is False:
         return None
-    
+
     if _redis_client is not None:
         return _redis_client
-    
+
     try:
         import redis.asyncio as redis
         _redis_client = redis.from_url(
@@ -159,7 +233,6 @@ async def _get_redis():
 
 def _get_cache_key(phone: str) -> str:
     """Generate cache key from phone number"""
-    # Normalize phone number
     phone = phone.replace("+", "").replace("-", "").replace(" ", "")
     return f"{SESSION_PREFIX}{phone}"
 
@@ -167,15 +240,15 @@ def _get_cache_key(phone: str) -> str:
 async def get_session(phone: str) -> Optional[AgentSession]:
     """
     Retrieve session for a phone number.
-    
+
     Args:
         phone: WhatsApp phone number
-        
+
     Returns:
         AgentSession if exists and not expired, None otherwise
     """
     cache_key = _get_cache_key(phone)
-    
+
     # Try Redis first
     redis = await _get_redis()
     if redis:
@@ -188,7 +261,7 @@ async def get_session(phone: str) -> Optional[AgentSession]:
                 return session
         except Exception as e:
             logger.error(f"Error retrieving session from Redis: {e}")
-    
+
     # Fallback to memory
     if cache_key in _memory_store:
         session_data = _memory_store[cache_key]
@@ -198,24 +271,24 @@ async def get_session(phone: str) -> Optional[AgentSession]:
             del _memory_store[cache_key]
             return None
         return AgentSession.from_dict(session_data)
-    
+
     return None
 
 
 async def save_session(session: AgentSession) -> bool:
     """
     Save session state.
-    
+
     Args:
         session: AgentSession to save
-        
+
     Returns:
         True if saved successfully
     """
     session.touch()
     cache_key = _get_cache_key(session.phone)
     session_dict = session.to_dict()
-    
+
     # Try Redis first
     redis = await _get_redis()
     if redis:
@@ -229,7 +302,7 @@ async def save_session(session: AgentSession) -> bool:
             return True
         except Exception as e:
             logger.error(f"Error saving session to Redis: {e}")
-    
+
     # Fallback to memory
     _memory_store[cache_key] = session_dict
     logger.debug(f"Session saved to memory for {session.phone}")
@@ -239,11 +312,11 @@ async def save_session(session: AgentSession) -> bool:
 async def create_session(agent_id: int, phone: str) -> AgentSession:
     """
     Create a new session for an agent.
-    
+
     Args:
         agent_id: Agent's database ID
         phone: WhatsApp phone number
-        
+
     Returns:
         New AgentSession
     """
@@ -260,11 +333,11 @@ async def create_session(agent_id: int, phone: str) -> AgentSession:
 async def get_or_create_session(agent_id: int, phone: str) -> AgentSession:
     """
     Get existing session or create new one.
-    
+
     Args:
         agent_id: Agent's database ID
         phone: WhatsApp phone number
-        
+
     Returns:
         AgentSession (existing or new)
     """
@@ -281,15 +354,15 @@ async def get_or_create_session(agent_id: int, phone: str) -> AgentSession:
 async def delete_session(phone: str) -> bool:
     """
     Delete a session.
-    
+
     Args:
         phone: WhatsApp phone number
-        
+
     Returns:
         True if deleted
     """
     cache_key = _get_cache_key(phone)
-    
+
     # Try Redis
     redis = await _get_redis()
     if redis:
@@ -297,11 +370,11 @@ async def delete_session(phone: str) -> bool:
             await redis.delete(cache_key)
         except Exception as e:
             logger.error(f"Error deleting session from Redis: {e}")
-    
+
     # Also clear from memory
     if cache_key in _memory_store:
         del _memory_store[cache_key]
-    
+
     logger.info(f"Deleted session for {phone}")
     return True
 
@@ -313,26 +386,26 @@ async def update_session_state(
 ) -> Optional[AgentSession]:
     """
     Update session state with additional fields.
-    
+
     Args:
         phone: WhatsApp phone number
         state: New session state
         **kwargs: Additional fields to update
-        
+
     Returns:
         Updated session or None if not found
     """
     session = await get_session(phone)
     if not session:
         return None
-    
+
     session.state = state
-    
+
     # Update any additional fields
     for key, value in kwargs.items():
         if hasattr(session, key):
             setattr(session, key, value)
-    
+
     await save_session(session)
     return session
 
@@ -342,27 +415,27 @@ class SessionManager:
     High-level session management interface.
     Provides convenient methods for common session operations.
     """
-    
+
     @staticmethod
     async def get(phone: str) -> Optional[AgentSession]:
         """Get session by phone"""
         return await get_session(phone)
-    
+
     @staticmethod
     async def get_or_create(agent_id: int, phone: str) -> AgentSession:
         """Get or create session"""
         return await get_or_create_session(agent_id, phone)
-    
+
     @staticmethod
     async def save(session: AgentSession) -> bool:
         """Save session"""
         return await save_session(session)
-    
+
     @staticmethod
     async def delete(phone: str) -> bool:
         """Delete session"""
         return await delete_session(phone)
-    
+
     @staticmethod
     async def enter_buyer_context(
         phone: str,
@@ -372,43 +445,70 @@ class SessionManager:
     ) -> Optional[AgentSession]:
         """
         Enter buyer context mode.
-        
+
         Args:
             phone: WhatsApp phone
             buyer_id: Buyer profile ID
             buyer_code: Buyer's WhatsApp code
             buyer_name: Buyer's name
-            
+
         Returns:
             Updated session
         """
         session = await get_session(phone)
         if not session:
             return None
-        
+
         session.set_buyer_context(buyer_id, buyer_code, buyer_name)
         await save_session(session)
         return session
-    
+
+    @staticmethod
+    async def enter_lead_context(
+        phone: str,
+        lead_id: int,
+        lead_code: str,
+        lead_name: str
+    ) -> Optional[AgentSession]:
+        """
+        Enter lead context mode.
+
+        Args:
+            phone: WhatsApp phone
+            lead_id: Lead ID
+            lead_code: Lead's WhatsApp code
+            lead_name: Lead's name
+
+        Returns:
+            Updated session
+        """
+        session = await get_session(phone)
+        if not session:
+            return None
+
+        session.set_lead_context(lead_id, lead_code, lead_name)
+        await save_session(session)
+        return session
+
     @staticmethod
     async def exit_buyer_context(phone: str) -> Optional[AgentSession]:
         """
         Exit buyer context, return to idle.
-        
+
         Args:
             phone: WhatsApp phone
-            
+
         Returns:
             Updated session
         """
         session = await get_session(phone)
         if not session:
             return None
-        
-        session.clear_buyer_context()
+
+        session.clear_all_context()
         await save_session(session)
         return session
-    
+
     @staticmethod
     async def set_pending_action(
         phone: str,
@@ -417,19 +517,19 @@ class SessionManager:
     ) -> Optional[AgentSession]:
         """
         Set a pending action awaiting confirmation.
-        
+
         Args:
             phone: WhatsApp phone
             action_type: Type of action (e.g., "send_report", "create_buyer")
             action_data: Data needed to execute the action
-            
+
         Returns:
             Updated session
         """
         session = await get_session(phone)
         if not session:
             return None
-        
+
         session.pending_action = {
             "type": action_type,
             "data": action_data,
@@ -438,32 +538,34 @@ class SessionManager:
         session.state = SessionState.CONFIRMING
         await save_session(session)
         return session
-    
+
     @staticmethod
     async def clear_pending_action(phone: str) -> Optional[AgentSession]:
         """
         Clear pending action (after confirm or cancel).
-        
+
         Args:
             phone: WhatsApp phone
-            
+
         Returns:
             Updated session
         """
         session = await get_session(phone)
         if not session:
             return None
-        
+
         session.pending_action = None
-        # Return to previous state (buyer context if active, else idle)
+        # Return to previous state (entity context if active, else idle)
         if session.active_buyer_id:
             session.state = SessionState.BUYER_CONTEXT
+        elif session.active_lead_id:
+            session.state = SessionState.LEAD_CONTEXT
         else:
             session.state = SessionState.IDLE
-        
+
         await save_session(session)
         return session
-    
+
     @staticmethod
     async def get_by_agent(agent_id: int) -> Optional[AgentSession]:
         """
@@ -492,18 +594,18 @@ class SessionManager:
     async def set_search_id(phone: str, search_id: str) -> Optional[AgentSession]:
         """
         Store search ID for report generation.
-        
+
         Args:
             phone: WhatsApp phone
             search_id: Search transaction ID
-            
+
         Returns:
             Updated session
         """
         session = await get_session(phone)
         if not session:
             return None
-        
+
         session.last_search_id = search_id
         await save_session(session)
         return session
