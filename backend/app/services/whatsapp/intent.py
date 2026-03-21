@@ -637,7 +637,7 @@ async def run_agent(message: str, session) -> AgentResult:
                     temperature=0.2,
                     tools=[AGENT_TOOLS],
                     thinking_config=types.ThinkingConfig(
-                        thinking_level="MEDIUM",
+                        thinking_budget=8192,  # Maps to Gemini 3 "MEDIUM" thinking tier
                     ),
                 ),
             )
