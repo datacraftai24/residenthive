@@ -23,6 +23,8 @@ import json
 import re
 import asyncio
 import logging
+from decimal import Decimal
+from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from dataclasses import dataclass, field
@@ -127,10 +129,23 @@ class ToolResult:
     pending_action: Optional[Dict[str, Any]] = None
     actions: Optional[List[Dict[str, str]]] = None
 
+    @staticmethod
+    def _sanitize(obj):
+        """Recursively convert Decimal/datetime to JSON-safe types."""
+        if isinstance(obj, dict):
+            return {k: ToolResult._sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [ToolResult._sanitize(v) for v in obj]
+        if isinstance(obj, Decimal):
+            return int(obj) if obj == int(obj) else float(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return obj
+
     def to_dict(self) -> Dict[str, Any]:
         d = {
             "success": self.success,
-            "data": self.data,
+            "data": self._sanitize(self.data),
             "message": self.message,
         }
         if self.error:
