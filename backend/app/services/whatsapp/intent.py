@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # Gemini configuration — upgraded to Gemini 3 Flash for agentic workflows
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 gemini_client = None
 if GEMINI_API_KEY:
