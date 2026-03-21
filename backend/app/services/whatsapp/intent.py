@@ -703,15 +703,9 @@ async def run_agent(message: str, session) -> AgentResult:
                 )
 
             # Feed result back to Gemini for next iteration
-            gemini_contents.append(
-                types.Content(
-                    role="model",
-                    parts=[types.Part(function_call=types.FunctionCall(
-                        name=tool_name,
-                        args=tool_args,
-                    ))],
-                )
-            )
+            # IMPORTANT: Use the original candidate.content to preserve thought_signature
+            # (required by Gemini 3 Flash for multi-turn tool loops)
+            gemini_contents.append(candidate.content)
             gemini_contents.append(
                 types.Content(
                     role="user",
