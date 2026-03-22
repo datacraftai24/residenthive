@@ -117,13 +117,17 @@ class WhatsAppHandlers:
                 logger.info(f"[L2] Routing to coordinator agent: {message[:100]}")
                 agent_result = await run_agent(message, self.session)
 
-                # Apply pending action from agent
+                # Apply pending action from agent — sync to self.session
+                # so the final SessionManager.save() doesn't overwrite it
                 if agent_result.pending_action:
-                    await SessionManager.set_pending_action(
+                    updated = await SessionManager.set_pending_action(
                         self.phone,
                         agent_result.pending_action["type"],
                         agent_result.pending_action["data"],
                     )
+                    if updated:
+                        self.session.pending_action = updated.pending_action
+                        self.session.state = updated.state
 
                 # Build WhatsApp message from agent result
                 if agent_result.actions:

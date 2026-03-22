@@ -1082,17 +1082,8 @@ async def _tool_update_entity(args: Dict, session) -> ToolResult:
             error="entity_id and changes_description are required.",
         )
 
-    # Store pending action for confirmation
-    await SessionManager.set_pending_action(
-        session.phone,
-        "edit_entity",
-        {
-            "entity_id": entity_id,
-            "entity_type": entity_type,
-            "changes_description": changes_description,
-        },
-    )
-
+    # Return pending_action — handler will save it to session
+    # (don't save here to avoid double-save race with handler's final save)
     return ToolResult(
         success=True,
         data={"entity_id": entity_id, "entity_type": entity_type, "changes": changes_description},
