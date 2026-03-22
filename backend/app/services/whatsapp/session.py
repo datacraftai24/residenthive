@@ -14,9 +14,8 @@ Uses PostgreSQL (whatsapp_sessions table) for persistence across Cloud Run insta
 
 import json
 import logging
-from decimal import Decimal
 from typing import Optional, Dict, Any, List
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -201,15 +200,6 @@ class AgentSession:
         self.last_activity_at = datetime.utcnow().isoformat()
 
 
-def _json_default(obj):
-    """Handle non-JSON-serializable types (Decimal, datetime) in session data."""
-    if isinstance(obj, Decimal):
-        return int(obj) if obj == int(obj) else float(obj)
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-
 def _normalize_phone(phone: str) -> str:
     """Normalize phone number for consistent DB keys."""
     return phone.replace("+", "").replace("-", "").replace(" ", "")
@@ -269,7 +259,7 @@ async def save_session(session: AgentSession) -> bool:
                        DO UPDATE SET data = EXCLUDED.data,
                                      agent_id = EXCLUDED.agent_id,
                                      updated_at = NOW()""",
-                    (phone_key, session.agent_id, json.dumps(session_dict, default=_json_default)),
+                    (phone_key, session.agent_id, json.dumps(session_dict)),
                 )
         logger.debug(f"Session saved to PostgreSQL for {session.phone}")
         return True

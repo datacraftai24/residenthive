@@ -895,17 +895,14 @@ async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
     # Multiple matches — store in session for deterministic disambiguation
     match_list = []
     for m in matches:
-        # Convert Decimal/datetime to JSON-safe types for session persistence
-        budget_min = m.get("budget_min") or m.get("extracted_budget_min")
-        budget_max = m.get("budget_max") or m.get("extracted_budget_max")
         match_list.append({
             "entity_id": m.get("id"),
             "name": m.get("name") or m.get("extracted_name", "Unknown"),
             "code": m.get("whatsapp_code", ""),
             "entity_type": m.get("entity_type", "buyer"),
             "location": m.get("location") or m.get("extracted_location"),
-            "budget_min": float(budget_min) if budget_min is not None else None,
-            "budget_max": float(budget_max) if budget_max is not None else None,
+            "budget_min": m.get("budget_min") or m.get("extracted_budget_min"),
+            "budget_max": m.get("budget_max") or m.get("extracted_budget_max"),
         })
 
     # Persist matches so numeric replies ("2") can be auto-resolved
