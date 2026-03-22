@@ -283,6 +283,25 @@ AGENT_TOOLS = types.Tool(function_declarations=[
         ),
     ),
     types.FunctionDeclaration(
+        name="select_entity",
+        description=(
+            "Lock in which entity (buyer or lead) the conversation is about. "
+            "Call this after disambiguation (e.g., agent picked option 2 from a list) "
+            "or whenever you know which specific entity to work with. "
+            "This sets the active entity for subsequent tools like update_entity or search_properties."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+                "name": types.Schema(type=types.Type.STRING, description="The entity's name for display."),
+                "code": types.Schema(type=types.Type.STRING, description="The entity's code (e.g. MA1)."),
+            },
+            required=["entity_id", "entity_type"],
+        ),
+    ),
+    types.FunctionDeclaration(
         name="respond_to_agent",
         description=(
             "Send a conversational response when no tool action is needed. "
@@ -310,19 +329,27 @@ History: {history}
 State: {state} | Active: {active_entity} | Pending: {pending_action}
 Entities: {entities}
 
+CONVERSATION CONTINUITY:
+- Read the History carefully. It shows the last few messages between you and the agent.
+- If the agent is replying to YOUR question (e.g., you asked "which Mark?" and they said "2"), use the history to understand what they mean.
+- If Active entity is set (not "None"), you already resolved someone — use that entity_id and entity_type directly with update_entity, search_properties, etc. Do NOT call resolve_entity again.
+- If you asked "what's the new budget?" and the agent replies with a number, call update_entity immediately with the active entity.
+
 TOOL TRIGGERS (when to call each tool):
-- resolve_entity → agent mentions ANY person by name, code, or pronoun ("him", "her", "them")
+- resolve_entity → agent mentions a person by name/code AND no active entity is set
+- select_entity → ALWAYS call this after disambiguation. When agent picks from a list (e.g., "2" or "the lead one"), call select_entity with that entity's id/type/name/code. This locks in the active entity for the rest of the conversation. Then ask your follow-up question.
 - process_new_lead → message contains a name AND (email OR phone) AND property preferences
-- update_entity → agent asks to change/update/add/remove something about a person. MUST resolve first.
-- search_properties → agent says search/find/look. MUST have an active entity (resolve first if needed).
+- update_entity → agent asks to change/update/add something, OR provides a value you asked for (budget, email, location). Use the active entity.
+- search_properties → agent says search/find/look. MUST have an active entity.
 - generate_report → agent says report/generate. Requires a prior search.
 - send_outreach → agent says outreach/send to a lead. Uses lead_id.
 - list_all_entities → agent says "all", "list", "everyone", "show me my pipeline"
+- get_entity_details → need full profile info for the active entity
 - respond_to_agent → greetings, "thanks", clarifications, or when you already have enough info to answer
 
 FAILURE STATES (handle these, don't retry silently):
 - resolve_entity returns 0 matches → tell agent: "No one named X found. Want to see the full list?"
-- resolve_entity returns 2+ matches → list ALL matches with codes. Ask which one.
+- resolve_entity returns 2+ matches → list ALL matches with codes. Ask which one. Do NOT guess.
 - search returns 0 properties → tell agent: "No matches. Suggest widening budget or location."
 - entity missing email → tell agent: "[Name] has no email. Add one first."
 - entity missing budget/location → tell agent what's missing, suggest adding it
@@ -331,8 +358,8 @@ FAILURE STATES (handle these, don't retry silently):
 STRICT CONSTRAINTS:
 - NEVER invent contact info (email, phone, address)
 - NEVER call search_properties or generate_report without resolving an entity first
-- NEVER call update_entity without resolving the entity first
-- If the active entity is already set and matches, skip resolve_entity
+- NEVER call resolve_entity if Active entity is already set and matches the person being discussed
+- NEVER loop calling the same tool with the same args — if you already got a result, use it
 - Max 2 tool calls per turn for simple requests. Only chain 3+ for explicit multi-step asks.
 
 TONE: You are texting on WhatsApp. Be conversational, brief, no bullet lists unless showing matches. Use plain language, not corporate speak."""
@@ -750,6 +777,8 @@ async def _execute_tool(name: str, args: Dict[str, Any], session) -> ToolResult:
             return await _tool_generate_report(args, session)
         elif name == "send_outreach":
             return await _tool_send_outreach(args, session)
+        elif name == "select_entity":
+            return await _tool_select_entity(args, session)
         else:
             return ToolResult(
                 success=False, data={}, message=f"Unknown tool: {name}",
@@ -835,6 +864,42 @@ async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
         success=True,
         data={"found": True, "ambiguous": True, "matches": match_list},
         message=f"Found {len(matches)} matches for '{reference}'",
+    )
+
+
+async def _tool_select_entity(args: Dict, session) -> ToolResult:
+    """Lock in which entity the conversation is about (sets session context)."""
+    from .session import SessionManager
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+    name = args.get("name", "Unknown")
+    code = args.get("code", "")
+
+    if not entity_id:
+        return ToolResult(
+            success=False, data={}, message="No entity_id provided.",
+            error="entity_id is required.",
+        )
+
+    if entity_type == "buyer":
+        session.set_buyer_context(entity_id, code, name)
+    else:
+        session.set_lead_context(entity_id, code, name)
+    await SessionManager.save(session)
+
+    logger.info(f"[AGENT] Selected entity: {name} ({code}) — {entity_type}, id={entity_id}")
+
+    return ToolResult(
+        success=True,
+        data={
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "name": name,
+            "code": code,
+            "active": True,
+        },
+        message=f"Now working with {name} ({code}) — {entity_type}",
     )
 
 
