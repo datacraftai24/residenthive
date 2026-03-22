@@ -61,6 +61,10 @@ class AgentSession:
     last_search_id: Optional[str] = None
     pending_action: Optional[Dict[str, Any]] = None
 
+    # Disambiguation state: stores matches from resolve_entity when ambiguous
+    # Each match: {"entity_id": int, "entity_type": str, "name": str, "code": str, ...}
+    pending_disambiguation: Optional[List[Dict[str, Any]]] = None
+
     # Conversation history for coordinator agent (last 10 messages)
     message_history: List[Dict[str, str]] = field(default_factory=list)
 
@@ -83,6 +87,7 @@ class AgentSession:
             "sub_state": self.sub_state,
             "last_search_id": self.last_search_id,
             "pending_action": self.pending_action,
+            "pending_disambiguation": self.pending_disambiguation,
             "message_history": self.message_history,
             "last_activity_at": self.last_activity_at,
             "created_at": self.created_at,
@@ -112,6 +117,7 @@ class AgentSession:
             sub_state=data.get("sub_state"),
             last_search_id=data.get("last_search_id"),
             pending_action=data.get("pending_action"),
+            pending_disambiguation=data.get("pending_disambiguation"),
             message_history=data.get("message_history", []),
             last_activity_at=data.get("last_activity_at", datetime.utcnow().isoformat()),
             created_at=data.get("created_at", datetime.utcnow().isoformat()),
@@ -139,6 +145,7 @@ class AgentSession:
         self.sub_state = None
         self.last_search_id = None
         self.pending_action = None
+        self.pending_disambiguation = None
 
     def set_buyer_context(self, buyer_id: int, buyer_code: str, buyer_name: str):
         """Enter buyer context"""
@@ -181,6 +188,7 @@ class AgentSession:
         self.sub_state = None
         self.last_search_id = None
         self.pending_action = None
+        self.pending_disambiguation = None
 
     def add_message(self, role: str, content: str):
         """Add a message to conversation history (keep last 10)."""

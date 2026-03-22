@@ -629,6 +629,50 @@ async def run_agent(message: str, session) -> AgentResult:
         )
 
     from .buyer_codes import get_all_entities, resolve_entity_reference
+    from .session import SessionManager
+
+    # ── Auto-resolve disambiguation (deterministic, no LLM) ──
+    # If the previous turn listed numbered matches and the user replied with a number,
+    # resolve it immediately and set session context before Gemini sees the message.
+    if session.pending_disambiguation:
+        matches = session.pending_disambiguation
+        choice = message.strip().rstrip(".")
+
+        selected = None
+        # Check for numeric choice: "1", "2", etc.
+        if choice.isdigit():
+            idx = int(choice) - 1  # 1-indexed
+            if 0 <= idx < len(matches):
+                selected = matches[idx]
+        # Check for code match: "MA1"
+        if not selected:
+            for m in matches:
+                if m.get("code", "").upper() == choice.upper():
+                    selected = m
+                    break
+
+        if selected:
+            entity_id = selected["entity_id"]
+            entity_type = selected.get("entity_type", "buyer")
+            name = selected.get("name", "Unknown")
+            code = selected.get("code", "")
+
+            if entity_type == "buyer":
+                session.set_buyer_context(entity_id, code, name)
+            else:
+                session.set_lead_context(entity_id, code, name)
+            session.pending_disambiguation = None
+            await SessionManager.save(session)
+            logger.info(f"[AGENT] Auto-resolved disambiguation: {name} ({code}) — {entity_type}")
+
+            # Rewrite the message so Gemini sees the intent, not just "2"
+            message = f"Selected {name} ({code}), a {entity_type}. (The agent chose option {choice} from the disambiguation list.)"
+
+        # If not a clear choice, let Gemini handle it (maybe "the lead one")
+        # But clear disambiguation after one turn regardless
+        else:
+            session.pending_disambiguation = None
+            await SessionManager.save(session)
 
     # Build context
     history_text = _format_history(session.message_history)
@@ -848,10 +892,11 @@ async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
             message=f"Found {entity.get('name') or entity.get('extracted_name')} ({entity.get('whatsapp_code', '')}) — {entity_type}",
         )
 
-    # Multiple matches — return all for Gemini to disambiguate
+    # Multiple matches — store in session for deterministic disambiguation
     match_list = []
     for m in matches:
         match_list.append({
+            "entity_id": m.get("id"),
             "name": m.get("name") or m.get("extracted_name", "Unknown"),
             "code": m.get("whatsapp_code", ""),
             "entity_type": m.get("entity_type", "buyer"),
@@ -859,6 +904,10 @@ async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
             "budget_min": m.get("budget_min") or m.get("extracted_budget_min"),
             "budget_max": m.get("budget_max") or m.get("extracted_budget_max"),
         })
+
+    # Persist matches so numeric replies ("2") can be auto-resolved
+    session.pending_disambiguation = match_list
+    await SessionManager.save(session)
 
     return ToolResult(
         success=True,
@@ -886,6 +935,7 @@ async def _tool_select_entity(args: Dict, session) -> ToolResult:
         session.set_buyer_context(entity_id, code, name)
     else:
         session.set_lead_context(entity_id, code, name)
+    session.pending_disambiguation = None
     await SessionManager.save(session)
 
     logger.info(f"[AGENT] Selected entity: {name} ({code}) — {entity_type}, id={entity_id}")
