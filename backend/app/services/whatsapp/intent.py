@@ -665,8 +665,21 @@ async def run_agent(message: str, session) -> AgentResult:
             await SessionManager.save(session)
             logger.info(f"[AGENT] Auto-resolved disambiguation: {name} ({code}) — {entity_type}")
 
-            # Rewrite the message so Gemini sees the intent, not just "2"
-            message = f"Selected {name} ({code}), a {entity_type}. (The agent chose option {choice} from the disambiguation list.)"
+            # Rewrite the message so Gemini sees the resolved entity + original intent.
+            # History already contains the current "1"/"2" message (added by handler),
+            # so find the previous user message — that's the original request.
+            original_request = ""
+            user_msgs_seen = 0
+            for msg in reversed(session.message_history):
+                if msg.get("role") == "user":
+                    user_msgs_seen += 1
+                    if user_msgs_seen == 2:  # skip current, get the one before
+                        original_request = msg["content"]
+                        break
+            if original_request:
+                message = f"Selected {name} ({code}), a {entity_type}. Original request was: \"{original_request}\""
+            else:
+                message = f"Selected {name} ({code}), a {entity_type}."
 
         # If not a clear choice, let Gemini handle it (maybe "the lead one")
         # But clear disambiguation after one turn regardless
