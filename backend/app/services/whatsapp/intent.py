@@ -892,26 +892,39 @@ async def _tool_resolve_entity(args: Dict, session) -> ToolResult:
             message=f"Found {entity.get('name') or entity.get('extracted_name')} ({entity.get('whatsapp_code', '')}) — {entity_type}",
         )
 
-    # Multiple matches — store in session for deterministic disambiguation
-    match_list = []
+    # Build rich match data for Gemini to show (budget/location for display)
+    display_matches = []
+    # Build minimal match data for session persistence (only what auto-resolution needs)
+    disambiguation_matches = []
     for m in matches:
-        match_list.append({
-            "entity_id": m.get("id"),
-            "name": m.get("name") or m.get("extracted_name", "Unknown"),
-            "code": m.get("whatsapp_code", ""),
-            "entity_type": m.get("entity_type", "buyer"),
+        name = m.get("name") or m.get("extracted_name", "Unknown")
+        code = m.get("whatsapp_code", "")
+        entity_type = m.get("entity_type", "buyer")
+        entity_id = m.get("id")
+
+        display_matches.append({
+            "entity_id": entity_id,
+            "name": name,
+            "code": code,
+            "entity_type": entity_type,
             "location": m.get("location") or m.get("extracted_location"),
             "budget_min": m.get("budget_min") or m.get("extracted_budget_min"),
             "budget_max": m.get("budget_max") or m.get("extracted_budget_max"),
         })
+        disambiguation_matches.append({
+            "entity_id": entity_id,
+            "name": name,
+            "code": code,
+            "entity_type": entity_type,
+        })
 
-    # Persist matches so numeric replies ("2") can be auto-resolved
-    session.pending_disambiguation = match_list
+    # Persist minimal matches so numeric replies ("2") can be auto-resolved
+    session.pending_disambiguation = disambiguation_matches
     await SessionManager.save(session)
 
     return ToolResult(
         success=True,
-        data={"found": True, "ambiguous": True, "matches": match_list},
+        data={"found": True, "ambiguous": True, "matches": display_matches},
         message=f"Found {len(matches)} matches for '{reference}'",
     )
 
