@@ -1219,7 +1219,7 @@ class WhatsAppHandlers:
             return {}
 
         client = _genai.Client(api_key=api_key)
-        model = os.getenv("GEMINI_MODEL", "gemini-3-flash")
+        model = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
         prompt = f"""Parse this edit request for a real estate lead profile into JSON key:value pairs.
 
