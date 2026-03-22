@@ -1,5 +1,5 @@
 """
-Redis-based Session Manager for WhatsApp Conversations
+PostgreSQL-backed Session Manager for WhatsApp Conversations
 
 Manages agent conversation state including:
 - Current mode (inbox vs buyer/lead context)
@@ -8,11 +8,10 @@ Manages agent conversation state including:
 - Search context for reports
 - Message history for coordinator agent
 
-Sessions expire after 15 minutes of inactivity but can be refreshed.
-Falls back to in-memory storage if Redis is unavailable.
+Sessions expire after 15 minutes of inactivity.
+Uses PostgreSQL (whatsapp_sessions table) for persistence across Cloud Run instances.
 """
 
-import os
 import json
 import logging
 from typing import Optional, Dict, Any, List
@@ -23,16 +22,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 # Configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SESSION_TTL_MINUTES = 15
-SESSION_PREFIX = "wa:session:"
-
-# Redis client (initialized lazily)
-_redis_client = None
-_redis_available = None
-
-# In-memory fallback
-_memory_store: Dict[str, Dict[str, Any]] = {}
 
 
 class SessionState(str, Enum):
@@ -202,148 +192,86 @@ class AgentSession:
         self.last_activity_at = datetime.utcnow().isoformat()
 
 
-async def _get_redis():
-    """Get or create Redis connection"""
-    global _redis_client, _redis_available
-
-    if _redis_available is False:
-        return None
-
-    if _redis_client is not None:
-        return _redis_client
-
-    try:
-        import redis.asyncio as redis
-        _redis_client = redis.from_url(
-            REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True,
-            socket_timeout=5,
-            socket_connect_timeout=5
-        )
-        await _redis_client.ping()
-        _redis_available = True
-        logger.info(f"Connected to Redis at {REDIS_URL}")
-        return _redis_client
-    except Exception as e:
-        logger.warning(f"Redis unavailable, using in-memory fallback: {e}")
-        _redis_available = False
-        return None
-
-
-def _get_cache_key(phone: str) -> str:
-    """Generate cache key from phone number"""
-    phone = phone.replace("+", "").replace("-", "").replace(" ", "")
-    return f"{SESSION_PREFIX}{phone}"
+def _normalize_phone(phone: str) -> str:
+    """Normalize phone number for consistent DB keys."""
+    return phone.replace("+", "").replace("-", "").replace(" ", "")
 
 
 async def get_session(phone: str) -> Optional[AgentSession]:
-    """
-    Retrieve session for a phone number.
+    """Retrieve session from PostgreSQL."""
+    from ...db import get_conn, fetchone_dict
 
-    Args:
-        phone: WhatsApp phone number
+    phone_key = _normalize_phone(phone)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT data, updated_at FROM whatsapp_sessions
+                       WHERE phone = %s""",
+                    (phone_key,),
+                )
+                row = fetchone_dict(cur)
 
-    Returns:
-        AgentSession if exists and not expired, None otherwise
-    """
-    cache_key = _get_cache_key(phone)
-
-    # Try Redis first
-    redis = await _get_redis()
-    if redis:
-        try:
-            data = await redis.get(cache_key)
-            if data:
-                session_dict = json.loads(data)
-                session = AgentSession.from_dict(session_dict)
-                logger.debug(f"Session retrieved from Redis for {phone}")
-                return session
-        except Exception as e:
-            logger.error(f"Error retrieving session from Redis: {e}")
-
-    # Fallback to memory
-    if cache_key in _memory_store:
-        session_data = _memory_store[cache_key]
-        # Check TTL
-        last_activity = datetime.fromisoformat(session_data.get("last_activity_at", datetime.utcnow().isoformat()))
-        if datetime.utcnow() - last_activity > timedelta(minutes=SESSION_TTL_MINUTES):
-            del _memory_store[cache_key]
+        if not row:
             return None
-        return AgentSession.from_dict(session_data)
 
-    return None
+        # Check TTL
+        updated_at = row["updated_at"]
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at)
+        if datetime.utcnow().replace(tzinfo=updated_at.tzinfo) - updated_at > timedelta(minutes=SESSION_TTL_MINUTES):
+            await delete_session(phone)
+            return None
+
+        data = row["data"]
+        if isinstance(data, str):
+            data = json.loads(data)
+        return AgentSession.from_dict(data)
+
+    except Exception as e:
+        logger.error(f"Error getting session for {phone}: {e}")
+        return None
 
 
 async def save_session(session: AgentSession) -> bool:
-    """
-    Save session state.
+    """Save session to PostgreSQL (upsert)."""
+    from ...db import get_conn
 
-    Args:
-        session: AgentSession to save
-
-    Returns:
-        True if saved successfully
-    """
     session.touch()
-    cache_key = _get_cache_key(session.phone)
+    phone_key = _normalize_phone(session.phone)
     session_dict = session.to_dict()
 
-    # Try Redis first
-    redis = await _get_redis()
-    if redis:
-        try:
-            await redis.setex(
-                cache_key,
-                SESSION_TTL_MINUTES * 60,
-                json.dumps(session_dict)
-            )
-            logger.debug(f"Session saved to Redis for {session.phone}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving session to Redis: {e}")
-
-    # Fallback to memory
-    _memory_store[cache_key] = session_dict
-    logger.debug(f"Session saved to memory for {session.phone}")
-    return True
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO whatsapp_sessions (phone, agent_id, data, updated_at)
+                       VALUES (%s, %s, %s, NOW())
+                       ON CONFLICT (phone)
+                       DO UPDATE SET data = EXCLUDED.data,
+                                     agent_id = EXCLUDED.agent_id,
+                                     updated_at = NOW()""",
+                    (phone_key, session.agent_id, json.dumps(session_dict)),
+                )
+        logger.debug(f"Session saved to PostgreSQL for {session.phone}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving session for {session.phone}: {e}")
+        return False
 
 
 async def create_session(agent_id: int, phone: str) -> AgentSession:
-    """
-    Create a new session for an agent.
-
-    Args:
-        agent_id: Agent's database ID
-        phone: WhatsApp phone number
-
-    Returns:
-        New AgentSession
-    """
-    session = AgentSession(
-        agent_id=agent_id,
-        phone=phone,
-        state=SessionState.IDLE
-    )
+    """Create a new session."""
+    session = AgentSession(agent_id=agent_id, phone=phone, state=SessionState.IDLE)
     await save_session(session)
     logger.info(f"Created new session for agent {agent_id} at {phone}")
     return session
 
 
 async def get_or_create_session(agent_id: int, phone: str) -> AgentSession:
-    """
-    Get existing session or create new one.
-
-    Args:
-        agent_id: Agent's database ID
-        phone: WhatsApp phone number
-
-    Returns:
-        AgentSession (existing or new)
-    """
+    """Get existing session or create new one."""
     session = await get_session(phone)
     if session:
-        # Verify agent_id matches (security check)
         if session.agent_id != agent_id:
             logger.warning(f"Session agent_id mismatch for {phone}: {session.agent_id} != {agent_id}")
             session = await create_session(agent_id, phone)
@@ -352,31 +280,19 @@ async def get_or_create_session(agent_id: int, phone: str) -> AgentSession:
 
 
 async def delete_session(phone: str) -> bool:
-    """
-    Delete a session.
+    """Delete a session from PostgreSQL."""
+    from ...db import get_conn
 
-    Args:
-        phone: WhatsApp phone number
-
-    Returns:
-        True if deleted
-    """
-    cache_key = _get_cache_key(phone)
-
-    # Try Redis
-    redis = await _get_redis()
-    if redis:
-        try:
-            await redis.delete(cache_key)
-        except Exception as e:
-            logger.error(f"Error deleting session from Redis: {e}")
-
-    # Also clear from memory
-    if cache_key in _memory_store:
-        del _memory_store[cache_key]
-
-    logger.info(f"Deleted session for {phone}")
-    return True
+    phone_key = _normalize_phone(phone)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM whatsapp_sessions WHERE phone = %s", (phone_key,))
+        logger.info(f"Deleted session for {phone}")
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting session for {phone}: {e}")
+        return False
 
 
 async def update_session_state(
@@ -384,24 +300,12 @@ async def update_session_state(
     state: SessionState,
     **kwargs
 ) -> Optional[AgentSession]:
-    """
-    Update session state with additional fields.
-
-    Args:
-        phone: WhatsApp phone number
-        state: New session state
-        **kwargs: Additional fields to update
-
-    Returns:
-        Updated session or None if not found
-    """
+    """Update session state with additional fields."""
     session = await get_session(phone)
     if not session:
         return None
 
     session.state = state
-
-    # Update any additional fields
     for key, value in kwargs.items():
         if hasattr(session, key):
             setattr(session, key, value)
