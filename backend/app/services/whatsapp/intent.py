@@ -1193,6 +1193,7 @@ async def _tool_search(args: Dict, session) -> ToolResult:
 
     try:
         from ...routers.listings import listings_search, _load_profile
+        from ...routers.search import _map_to_agent_listing
 
         # For buyers, load profile directly. For leads, we need to map to buyer profile ID.
         if entity_type == "buyer":
@@ -1219,22 +1220,9 @@ async def _tool_search(args: Dict, session) -> ToolResult:
         profile = _load_profile(profile_id)
         result = listings_search({"profileId": profile_id, "profile": {}})
 
-        all_listings = result.get("top_picks", []) + result.get("other_matches", [])
-
-        listings = []
-        for item in all_listings[:20]:
-            listing = item.get("listing", item)
-            listings.append({
-                "mlsNumber": listing.get("mls_number") or listing.get("id"),
-                "address": listing.get("address"),
-                "city": listing.get("city"),
-                "listPrice": listing.get("price"),
-                "bedrooms": listing.get("bedrooms"),
-                "bathrooms": listing.get("bathrooms"),
-                "sqft": listing.get("square_feet"),
-                "fitScore": item.get("fitScore") or item.get("match_score"),
-                "aiAnalysis": item.get("ai_analysis"),
-            })
+        # Use the same mapping as the normal search pipeline so that
+        # create_buyer_report can find finalScore, isTop20, rank, etc.
+        listings = _map_to_agent_listing(result)
 
         search_id = generate_search_id()
         store_search_context(search_id, profile, listings)
