@@ -1283,6 +1283,7 @@ async def _tool_generate_report(args: Dict, session) -> ToolResult:
 
     try:
         from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
+        from ...routers.search import agent_search_photos, agent_search_location
 
         # For leads, we need the buyer profile ID
         if entity_type == "buyer":
@@ -1305,8 +1306,23 @@ async def _tool_generate_report(args: Dict, session) -> ToolResult:
                             error="Convert the lead first.",
                         )
 
+        # Run photo + location analysis before generating report
+        # (In the dashboard flow, the frontend polls these endpoints)
+        search_id = session.last_search_id
+        try:
+            logger.info(f"[WA REPORT] Running photo analysis for searchId={search_id}")
+            agent_search_photos(searchId=search_id)
+        except Exception as e:
+            logger.warning(f"[WA REPORT] Photo analysis failed (non-blocking): {e}")
+
+        try:
+            logger.info(f"[WA REPORT] Running location analysis for searchId={search_id}")
+            await agent_search_location(searchId=search_id)
+        except Exception as e:
+            logger.warning(f"[WA REPORT] Location analysis failed (non-blocking): {e}")
+
         request = CreateBuyerReportRequest(
-            searchId=session.last_search_id,
+            searchId=search_id,
             profileId=profile_id,
             allowPartial=True,
         )
