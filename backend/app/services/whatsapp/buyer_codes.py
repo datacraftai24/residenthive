@@ -463,8 +463,17 @@ def get_all_entities(agent_id: int, limit: int = 15) -> List[Dict[str, Any]]:
                 row["budget_display"] = "-".join(budget_parts) if budget_parts else ""
                 entities.append(row)
 
-    # Sort by created_at desc
-    entities.sort(key=lambda e: e.get("created_at") or "", reverse=True)
+    # Sort by created_at desc — normalize to string since DB returns mixed types
+    def _sort_key(e):
+        val = e.get("created_at")
+        if val is None:
+            return ""
+        if isinstance(val, str):
+            return val
+        # datetime/date from PostgreSQL
+        return val.isoformat()
+
+    entities.sort(key=_sort_key, reverse=True)
     return entities[:limit]
 
 
