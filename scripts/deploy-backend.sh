@@ -68,7 +68,10 @@ gcloud run deploy ${SERVICE_NAME} \
   --update-env-vars USE_ENHANCED_EXTRACTION=true \
   --update-env-vars USE_ENHANCED_STRATEGY=true \
   --update-secrets MAILJET_API_KEY=MAILJET_API_KEY:latest \
-  --update-secrets MAILJET_API_SECRET=MAILJET_API_SECRET:latest
+  --update-secrets MAILJET_API_SECRET=MAILJET_API_SECRET:latest \
+  --update-env-vars WHATSAPP_PHONE_NUMBER_ID=1013325431863810 \
+  --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest \
+  --update-secrets WHATSAPP_VERIFY_TOKEN=whatsapp-verify-token:latest
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')

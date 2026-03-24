@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr
 import os
 import json
 import uuid
+import asyncio
 
 from ..logging_config import get_logger
 
@@ -89,6 +90,12 @@ class SendReportEmailRequest(BaseModel):
     to_email: EmailStr
     subject: Optional[str] = None
     body: Optional[str] = None
+
+
+class RequestShowingRequest(BaseModel):
+    """Request to schedule a showing for a listing"""
+    listingAddress: str
+    mlsNumber: Optional[str] = None
 
 
 @router.get("/{share_id}", response_model=BuyerReportResponse)
@@ -295,6 +302,19 @@ def get_buyer_report(share_id: str):
             propertyListPrice=lc.get('propertyListPrice') or lc.get('property_list_price'),
             source=lc.get('source')
         )
+
+    # Fire-and-forget: notify agent that report was viewed
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_activity
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_activity(share_id, "viewed_report"))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass  # Never block report serving for notification failure
 
     return BuyerReportResponse(
         shareId=share_id,
@@ -535,6 +555,22 @@ def create_buyer_report(
 
             print(f"[BUYER REPORT] Created report with shareId={share_id}, {len(top_5_ids)} listings")
 
+    # Fire-and-forget WhatsApp notification to agent for approval
+    try:
+        from ..services.whatsapp.notifications import WhatsAppNotifications
+        buyer_name = profile.get("name", "Buyer")
+        notifier = WhatsAppNotifications()
+        asyncio.get_event_loop().create_task(
+            notifier.notify_report_generated(
+                agent_id=agent_id,
+                buyer_name=buyer_name,
+                share_id=share_id,
+                listing_count=len(top_5_ids),
+            )
+        )
+    except Exception as e:
+        logger.warning(f"[BUYER REPORT] WhatsApp notification failed (non-blocking): {e}")
+
     # Return response with share link and preview
     return {
         "success": True,
@@ -543,6 +579,86 @@ def create_buyer_report(
         "synthesis": synthesis,
         "includedCount": len(top_5_ids)
     }
+
+
+@router.post("/{share_id}/request-showing")
+async def request_showing(
+    share_id: str,
+    request: RequestShowingRequest,
+):
+    """
+    PUBLIC endpoint (no auth) - Buyer requests a showing from their report.
+    Sends a WhatsApp alert to the agent.
+    """
+    # Look up report → agent
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT br.agent_id, bp.name as buyer_name
+                FROM buyer_reports br
+                JOIN buyer_profiles bp ON br.profile_id = bp.id
+                WHERE br.share_id = %s
+                """,
+                (share_id,)
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    agent_id_val, buyer_name = row
+
+    # Send WhatsApp notification (fire-and-forget)
+    try:
+        from ..services.whatsapp.notifications import WhatsAppNotifications
+        notifier = WhatsAppNotifications()
+        await notifier.notify_showing_request(
+            agent_id=agent_id_val,
+            buyer_name=buyer_name,
+            listing_address=request.listingAddress,
+            share_id=share_id,
+        )
+    except Exception as e:
+        logger.warning(f"[SHOWING REQUEST] WhatsApp notification failed: {e}")
+
+    return {"success": True, "message": "Showing request sent to your agent"}
+
+
+class ReportActivityRequest(BaseModel):
+    """Request body for report activity webhook (chatbot signals)."""
+    type: str  # "cta_clicked" | "chatbot_engaged"
+    message_count: Optional[int] = None
+    cta_name: Optional[str] = None
+
+
+@router.post("/{share_id}/activity")
+async def report_activity(
+    share_id: str,
+    payload: ReportActivityRequest,
+):
+    """
+    PUBLIC endpoint (no auth) - Webhook for lead engagement signals.
+    Called by the chatbot when a lead clicks a CTA or engages with chat.
+    """
+    from ..services.whatsapp.notifications import on_lead_activity
+
+    details = {}
+    if payload.message_count:
+        details["message_count"] = payload.message_count
+    if payload.cta_name:
+        details["cta_name"] = payload.cta_name
+
+    try:
+        await on_lead_activity(
+            share_id=share_id,
+            activity_type=payload.type,
+            details=details or None,
+        )
+    except Exception as e:
+        logger.warning(f"[ACTIVITY] Failed to send notification: {e}")
+
+    return {"success": True}
 
 
 @router.get("/{share_id}/outreach", response_model=OutreachDraftResponse)
@@ -1168,6 +1284,19 @@ def update_buyer_notes(
             updated_at = result[0].isoformat() if result[0] else None
 
     logger.info(f"[BUYER_NOTES] Updated notes for share_id={share_id}, agent_id={report_row['agent_id']}")
+
+    # Fire-and-forget: notify agent that notes were updated
+    try:
+        import asyncio
+        from ..services.whatsapp.notifications import on_lead_activity
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(on_lead_activity(share_id, "left_notes"))
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
     return {
         "success": True,

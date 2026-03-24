@@ -1080,13 +1080,13 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
                 }
             })
 
-    # 10. Concerns (always show)
+    # 10. Concerns (always show — no "best" marking, stars don't make sense on concerns)
     rows.append({
         "id": "concerns",
         "label": "Concerns",
         "icon": "alert-triangle",
         "type": "list",
-        "best_is": "lowest",
+        "best_is": None,
         "values": {
             l.get("mlsNumber"): {
                 "value": len((l.get("aiAnalysis") or {}).get("red_flags", [])),

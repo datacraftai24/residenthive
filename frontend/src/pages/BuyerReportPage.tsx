@@ -11,7 +11,7 @@ import { ComparisonTable } from '@/components/ComparisonTable';
 import { AIInsightsPanel } from '@/components/AIInsightsPanel';
 import { FloatingChatButton } from '@/components/FloatingChatButton';
 import { BuyerNotes } from '@/components/BuyerNotes';
-import { Home, Mail, Phone, Loader2, Scale } from 'lucide-react';
+import { Home, Mail, Phone, Loader2, Scale, CalendarDays } from 'lucide-react';
 
 interface RankedPick {
   mlsNumber: string;
@@ -189,8 +189,31 @@ export function BuyerReportPage() {
     enabled: !!shareId,
   });
 
+  const [showingRequested, setShowingRequested] = useState<Record<string, boolean>>({});
+
+  const requestShowingApi = async (mlsNumber: string) => {
+    const listing = report?.listings.find(l => l.mlsNumber === mlsNumber);
+    if (!listing || !shareId) return;
+    try {
+      const res = await fetch(`/api/buyer-reports/${shareId}/request-showing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingAddress: listing.address,
+          mlsNumber: listing.mlsNumber,
+        }),
+      });
+      if (res.ok) {
+        setShowingRequested(prev => ({ ...prev, [mlsNumber]: true }));
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
   // Helper to open chat with pre-filled showing request
   const requestShowing = (mlsNumber: string) => {
+    requestShowingApi(mlsNumber);
     const listing = report?.listings.find(l => l.mlsNumber === mlsNumber);
     if (listing) {
       window.dispatchEvent(new CustomEvent('request-showing', {
@@ -368,12 +391,23 @@ export function BuyerReportPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {report.listings.slice(0, 8).map((listing, idx) => (
-                  <PropertyCard
-                    key={listing.mlsNumber}
-                    listing={listing}
-                    rank={idx + 1}
-                    onViewDetails={() => setSelectedListing(listing)}
-                  />
+                  <div key={listing.mlsNumber} className="flex flex-col">
+                    <PropertyCard
+                      listing={listing}
+                      rank={idx + 1}
+                      onViewDetails={() => setSelectedListing(listing)}
+                    />
+                    <Button
+                      variant={showingRequested[listing.mlsNumber] ? "secondary" : "outline"}
+                      size="sm"
+                      className="mt-2 w-full"
+                      disabled={!!showingRequested[listing.mlsNumber]}
+                      onClick={() => requestShowingApi(listing.mlsNumber)}
+                    >
+                      <CalendarDays className="h-4 w-4 mr-1" />
+                      {showingRequested[listing.mlsNumber] ? 'Showing Requested' : 'Request Showing'}
+                    </Button>
+                  </div>
                 ))}
               </div>
             </section>
