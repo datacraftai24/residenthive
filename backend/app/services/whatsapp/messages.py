@@ -442,9 +442,9 @@ class MessageBuilder:
         listings: List[Dict[str, Any]],
         total_found: int
     ) -> Dict[str, Any]:
-        """Format search results."""
+        """Format search results — brief count + action buttons."""
         name = buyer.get("name", "Buyer")
-        
+
         if not listings:
             return MessageBuilder.buttons(
                 f"🔍 Search complete for *{name}*\n\n"
@@ -455,42 +455,13 @@ class MessageBuilder:
                     {"id": "done", "title": "Back"}
                 ]
             )
-        
-        lines = [
-            f"🔍 Search complete for *{name}*",
-            f"Found {total_found} properties → Top {len(listings)} selected",
-            ""
-        ]
-        
-        # Show top 5 listings
-        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-        for i, listing in enumerate(listings[:5]):
-            medal = medals[i] if i < len(medals) else f"{i+1}."
-            
-            address = listing.get("address", "Unknown")[:30]
-            city = listing.get("city", "")
-            price = listing.get("listPrice") or listing.get("price", 0)
-            beds = listing.get("bedrooms", "?")
-            baths = listing.get("bathrooms", "?")
-            match_score = listing.get("fitScore") or listing.get("match_score", 0)
-            
-            lines.append(f"{medal} *{address}*")
-            if city:
-                lines.append(f"   {city}")
-            lines.append(f"   ${price:,} · {beds}bd/{baths}ba")
-            if match_score:
-                lines.append(f"   ⭐ {match_score}% match")
-            
-            # Show one highlight if available
-            analysis = listing.get("aiAnalysis") or {}
-            whats_matching = analysis.get("whats_matching", [])
-            if whats_matching:
-                lines.append(f"   ✓ {MessageBuilder._ai_text(whats_matching[0])[:40]}")
-            
-            lines.append("")
-        
-        body = "\n".join(lines)[:4000]  # Leave room for buttons
-        
+
+        body = (
+            f"🔍 Found *{total_found}* properties for *{name}*\n\n"
+            f"Top {len(listings)} selected for analysis.\n\n"
+            "Say *report* to generate a shareable report, or *adjust* to change criteria."
+        )
+
         return MessageBuilder.buttons(
             body=body,
             buttons=[
@@ -571,12 +542,20 @@ class MessageBuilder:
     def lead_processed(lead_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Build lead summary message after Gemini processes a lead.
-        Shows extracted info + Send Outreach Report button.
+        Shows full extraction summary + Send Outreach Report button.
         """
         name = lead_data.get("name") or "Unknown"
+        code = lead_data.get("code") or ""
         lines = ["📥 *New Lead Processed!*", ""]
 
-        lines.append(f"👤 {name}")
+        lines.append(f"👤 *{name}*" + (f" ({code})" if code else ""))
+
+        if lead_data.get("email"):
+            lines.append(f"📧 {lead_data['email']}")
+        if lead_data.get("phone"):
+            lines.append(f"📱 {lead_data['phone']}")
+
+        lines.append("")
 
         if lead_data.get("location"):
             lines.append(f"📍 {lead_data['location']}")
@@ -602,7 +581,20 @@ class MessageBuilder:
             lines.append(f"📱 Source: {lead_data['source'].title()}")
 
         if lead_data.get("intent_score"):
-            lines.append(f"🎯 Intent: {lead_data['intent_score']}/100")
+            score = lead_data["intent_score"]
+            if score >= 70:
+                indicator = "🔥 High"
+            elif score >= 40:
+                indicator = "⚡ Medium"
+            else:
+                indicator = "💤 Low"
+            lines.append(f"🎯 Intent: {indicator} ({score}/100)")
+
+        if lead_data.get("timeline"):
+            lines.append(f"⏰ Timeline: {lead_data['timeline']}")
+
+        lines.append("")
+        lines.append("_Outreach report generating..._")
 
         # Clarifying question if any
         if lead_data.get("clarifying_question"):
@@ -612,10 +604,7 @@ class MessageBuilder:
         body = "\n".join(lines)
 
         buttons = [{"id": "btn_send_outreach", "title": "Send Outreach Report"}]
-        if lead_data.get("email"):
-            buttons.append({"id": "done", "title": "Dismiss"})
-        else:
-            buttons.append({"id": "done", "title": "Dismiss"})
+        buttons.append({"id": "done", "title": "Dismiss"})
 
         return MessageBuilder.buttons(
             body=body,

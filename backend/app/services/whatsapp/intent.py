@@ -302,6 +302,38 @@ AGENT_TOOLS = types.Tool(function_declarations=[
         ),
     ),
     types.FunctionDeclaration(
+        name="search_and_report",
+        description=(
+            "Search properties AND generate a report in one step. "
+            "Use when agent says 'report for X', 'send report to X', 'search and report', "
+            "'run report', or any request that implies both search and report."
+        ),
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "entity_id": types.Schema(type=types.Type.INTEGER, description="The entity's database ID."),
+                "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
+            },
+            required=["entity_id", "entity_type"],
+        ),
+    ),
+    types.FunctionDeclaration(
+        name="update_lead_status",
+        description="Update a lead's status (new, engaged, converted, archived).",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "lead_id": types.Schema(type=types.Type.INTEGER, description="The lead's database ID."),
+                "status": types.Schema(
+                    type=types.Type.STRING,
+                    description="The new status for the lead.",
+                    enum=["new", "classified", "engaged", "converted", "archived"],
+                ),
+            },
+            required=["lead_id", "status"],
+        ),
+    ),
+    types.FunctionDeclaration(
         name="respond_to_agent",
         description=(
             "Send a conversational response when no tool action is needed. "
@@ -322,12 +354,22 @@ AGENT_TOOLS = types.Tool(function_declarations=[
 # SYSTEM PROMPT (for coordinator agent)
 # ============================================================================
 
-COORDINATOR_SYSTEM_PROMPT = """You are a WhatsApp assistant for a real estate agent. Short replies only — 1-3 lines max.
+COORDINATOR_SYSTEM_PROMPT = """You are a WhatsApp assistant for a real estate agent. You are their command center for fast CRM actions.
 
 CONTEXT:
 History: {history}
 State: {state} | Active: {active_entity} | Pending: {pending_action}
 Entities: {entities}
+
+RESPONSE LENGTH:
+- After lead processing: show the full extraction summary (name, location, budget, bedrooms, intent score, source, email/phone if available). This is the agent's first look at the lead — make it count.
+- After buyer creation: show the full profile summary with all captured fields.
+- After entity update: confirm what changed with old → new values.
+- After search: brief — "Found X properties for [name]. Say 'report' to generate."
+- After search_and_report: share the link + listing count + approve/reject buttons.
+- After report: share the link + listing count + approve/reject buttons.
+- For greetings, confirmations, errors: 1-2 lines.
+- Always use WhatsApp formatting: *bold* for names, line breaks for readability.
 
 CONVERSATION CONTINUITY:
 - Read the History carefully. It shows the last few messages between you and the agent.
@@ -340,9 +382,11 @@ TOOL TRIGGERS (when to call each tool):
 - select_entity → ALWAYS call this after disambiguation. When agent picks from a list (e.g., "2" or "the lead one"), call select_entity with that entity's id/type/name/code. This locks in the active entity for the rest of the conversation. Then ask your follow-up question.
 - process_new_lead → message contains a name AND (email OR phone) AND property preferences
 - update_entity → agent asks to change/update/add something, OR provides a value you asked for (budget, email, location). Use the active entity.
-- search_properties → agent says search/find/look. MUST have an active entity.
-- generate_report → agent says report/generate. Requires a prior search.
+- search_properties → agent says search/find/look but NOT report. MUST have an active entity.
+- search_and_report → agent says "report for X", "send report to X", "search and report", "run report", or any request that implies both search and report generation. This is a compound tool — ONE call does search + report.
+- generate_report → agent says "report" or "generate report" AFTER a search has already been done (search_id exists).
 - send_outreach → agent says outreach/send to a lead. Uses lead_id.
+- update_lead_status → agent says "archive", "mark as engaged", "close lead", "status" for a lead.
 - list_all_entities → agent says "all", "list", "everyone", "show me my pipeline"
 - get_entity_details → need full profile info for the active entity
 - respond_to_agent → greetings, "thanks", clarifications, or when you already have enough info to answer
@@ -357,12 +401,13 @@ FAILURE STATES (handle these, don't retry silently):
 
 STRICT CONSTRAINTS:
 - NEVER invent contact info (email, phone, address)
-- NEVER call search_properties or generate_report without resolving an entity first
+- NEVER call search_properties or generate_report or search_and_report without resolving an entity first
 - NEVER call resolve_entity if Active entity is already set and matches the person being discussed
 - NEVER loop calling the same tool with the same args — if you already got a result, use it
 - Max 2 tool calls per turn for simple requests. Only chain 3+ for explicit multi-step asks.
+- Prefer search_and_report over separate search_properties + generate_report when agent wants a report.
 
-TONE: You are texting on WhatsApp. Be conversational, brief, no bullet lists unless showing matches. Use plain language, not corporate speak."""
+TONE: You are texting on WhatsApp. Be conversational, use plain language, not corporate speak. Use *bold* for names and key info."""
 
 
 # ============================================================================
@@ -834,6 +879,10 @@ async def _execute_tool(name: str, args: Dict[str, Any], session) -> ToolResult:
             return await _tool_generate_report(args, session)
         elif name == "send_outreach":
             return await _tool_send_outreach(args, session)
+        elif name == "search_and_report":
+            return await _tool_search_and_report(args, session)
+        elif name == "update_lead_status":
+            return await _tool_update_lead_status(args, session)
         elif name == "select_entity":
             return await _tool_select_entity(args, session)
         else:
@@ -1211,10 +1260,22 @@ async def _tool_search(args: Dict, session) -> ToolResult:
                     if row:
                         profile_id = row["id"]
                     else:
+                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
                         return ToolResult(
                             success=False, data={},
-                            message="This lead hasn't been converted to a buyer profile yet.",
-                            error="Convert the lead to a buyer profile first, or add search criteria.",
+                            message=(
+                                f"*{lead_name}* is a lead without a buyer profile. "
+                                f"Would you like to convert them to a buyer first?"
+                            ),
+                            needs_confirmation=True,
+                            pending_action={"type": "convert_lead", "data": {
+                                "lead_id": entity_id,
+                                "intent": "search",
+                            }},
+                            actions=[
+                                {"id": "confirm", "title": "Convert to Buyer"},
+                                {"id": "cancel", "title": "Cancel"},
+                            ],
                         )
 
         profile = _load_profile(profile_id)
@@ -1234,22 +1295,12 @@ async def _tool_search(args: Dict, session) -> ToolResult:
 
         total_found = result.get("search_summary", {}).get("total_found", len(listings))
 
-        # Return top 5 as summary for Gemini
-        top5_summary = []
-        for l in listings[:5]:
-            top5_summary.append({
-                "address": l.get("address", "Unknown"),
-                "city": l.get("city", ""),
-                "price": l.get("listPrice", 0),
-                "bedrooms": l.get("bedrooms"),
-                "bathrooms": l.get("bathrooms"),
-                "match_score": l.get("fitScore", 0),
-            })
+        entity_name = session.active_buyer_name or session.active_lead_name or "this profile"
 
         return ToolResult(
             success=True,
-            data={"total_found": total_found, "count": len(listings), "top_5": top5_summary, "search_id": search_id},
-            message=f"Found {total_found} properties. Top {min(5, len(listings))} selected.",
+            data={"total_found": total_found, "count": len(listings), "search_id": search_id},
+            message=f"Found {total_found} properties for {entity_name}. Say 'report' to generate a shareable report, or 'adjust' to change criteria.",
         )
 
     except Exception as e:
@@ -1459,6 +1510,216 @@ async def _tool_send_outreach(args: Dict, session) -> ToolResult:
             success=False, data={}, message="Outreach generation failed.",
             error=str(e),
         )
+
+
+async def _tool_search_and_report(args: Dict, session) -> ToolResult:
+    """Compound tool: search properties AND generate report in one step."""
+    from ..search_context_store import generate_search_id, store_search_context
+    from .session import SessionManager, SessionState
+    import os
+
+    entity_id = args.get("entity_id")
+    entity_type = args.get("entity_type", "buyer")
+
+    if not entity_id:
+        return ToolResult(
+            success=False, data={}, message="No entity specified.",
+            error="entity_id is required.",
+        )
+
+    try:
+        from ...routers.listings import listings_search, _load_profile
+        from ...routers.search import _map_to_agent_listing
+
+        # Resolve to buyer profile ID
+        if entity_type == "buyer":
+            profile_id = entity_id
+        else:
+            from ...db import get_conn, fetchone_dict
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                        (entity_id, session.agent_id),
+                    )
+                    row = fetchone_dict(cur)
+                    if row:
+                        profile_id = row["id"]
+                    else:
+                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
+                        return ToolResult(
+                            success=False, data={},
+                            message=(
+                                f"*{lead_name}* is a lead without a buyer profile. "
+                                f"Would you like to convert them to a buyer first?"
+                            ),
+                            needs_confirmation=True,
+                            pending_action={"type": "convert_lead", "data": {
+                                "lead_id": entity_id,
+                                "intent": "search_and_report",
+                            }},
+                            actions=[
+                                {"id": "confirm", "title": "Convert to Buyer"},
+                                {"id": "cancel", "title": "Cancel"},
+                            ],
+                        )
+
+        # Step 1: Search
+        profile = _load_profile(profile_id)
+        result = listings_search({"profileId": profile_id, "profile": {}})
+        listings = _map_to_agent_listing(result)
+
+        search_id = generate_search_id()
+        store_search_context(search_id, profile, listings)
+
+        session.last_search_id = search_id
+        session.state = SessionState.BUYER_CONTEXT if entity_type == "buyer" else SessionState.LEAD_CONTEXT
+        session.sub_state = "results"
+        await SessionManager.save(session)
+
+        total_found = result.get("search_summary", {}).get("total_found", len(listings))
+
+        if not listings:
+            entity_name = session.active_buyer_name or session.active_lead_name or "this profile"
+            return ToolResult(
+                success=False, data={"total_found": 0},
+                message=f"No properties found for {entity_name}. Consider adjusting budget or location.",
+            )
+
+        # Step 2: Photo + location analysis (non-blocking with timeout)
+        from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
+        from ...routers.search import agent_search_photos, agent_search_location
+
+        try:
+            logger.info(f"[WA COMPOUND] Running photo analysis for searchId={search_id}")
+            agent_search_photos(searchId=search_id)
+        except Exception as e:
+            logger.warning(f"[WA COMPOUND] Photo analysis failed (non-blocking): {e}")
+
+        try:
+            logger.info(f"[WA COMPOUND] Running location analysis for searchId={search_id}")
+            await agent_search_location(searchId=search_id)
+        except Exception as e:
+            logger.warning(f"[WA COMPOUND] Location analysis failed (non-blocking): {e}")
+
+        # Step 3: Generate report
+        request = CreateBuyerReportRequest(
+            searchId=search_id,
+            profileId=profile_id,
+            allowPartial=True,
+        )
+        report_result = create_buyer_report(request, agent_id=session.agent_id)
+
+        share_id = report_result.get("shareId")
+        share_url = report_result.get("shareUrl", f"/buyer-report/{share_id}")
+        frontend_url = os.getenv("FRONTEND_BASE_URL", "https://app.residenthive.com")
+        full_url = f"{frontend_url}{share_url}"
+        listing_count = report_result.get("includedCount", len(listings))
+
+        # Get buyer details
+        from ...db import get_conn, fetchone_dict
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT name, email FROM buyer_profiles WHERE id = %s", (profile_id,))
+                buyer = fetchone_dict(cur)
+
+        buyer_name = buyer.get("name", "Buyer") if buyer else "Buyer"
+        buyer_email = buyer.get("email") if buyer else None
+
+        # Store pending approval
+        await SessionManager.set_pending_action(
+            session.phone,
+            "approve_report",
+            {
+                "share_id": share_id,
+                "share_url": full_url,
+                "buyer_id": profile_id,
+                "buyer_name": buyer_name,
+                "buyer_email": buyer_email,
+                "listing_count": listing_count,
+            },
+        )
+
+        return ToolResult(
+            success=True,
+            data={"share_id": share_id, "share_url": full_url, "listing_count": listing_count, "total_found": total_found},
+            message=f"Report ready for *{buyer_name}* ({listing_count} properties). {full_url}",
+            needs_confirmation=True,
+            pending_action={"type": "approve_report", "data": {
+                "share_id": share_id, "share_url": full_url,
+                "buyer_id": profile_id, "buyer_name": buyer_name,
+                "buyer_email": buyer_email, "listing_count": listing_count,
+            }},
+            actions=[
+                {"id": "btn_approve_report", "title": "Approve & Send"},
+                {"id": "btn_reject_report", "title": "Reject"},
+            ],
+        )
+
+    except Exception as e:
+        error_msg = str(e)
+        if "MLS" in error_msg or "Repliers" in error_msg:
+            return ToolResult(
+                success=False, data={}, message="Property search failed.",
+                error="The MLS database is temporarily unavailable. Try again in a few minutes.",
+            )
+        if "No listings" in error_msg or "budget" in error_msg.lower():
+            return ToolResult(
+                success=False, data={}, message="No properties found.",
+                error="No properties match the current criteria. Consider adjusting budget or location.",
+            )
+        return ToolResult(
+            success=False, data={}, message="Search and report failed.",
+            error=str(e),
+        )
+
+
+async def _tool_update_lead_status(args: Dict, session) -> ToolResult:
+    """Update a lead's status."""
+    from ...db import get_conn, fetchone_dict
+
+    lead_id = args.get("lead_id")
+    status = args.get("status")
+
+    if not lead_id or not status:
+        return ToolResult(
+            success=False, data={}, message="Missing required fields.",
+            error="lead_id and status are required.",
+        )
+
+    valid_statuses = {"new", "classified", "engaged", "converted", "archived"}
+    if status not in valid_statuses:
+        return ToolResult(
+            success=False, data={}, message=f"Invalid status: {status}",
+            error=f"Status must be one of: {', '.join(sorted(valid_statuses))}",
+        )
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT extracted_name, status FROM leads WHERE id = %s AND agent_id = %s",
+                (lead_id, session.agent_id),
+            )
+            lead = fetchone_dict(cur)
+            if not lead:
+                return ToolResult(
+                    success=False, data={}, message="Lead not found.",
+                    error=f"No lead with id={lead_id} found for this agent.",
+                )
+
+            old_status = lead.get("status", "unknown")
+            lead_name = lead.get("extracted_name", "Lead")
+
+            cur.execute(
+                "UPDATE leads SET status = %s WHERE id = %s AND agent_id = %s",
+                (status, lead_id, session.agent_id),
+            )
+
+    return ToolResult(
+        success=True,
+        data={"lead_id": lead_id, "old_status": old_status, "new_status": status},
+        message=f"Lead *{lead_name}* status: {old_status} → {status}",
+    )
 
 
 # ============================================================================

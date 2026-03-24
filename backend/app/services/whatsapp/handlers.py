@@ -1002,6 +1002,8 @@ class WhatsAppHandlers:
                 return await self._handle_send_outreach()
             elif action_type == "approve_outreach":
                 return await self._handle_approve_outreach()
+            elif action_type == "convert_lead":
+                return await self._execute_convert_lead(action_data)
             elif action_type == "action_sequence":
                 return await self._execute_action_sequence(action_data)
             else:
@@ -1046,9 +1048,28 @@ class WhatsAppHandlers:
             self.session.state = SessionState.BUYER_CONTEXT
             await SessionManager.save(self.session)
             
+            # Build rich summary
+            summary_lines = [f"✅ Created *{result.name}* ({code})", ""]
+            if extracted.get("email"):
+                summary_lines.append(f"📧 {extracted['email']}")
+            if extracted.get("phone"):
+                summary_lines.append(f"📱 {extracted['phone']}")
+            if extracted.get("location"):
+                summary_lines.append(f"📍 {extracted['location']}")
+            if extracted.get("budgetMin") and extracted.get("budgetMax"):
+                summary_lines.append(f"💰 ${extracted['budgetMin']:,} - ${extracted['budgetMax']:,}")
+            if extracted.get("bedrooms"):
+                summary_lines.append(f"🛏️ {extracted['bedrooms']}+ bedrooms")
+            if extracted.get("homeType") and extracted["homeType"] != "any":
+                summary_lines.append(f"🏠 {extracted['homeType']}")
+            must_haves = extracted.get("mustHaveFeatures", [])
+            if must_haves:
+                summary_lines.append(f"✓ {', '.join(must_haves[:5])}")
+            summary_lines.append("")
+            summary_lines.append("Ready to search!")
+
             return MessageBuilder.buttons(
-                f"✅ Created *{result.name}* ({code})\n\n"
-                "What would you like to do next?",
+                "\n".join(summary_lines),
                 [
                     {"id": "search", "title": "Search Now"},
                     {"id": "profile", "title": "View Profile"},
@@ -1060,6 +1081,68 @@ class WhatsAppHandlers:
             logger.error(f"Create buyer failed: {e}", exc_info=True)
             return MessageBuilder.error("Failed to create buyer. Please try again.")
     
+    async def _execute_convert_lead(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a lead to buyer profile, then continue with original intent (search/report)."""
+        lead_id = action_data.get("lead_id")
+        original_intent = action_data.get("intent", "search")
+
+        try:
+            from ...routers.leads import _convert_lead_to_profile_internal
+
+            # Get lead data
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM leads WHERE id = %s AND agent_id = %s",
+                        (lead_id, self.agent_id),
+                    )
+                    lead_row = fetchone_dict(cur)
+
+            if not lead_row:
+                return MessageBuilder.error("Lead not found.")
+
+            result = _convert_lead_to_profile_internal(lead_id, self.agent_id, lead_row)
+            profile_id = result.get("profileId")
+
+            if not profile_id:
+                return MessageBuilder.error("Failed to convert lead to buyer profile.")
+
+            lead_name = lead_row.get("extracted_name") or "Lead"
+
+            # Update session to buyer context
+            from .buyer_codes import assign_code_to_buyer
+            code = assign_code_to_buyer(profile_id, self.agent_id, lead_name)
+            self.session.set_buyer_context(profile_id, code, lead_name)
+            await SessionManager.save(self.session)
+
+            # Auto-continue with original intent
+            if original_intent in ("search", "search_and_report"):
+                from .intent import run_agent
+                continuation_msg = (
+                    f"report for {lead_name}" if original_intent == "search_and_report"
+                    else f"search for {lead_name}"
+                )
+                agent_result = await run_agent(continuation_msg, self.session)
+                return MessageBuilder.text(
+                    f"Converted *{lead_name}* to buyer profile ({code}).\n\n{agent_result.text}"
+                ) if not agent_result.actions else MessageBuilder.buttons(
+                    f"Converted *{lead_name}* to buyer profile ({code}).\n\n{agent_result.text}",
+                    agent_result.actions,
+                )
+
+            return MessageBuilder.buttons(
+                f"Converted *{lead_name}* to buyer profile ({code}).\n\nWhat would you like to do?",
+                [
+                    {"id": "search", "title": "Search Now"},
+                    {"id": "profile", "title": "View Profile"},
+                    {"id": "done", "title": "Done"},
+                ],
+            )
+
+        except Exception as e:
+            logger.error(f"Convert lead failed: {e}", exc_info=True)
+            return MessageBuilder.error("Failed to convert lead. Please try again.")
+
     @staticmethod
     def _sanitize_change_value(field: str, value):
         """Ensure change values have the correct type for the database."""
@@ -1114,9 +1197,22 @@ class WhatsAppHandlers:
             self.session.active_buyer_name = result.get("name", self.session.active_buyer_name)
             await SessionManager.save(self.session)
             
+            # Show old → new for each changed field
+            change_lines = [f"✅ Updated *{result.get('name')}*", ""]
+            for change in changes:
+                field = change.get("field", "")
+                old_val = change.get("oldValue", "—")
+                new_val = change.get("newValue", "—")
+                action = change.get("action", "update")
+                if action == "add":
+                    change_lines.append(f"• Added {new_val} to {field}")
+                elif action == "remove":
+                    change_lines.append(f"• Removed {old_val} from {field}")
+                else:
+                    change_lines.append(f"• {field}: {old_val} → {new_val}")
+
             return MessageBuilder.buttons(
-                f"✅ Updated *{result.get('name')}*\n\n"
-                "Changes applied successfully.",
+                "\n".join(change_lines),
                 [
                     {"id": "search", "title": "Search Again"},
                     {"id": "profile", "title": "View Profile"},
@@ -1183,8 +1279,13 @@ class WhatsAppHandlers:
                                 (new_value, entity_id, self.agent_id),
                             )
 
+                lead_name = self.session.active_lead_name or f"Lead #{entity_id}"
+                change_lines = [f"✅ Updated lead *{lead_name}*", ""]
+                for field_name, new_value in changes.items():
+                    change_lines.append(f"• {field_name} → {new_value}")
+
                 return MessageBuilder.buttons(
-                    f"✅ Lead updated.\n\nChanges: {changes_description}",
+                    "\n".join(change_lines),
                     [
                         {"id": "done", "title": "Done"},
                     ],

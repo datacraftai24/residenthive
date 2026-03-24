@@ -23,7 +23,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 # Configuration
-SESSION_TTL_MINUTES = 15
+SESSION_TTL_MINUTES = 30
 
 
 class SessionState(str, Enum):
