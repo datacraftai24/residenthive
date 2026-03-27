@@ -355,7 +355,9 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
                        timing_flexibility, emotional_context, voice_transcript, inferred_tags,
                        emotional_tone, priority_score, raw_input, input_method, nlp_confidence,
                        version, parent_profile_id, ai_summary, vision_checklist,
-                       parent_lead_id
+                       parent_lead_id,
+                       min_sqft, max_sqft, min_year_built, max_year_built,
+                       min_garage_spaces, max_maintenance_fee, min_lot_size_sqft, max_days_on_market
                 FROM buyer_profiles WHERE id = %s
                 """,
                 (profile_id,),
@@ -415,6 +417,14 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
         "aiSummary": row.get("ai_summary"),
         "visionChecklist": cj(row.get("vision_checklist")),
         "parent_lead_id": row.get("parent_lead_id"),
+        "minSqft": row.get("min_sqft"),
+        "maxSqft": row.get("max_sqft"),
+        "minYearBuilt": row.get("min_year_built"),
+        "maxYearBuilt": row.get("max_year_built"),
+        "minGarageSpaces": row.get("min_garage_spaces"),
+        "maxMaintenanceFee": row.get("max_maintenance_fee"),
+        "minLotSizeSqft": row.get("min_lot_size_sqft"),
+        "maxDaysOnMarket": row.get("max_days_on_market"),
     }
 
 

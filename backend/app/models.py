@@ -63,6 +63,18 @@ class BuyerProfileBase(BaseModel):
     workAddress: Optional[str] = None
     maxCommuteMins: Optional[int] = None
 
+    # Sqft / year built
+    minSqft: Optional[int] = None
+    maxSqft: Optional[int] = None
+    minYearBuilt: Optional[int] = None
+    maxYearBuilt: Optional[int] = None
+
+    # Wave 2: garage, lot, HOA, freshness
+    minGarageSpaces: Optional[int] = None
+    maxMaintenanceFee: Optional[int] = None
+    minLotSizeSqft: Optional[int] = None
+    maxDaysOnMarket: Optional[int] = None
+
 
 class BuyerProfileCreate(BuyerProfileBase):
     pass
@@ -118,6 +130,16 @@ class BuyerProfileUpdate(BaseModel):
     # Commute fields
     workAddress: Optional[str] = None
     maxCommuteMins: Optional[int] = None
+    # Sqft / year built
+    minSqft: Optional[int] = None
+    maxSqft: Optional[int] = None
+    minYearBuilt: Optional[int] = None
+    maxYearBuilt: Optional[int] = None
+    # Wave 2: garage, lot, HOA, freshness
+    minGarageSpaces: Optional[int] = None
+    maxMaintenanceFee: Optional[int] = None
+    minLotSizeSqft: Optional[int] = None
+    maxDaysOnMarket: Optional[int] = None
 
 
 class BuyerProfile(BuyerProfileBase):

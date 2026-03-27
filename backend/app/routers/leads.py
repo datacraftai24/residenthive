@@ -590,6 +590,14 @@ EXTRACT (return null if not stated):
 - bedrooms: Number if stated (recognize: beds, bed, bedrooms, bedroom, br, "3 bed", "3br", listing_context.beds)
 - bathrooms: Number or string if stated (recognize: baths, bath, bathrooms, bathroom, ba, "2 bath", "2.5ba", listing_context.baths)
 - homeType: Property type if mentioned (condo, townhouse, single family, etc.)
+- minSqft: Minimum square footage if stated ("at least 1500 sqft" → 1500, "spacious" → 1800). Number or null.
+- maxSqft: Maximum square footage if stated ("under 2000 sqft" → 2000). Number or null.
+- minYearBuilt: Minimum year built if stated ("newer construction" → 2000, "built after 1990" → 1990, "modern" → 2010). Number or null.
+- maxYearBuilt: Maximum year built if stated ("historic" → 1940, "Victorian" → 1940). Number or null.
+- minGarageSpaces: Garage requirement ("must have garage" → 1, "2-car garage" → 2). Number or null.
+- minLotSizeSqft: Lot size minimum ("half acre" → 21780, "big yard" → 10000, "1 acre" → 43560). Number or null.
+- maxMaintenanceFee: HOA/maintenance fee cap ("HOA under $500" → 500, "no HOA" → 0). Number or null.
+- maxDaysOnMarket: Listing freshness ("only new listings" → 14, "recent listings" → 30). Number or null.
 - timeline: Timeline if mentioned ("this weekend", "ASAP", "next month")
 - hints: Verbatim phrases from input signaling preferences (e.g., "good schools", "quiet area")
 
@@ -635,6 +643,14 @@ OUTPUT JSON ONLY (no markdown, no explanation):
     "bedrooms": "number or null",
     "bathrooms": "string or null",
     "homeType": "string or null",
+    "minSqft": "number or null",
+    "maxSqft": "number or null",
+    "minYearBuilt": "number or null",
+    "maxYearBuilt": "number or null",
+    "minGarageSpaces": "number or null",
+    "minLotSizeSqft": "number or null",
+    "maxMaintenanceFee": "number or null",
+    "maxDaysOnMarket": "number or null",
     "timeline": "string or null",
     "hints": ["array of strings"]
   }},
@@ -702,6 +718,14 @@ EXTRACT (return null if not stated):
 - bedrooms: Number if stated (recognize: beds, bed, bedrooms, bedroom, br, "3 bed", "3br", listing_context.beds)
 - bathrooms: Number or string if stated (recognize: baths, bath, bathrooms, bathroom, ba, "2 bath", "2.5ba", listing_context.baths)
 - homeType: Property type if mentioned (condo, townhouse, etc.)
+- minSqft: Minimum square footage if stated ("at least 1500 sqft" → 1500, "spacious" → 1800). Number or null.
+- maxSqft: Maximum square footage if stated ("under 2000 sqft" → 2000). Number or null.
+- minYearBuilt: Minimum year built if stated ("newer construction" → 2000, "built after 1990" → 1990, "modern" → 2010). Number or null.
+- maxYearBuilt: Maximum year built if stated ("historic" → 1940, "Victorian" → 1940). Number or null.
+- minGarageSpaces: Garage requirement ("must have garage" → 1, "2-car garage" → 2). Number or null.
+- minLotSizeSqft: Lot size minimum ("half acre" → 21780, "big yard" → 10000, "1 acre" → 43560). Number or null.
+- maxMaintenanceFee: HOA/maintenance fee cap ("HOA under $500" → 500, "no HOA" → 0). Number or null.
+- maxDaysOnMarket: Listing freshness ("only new listings" → 14, "recent listings" → 30). Number or null.
 - timeline: Timeline if mentioned ("this weekend", "ASAP", "next month")
 - hints: Verbatim phrases from input signaling preferences (e.g., "good schools", "quiet area")
 - isPropertyOfInterest: true/false — is the MLS property above actually what the lead wants?
@@ -749,6 +773,14 @@ OUTPUT JSON ONLY (no markdown, no explanation):
     "bedrooms": "number or null",
     "bathrooms": "string or null",
     "homeType": "string or null",
+    "minSqft": "number or null",
+    "maxSqft": "number or null",
+    "minYearBuilt": "number or null",
+    "maxYearBuilt": "number or null",
+    "minGarageSpaces": "number or null",
+    "minLotSizeSqft": "number or null",
+    "maxMaintenanceFee": "number or null",
+    "maxDaysOnMarket": "number or null",
     "timeline": "string or null",
     "hints": ["array of strings"],
     "isPropertyOfInterest": "boolean",
@@ -1300,7 +1332,8 @@ def process_lead(
                     property_listing_id, property_list_price,
                     property_bedrooms, property_bathrooms,
                     property_sqft, property_image_url, property_raw,
-                    raw_input, raw_input_normalized
+                    raw_input, raw_input_normalized,
+                    extracted_json
                 ) VALUES (
                     %s, 'classified',
                     %s, %s, %s, %s,
@@ -1318,7 +1351,8 @@ def process_lead(
                     %s, %s,
                     %s, %s,
                     %s, %s, %s,
-                    %s, %s
+                    %s, %s,
+                    %s
                 )
                 RETURNING *
             """, (
@@ -1344,7 +1378,8 @@ def process_lead(
                 property_details.get("sqft") if property_details else None,
                 property_details.get("primaryImage") if property_details else None,
                 json.dumps(property_details, cls=DecimalEncoder) if property_details else None,
-                request.rawText, normalized_input
+                request.rawText, normalized_input,
+                json.dumps(extracted, cls=DecimalEncoder)
             ))
             row = fetchone_dict(cur)
 
@@ -1360,6 +1395,16 @@ def _parse_json_field(value):
     if isinstance(value, str):
         return json.loads(value)
     return value
+
+
+def _safe_int(value):
+    """Convert value to int, returning None if not possible."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def _build_response_from_row(row) -> LeadExtractionResponse:
@@ -2106,12 +2151,56 @@ async def generate_lead_outreach(
         lead_context["allHints"] = hints
         logger.info(f"[OUTREACH] Hints: safe={safe_hints}, sensitive={sensitive_hints}")
 
+    # Score listings with fit chips before synthesis
+    # This attaches fit_chips, fit_score, hard_count, soft_count to each listing
+    # so the LLM can reference trade-offs in the narrative.
+    try:
+        from ..services.buyer_ranking import compute_fit_score
+        for listing in top_5_listings:
+            # Build a normalized listing dict for the scorer
+            scorer_listing = {
+                "bedrooms": listing.get("bedrooms"),
+                "bathrooms": listing.get("bathrooms"),
+                "price": listing.get("listPrice"),
+                "property_type": listing.get("propertyType"),
+                "square_feet": listing.get("sqft"),
+                "year_built": listing.get("yearBuilt"),
+                "city": listing.get("city"),
+                "days_on_market": listing.get("daysOnMarket"),
+                "garage_spaces": listing.get("garage_spaces") or (listing.get("_raw") or {}).get("details", {}).get("numGarageSpaces"),
+                "hoa_fee": listing.get("hoa_fee") or (listing.get("_raw") or {}).get("details", {}).get("maintenanceFee"),
+                "lot_size": listing.get("lotSize") or (listing.get("_raw") or {}).get("details", {}).get("lotSize"),
+                "description": listing.get("description") or listing.get("remarks") or "",
+            }
+            fit_result = compute_fit_score(scorer_listing, profile_data)
+            listing["fit_chips"] = fit_result["chips"]
+            listing["fit_score"] = fit_result["fit_score"]
+        logger.info(f"[OUTREACH] Fit chips computed for {len(top_5_listings)} listings")
+
+        # Sort by fit_score descending — deterministic ranking
+        top_5_listings.sort(key=lambda l: l.get("fit_score", 0), reverse=True)
+        logger.info(f"[OUTREACH] Deterministic ranking: {[(l.get('mlsNumber'), l.get('fit_score', 0)) for l in top_5_listings]}")
+    except Exception as e:
+        logger.warning(f"[OUTREACH] Fit chip scoring failed (non-fatal): {e}")
+
     # Generate synthesis
     try:
         synthesis = generate_report_synthesis(profile_data, top_5_listings, lead_context=lead_context)
     except Exception as e:
         logger.error(f"[OUTREACH] Synthesis generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate report synthesis: {str(e)}")
+
+    # Reorder top_5_ids and top_5_listings by ranked_picks (LLM's final order)
+    ranked_mls_order = [p["mlsNumber"] for p in synthesis.get("ranked_picks", [])]
+    if ranked_mls_order:
+        listings_by_mls = {l["mlsNumber"]: l for l in top_5_listings}
+        reordered = [listings_by_mls[mls] for mls in ranked_mls_order if mls in listings_by_mls]
+        # Append any listings not in ranked_picks (shouldn't happen, but safe)
+        seen = set(ranked_mls_order)
+        reordered.extend(l for l in top_5_listings if l["mlsNumber"] not in seen)
+        top_5_listings = reordered
+        top_5_ids = [l["mlsNumber"] for l in top_5_listings]
+        logger.info(f"[OUTREACH] Reordered by ranked_picks: {top_5_ids}")
 
     # Persist listing snapshots for database fallback
     listing_snapshots = []
@@ -2131,6 +2220,9 @@ async def generate_lead_outreach(
             "aiAnalysis": listing.get("aiAnalysis", {}),
             # Include original lead analysis for rich frontend rendering
             "leadAnalysis": listing.get("leadAnalysis"),
+            # Fit scoring data for frontend chips
+            "fit_chips": listing.get("fit_chips", []),
+            "fit_score": listing.get("fit_score"),
             # MLS details for Property Details tab
             "remarks": listing.get("description") or listing.get("remarks"),
             "yearBuilt": listing.get("yearBuilt"),
@@ -2141,6 +2233,34 @@ async def generate_lead_outreach(
         listing_snapshots.append(snapshot)
     synthesis["listing_snapshots"] = listing_snapshots
     synthesis["lead_context"] = lead_context  # Persist for email template
+
+    # Build buyer requirements headline for frontend display
+    headline_parts = []
+    if profile_data.get("bedrooms"):
+        headline_parts.append(f"{profile_data['bedrooms']}+ bed")
+    if profile_data.get("homeType"):
+        headline_parts.append(profile_data["homeType"])
+    if profile_data.get("location"):
+        headline_parts.append(f"in {profile_data['location']}")
+    budget_parts = []
+    if profile_data.get("budgetMin"):
+        budget_parts.append(f"${int(profile_data['budgetMin']):,}")
+    if profile_data.get("budgetMax"):
+        budget_parts.append(f"${int(profile_data['budgetMax']):,}")
+    if budget_parts:
+        headline_parts.append("\u2013".join(budget_parts))
+    if profile_data.get("minSqft"):
+        headline_parts.append(f"{int(profile_data['minSqft']):,}+ sqft")
+    if profile_data.get("minGarageSpaces"):
+        headline_parts.append(f"{profile_data['minGarageSpaces']}-car garage")
+    if profile_data.get("maxMaintenanceFee") is not None and str(profile_data.get("maxMaintenanceFee", "")).strip() != "":
+        try:
+            if int(profile_data["maxMaintenanceFee"]) == 0:
+                headline_parts.append("no HOA")
+        except (ValueError, TypeError):
+            pass
+    if headline_parts:
+        synthesis["buyer_requirements_headline"] = " \u00b7 ".join(headline_parts)
 
     # Get agent info - handle empty first_name/last_name gracefully
     agent_name = None
@@ -2342,6 +2462,49 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
     hints = _parse_json_field(lead_row.get("hints")) or []
     nice_to_haves = json.dumps(hints) if hints else "[]"
 
+    # Read structured fields from extracted_json (LLM extraction stored at lead creation)
+    ext = _parse_json_field(lead_row.get("extracted_json")) or {}
+
+    min_sqft = _safe_int(ext.get("minSqft"))
+    max_sqft = _safe_int(ext.get("maxSqft"))
+    min_year_built = _safe_int(ext.get("minYearBuilt"))
+    max_year_built = _safe_int(ext.get("maxYearBuilt"))
+    min_garage_spaces = _safe_int(ext.get("minGarageSpaces"))
+    max_maintenance_fee = _safe_int(ext.get("maxMaintenanceFee"))
+    min_lot_size_sqft = _safe_int(ext.get("minLotSizeSqft"))
+    max_days_on_market = _safe_int(ext.get("maxDaysOnMarket"))
+
+    # Additional fields from extraction
+    nice_to_haves_ext = ext.get("niceToHaves") or ext.get("nice_to_haves")
+    dealbreakers = ext.get("dealbreakers")
+    must_have_features = ext.get("mustHaveFeatures")
+    preferred_areas = ext.get("preferredAreas")
+    lifestyle_drivers = ext.get("lifestyleDrivers")
+    budget_flexibility = _safe_int(ext.get("budgetFlexibility"))
+    location_flexibility = _safe_int(ext.get("locationFlexibility"))
+    timing_flexibility = _safe_int(ext.get("timingFlexibility"))
+    emotional_context = ext.get("emotionalContext")
+
+    # Override nice_to_haves with extraction if available
+    if nice_to_haves_ext and isinstance(nice_to_haves_ext, list) and len(nice_to_haves_ext) > 0:
+        nice_to_haves = json.dumps(nice_to_haves_ext)
+
+    # Infer sqft from property data if not extracted
+    property_raw = _parse_json_field(lead_row.get("property_raw"))
+    if not min_sqft and property_raw and isinstance(property_raw, dict):
+        prop_sqft = property_raw.get("sqft") or property_raw.get("square_feet") or property_raw.get("livingAreaSqFt")
+        if prop_sqft:
+            try:
+                min_sqft = int(float(prop_sqft) * 0.8)  # 80% of property sqft as minimum
+            except (ValueError, TypeError):
+                pass
+
+    # Infer homeType from property if not extracted
+    if not lead_row.get("extracted_home_type") and property_raw and isinstance(property_raw, dict) and property_raw.get("propertyType"):
+        extracted_home_type = property_raw["propertyType"]
+    else:
+        extracted_home_type = lead_row.get("extracted_home_type") or ""
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             try:
@@ -2352,7 +2515,13 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                         home_type, bedrooms, bathrooms,
                         raw_input, input_method,
                         agent_id, parent_lead_id, created_by_method,
-                        nice_to_haves,
+                        nice_to_haves, dealbreakers, must_have_features,
+                        preferred_areas, lifestyle_drivers,
+                        budget_flexibility, location_flexibility, timing_flexibility,
+                        emotional_context,
+                        min_sqft, max_sqft, min_year_built, max_year_built,
+                        min_garage_spaces, max_maintenance_fee,
+                        min_lot_size_sqft, max_days_on_market,
                         created_at
                     ) VALUES (
                         %s, %s, %s, %s,
@@ -2360,7 +2529,13 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                         %s, %s, %s,
                         %s, 'lead',
                         %s, %s, 'lead',
+                        %s, %s, %s,
+                        %s, %s,
+                        %s, %s, %s,
                         %s,
+                        %s, %s, %s, %s,
+                        %s, %s,
+                        %s, %s,
                         NOW()
                     )
                     RETURNING id
@@ -2372,13 +2547,24 @@ def _convert_lead_to_profile_internal(lead_id: int, agent_id: int, lead_row: dic
                     budget_str,
                     budget_min,
                     budget_max,
-                    lead_row.get("extracted_home_type") or "",
+                    extracted_home_type,
                     bedrooms,
                     bathrooms,
                     lead_row.get("raw_input"),
                     agent_id,
                     lead_id,
-                    nice_to_haves
+                    nice_to_haves,
+                    json.dumps(dealbreakers) if dealbreakers else '[]',
+                    json.dumps(must_have_features) if must_have_features else '[]',
+                    json.dumps(preferred_areas) if preferred_areas else '[]',
+                    json.dumps(lifestyle_drivers) if lifestyle_drivers else '[]',
+                    budget_flexibility or 50,
+                    location_flexibility or 50,
+                    timing_flexibility or 50,
+                    emotional_context,
+                    min_sqft, max_sqft, min_year_built, max_year_built,
+                    min_garage_spaces, max_maintenance_fee,
+                    min_lot_size_sqft, max_days_on_market,
                 ))
                 profile_result = fetchone_dict(cur)
                 profile_id = profile_result["id"]

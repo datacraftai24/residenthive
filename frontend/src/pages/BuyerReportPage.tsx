@@ -97,6 +97,12 @@ interface Synthesis {
   category_winners?: CategoryWinners;
   lead_context?: LeadContext;
   rich_comparison?: RichComparison;
+  buyer_requirements_headline?: string;
+}
+
+interface FitChip {
+  label: string;
+  type: 'positive' | 'hard' | 'soft';
 }
 
 interface Listing {
@@ -115,6 +121,8 @@ interface Listing {
   location_summary?: string;
   propertyUrl?: string;
   fitScore?: number;
+  fit_score?: number;
+  fit_chips?: FitChip[];
   // Additional MLS fields
   yearBuilt?: number;
   lotSize?: number;
@@ -390,11 +398,14 @@ export function BuyerReportPage() {
                 Your Property Matches
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {report.listings.slice(0, 8).map((listing, idx) => (
+                {report.listings.slice(0, 8).map((listing, idx) => {
+                  const pick = report.synthesis?.ranked_picks?.find(p => p.mlsNumber === listing.mlsNumber);
+                  return (
                   <div key={listing.mlsNumber} className="flex flex-col">
                     <PropertyCard
                       listing={listing}
                       rank={idx + 1}
+                      rankWhy={pick?.why}
                       onViewDetails={() => setSelectedListing(listing)}
                     />
                     <Button
@@ -408,7 +419,8 @@ export function BuyerReportPage() {
                       {showingRequested[listing.mlsNumber] ? 'Showing Requested' : 'Request Showing'}
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -495,6 +507,7 @@ export function BuyerReportPage() {
       <PropertyDetailModal
         listing={selectedListing}
         rank={selectedListing ? report.listings.findIndex(l => l.mlsNumber === selectedListing.mlsNumber) + 1 : 0}
+        rankWhy={selectedListing ? report.synthesis?.ranked_picks?.find(p => p.mlsNumber === selectedListing.mlsNumber)?.why : undefined}
         open={!!selectedListing}
         onOpenChange={(open) => !open && setSelectedListing(null)}
         onScheduleShowing={() => {
@@ -505,6 +518,7 @@ export function BuyerReportPage() {
         }}
         shareId={shareId}
         propertyNotes={propertyNotes}
+        fitChips={selectedListing?.fit_chips}
       />
 
       {/* Floating Chat Button */}

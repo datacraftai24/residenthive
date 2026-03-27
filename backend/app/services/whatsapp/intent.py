@@ -238,7 +238,7 @@ AGENT_TOOLS = types.Tool(function_declarations=[
                 "entity_type": types.Schema(type=types.Type.STRING, description="'buyer' or 'lead'."),
                 "changes_description": types.Schema(
                     type=types.Type.STRING,
-                    description="Natural language description of the changes (e.g. 'increase budget to $800K').",
+                    description="Natural language description of the changes (e.g. 'increase budget to $800K', 'min sqft 1500', 'newer construction only').",
                 ),
             },
             required=["entity_id", "entity_type", "changes_description"],
@@ -381,7 +381,7 @@ TOOL TRIGGERS (when to call each tool):
 - resolve_entity → agent mentions a person by name/code AND no active entity is set
 - select_entity → ALWAYS call this after disambiguation. When agent picks from a list (e.g., "2" or "the lead one"), call select_entity with that entity's id/type/name/code. This locks in the active entity for the rest of the conversation. Then ask your follow-up question.
 - process_new_lead → message contains a name AND (email OR phone) AND property preferences
-- update_entity → agent asks to change/update/add something, OR provides a value you asked for (budget, email, location). Use the active entity.
+- update_entity → agent asks to change/update/add something, OR provides a value you asked for (budget, email, location, sqft, year built, garage, lot size, HOA, listing freshness). Use the active entity. Editable fields include: budget, location, bedrooms, bathrooms, homeType, mustHaveFeatures, dealbreakers, minSqft, maxSqft, minYearBuilt, maxYearBuilt, minGarageSpaces, maxMaintenanceFee, minLotSizeSqft, maxDaysOnMarket.
 - search_properties → agent says search/find/look but NOT report. MUST have an active entity.
 - search_and_report → agent says "report for X", "send report to X", "search and report", "run report", or any request that implies both search and report generation. This is a compound tool — ONE call does search + report.
 - generate_report → agent says "report" or "generate report" AFTER a search has already been done (search_id exists).
@@ -406,6 +406,10 @@ STRICT CONSTRAINTS:
 - NEVER loop calling the same tool with the same args — if you already got a result, use it
 - Max 2 tool calls per turn for simple requests. Only chain 3+ for explicit multi-step asks.
 - Prefer search_and_report over separate search_properties + generate_report when agent wants a report.
+
+SMART PROMPTS:
+- After creating a buyer profile, if homeType is "any" or empty, ask: "What type of home? (condo, single-family, townhouse, any)"
+- After creating a buyer, if minSqft/minYearBuilt are not set but the buyer mentioned preferences, suggest adding them.
 
 TONE: You are texting on WhatsApp. Be conversational, use plain language, not corporate speak. Use *bold* for names and key info."""
 

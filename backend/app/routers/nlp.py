@@ -436,6 +436,58 @@ Summarize the buyer's emotional state in ONE sentence:
 Example: "Excited about finding a yard for kids but nervous about busy streets and major renovation projects."
 
 ---------------------------------------------------
+SQUARE FOOTAGE
+---------------------------------------------------
+Extract sqft requirements:
+• "at least 1500 sqft" → minSqft: 1500
+• "1500-2000 sqft" → minSqft: 1500, maxSqft: 2000
+• "spacious" / "large home" → minSqft: 1800
+• "not too big" / "cozy" → maxSqft: 1500
+
+---------------------------------------------------
+GARAGE / PARKING
+---------------------------------------------------
+Extract garage requirements:
+• "must have garage" / "garage required" → minGarageSpaces: 1
+• "2-car garage" → minGarageSpaces: 2
+• "3-car garage" → minGarageSpaces: 3
+
+---------------------------------------------------
+LOT SIZE
+---------------------------------------------------
+Extract lot size requirements:
+• "at least half acre" / "half acre lot" → minLotSizeSqft: 21780
+• "big yard" / "large lot" → minLotSizeSqft: 10000
+• "quarter acre" → minLotSizeSqft: 10890
+• "1 acre" / "acre lot" → minLotSizeSqft: 43560
+
+---------------------------------------------------
+HOA / MAINTENANCE FEE
+---------------------------------------------------
+Extract HOA/maintenance fee limits:
+• "HOA under $500" / "low HOA" → maxMaintenanceFee: 500
+• "no HOA" / "HOA-free" → maxMaintenanceFee: 0
+• "condo fees under $300" → maxMaintenanceFee: 300
+
+---------------------------------------------------
+LISTING FRESHNESS
+---------------------------------------------------
+Extract days on market preferences:
+• "only new listings" / "just listed" → maxDaysOnMarket: 14
+• "recent listings" → maxDaysOnMarket: 30
+• "motivated sellers" / "price reduced" → (do NOT set maxDaysOnMarket, capture as hint instead)
+
+---------------------------------------------------
+YEAR BUILT
+---------------------------------------------------
+Extract construction age preferences:
+• "newer construction" / "new build" → minYearBuilt: 2000
+• "built after 1990" → minYearBuilt: 1990
+• "modern" → minYearBuilt: 2010
+• "historic" / "Victorian" / "character home" → maxYearBuilt: 1940
+• "no old homes" → minYearBuilt: 1970
+
+---------------------------------------------------
 ORDERING OF FEATURES
 ---------------------------------------------------
 • mustHaveFeatures: order strongest → weakest
@@ -460,6 +512,14 @@ OUTPUT FORMAT — RETURN ONLY JSON
   "budgetFlexibility": ...,
   "locationFlexibility": ...,
   "timelineFlexibility": ...,
+  "minSqft": ...,
+  "maxSqft": ...,
+  "minYearBuilt": ...,
+  "maxYearBuilt": ...,
+  "minGarageSpaces": ...,
+  "minLotSizeSqft": ...,
+  "maxMaintenanceFee": ...,
+  "maxDaysOnMarket": ...,
   "mustHaveFeatures": [...],
   "niceToHaves": [...],
   "lifestyleDrivers": [...],
@@ -533,6 +593,14 @@ Extract from this text:
             "inferredTags": [],
             "emotionalTone": None,
             "priorityScore": 50,
+            "minSqft": extracted.get("minSqft"),
+            "maxSqft": extracted.get("maxSqft"),
+            "minYearBuilt": extracted.get("minYearBuilt"),
+            "maxYearBuilt": extracted.get("maxYearBuilt"),
+            "minGarageSpaces": extracted.get("minGarageSpaces"),
+            "minLotSizeSqft": extracted.get("minLotSizeSqft"),
+            "maxMaintenanceFee": extracted.get("maxMaintenanceFee"),
+            "maxDaysOnMarket": extracted.get("maxDaysOnMarket"),
         }
 
         # Generate AI insights using the extracted profile
@@ -604,6 +672,14 @@ Extract from this text:
                 "inferredTags": [],
                 "emotionalTone": None,
                 "priorityScore": 50,
+                "minSqft": None,
+                "maxSqft": None,
+                "minYearBuilt": None,
+                "maxYearBuilt": None,
+                "minGarageSpaces": None,
+                "minLotSizeSqft": None,
+                "maxMaintenanceFee": None,
+                "maxDaysOnMarket": None,
             }
         else:
             # Retry once

@@ -841,12 +841,14 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
     })
 
     # 5. Size + Price/sqft (always show)
+    buyer_min_sqft = safe_int(profile.get("minSqft") or profile.get("min_sqft"), 0)
     rows.append({
         "id": "size",
         "label": "Size",
         "icon": "maximize",
         "type": "number",
         "best_is": "highest",
+        "buyer_min": f"{buyer_min_sqft:,} sqft" if buyer_min_sqft else None,
         "values": {
             l.get("mlsNumber"): {
                 "value": safe_int(l.get("sqft"), 0),
@@ -854,6 +856,11 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
                 "subtext": (
                     f"${int(safe_float(l.get('listPrice', 0)) / safe_float(l.get('sqft', 1))):,}/sqft"
                     if safe_float(l.get("sqft"), 0) > 0
+                    else None
+                ),
+                "flag": (
+                    "warning"
+                    if buyer_min_sqft and safe_int(l.get("sqft"), 0) > 0 and safe_int(l.get("sqft"), 0) < buyer_min_sqft
                     else None
                 ),
                 "is_best": False
@@ -985,6 +992,7 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
         })
 
     # 9. Year Built (show if data exists)
+    buyer_min_year = safe_int(profile.get("minYearBuilt") or profile.get("min_year_built"), 0)
     has_year_data = any(l.get("yearBuilt") for l in listings)
     if has_year_data:
         rows.append({
@@ -994,10 +1002,16 @@ def compute_rich_comparison(profile: Dict[str, Any], listings: List[Dict[str, An
             "type": "number",
             "best_is": "highest",  # Newer is better
             "buyer_priority": "year_built" in hint_rows,
+            "buyer_min": str(buyer_min_year) if buyer_min_year else None,
             "values": {
                 l.get("mlsNumber"): {
                     "value": safe_int(l.get("yearBuilt"), 0),
                     "display": str(l.get("yearBuilt", "Unknown")),
+                    "flag": (
+                        "warning"
+                        if buyer_min_year and safe_int(l.get("yearBuilt"), 0) > 0 and safe_int(l.get("yearBuilt"), 0) < buyer_min_year
+                        else None
+                    ),
                     "is_best": False
                 }
                 for l in listings

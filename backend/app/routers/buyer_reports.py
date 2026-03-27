@@ -206,6 +206,11 @@ def get_buyer_report(share_id: str):
                         listing['garageSpaces'] = snapshot['garageSpaces']
                     if not listing.get('daysOnMarket') and snapshot.get('daysOnMarket'):
                         listing['daysOnMarket'] = snapshot['daysOnMarket']
+                    # Merge fit scoring data from snapshots
+                    if not listing.get('fit_chips') and snapshot.get('fit_chips'):
+                        listing['fit_chips'] = snapshot['fit_chips']
+                    if listing.get('fit_score') is None and snapshot.get('fit_score') is not None:
+                        listing['fit_score'] = snapshot['fit_score']
 
     else:
         # DATABASE FALLBACK: Search context expired, use persisted snapshots
@@ -431,6 +436,17 @@ def create_buyer_report(
     except Exception as e:
         print(f"[BUYER REPORT] Synthesis generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate report synthesis: {str(e)}")
+
+    # Reorder top_5_listings and top_5_ids by ranked_picks (LLM's final order)
+    ranked_mls_order = [p["mlsNumber"] for p in synthesis.get("ranked_picks", [])]
+    if ranked_mls_order:
+        listings_by_mls = {l["mlsNumber"]: l for l in top_5_listings}
+        reordered = [listings_by_mls[mls] for mls in ranked_mls_order if mls in listings_by_mls]
+        seen = set(ranked_mls_order)
+        reordered.extend(l for l in top_5_listings if l["mlsNumber"] not in seen)
+        top_5_listings = reordered
+        top_5_ids = [l["mlsNumber"] for l in top_5_listings]
+        print(f"[BUYER REPORT] Reordered by ranked_picks: {top_5_ids}")
 
     # PERSIST ANALYSIS SNAPSHOT: Freeze all analysis into synthesis_data
     # This ensures property detail pages work even after search context expires
