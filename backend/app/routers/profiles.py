@@ -353,6 +353,14 @@ def create_profile(profile: BuyerProfileCreate, agent_id: int = Depends(get_curr
             "created_at" if k == "createdAt" else
             "work_address" if k == "workAddress" else
             "max_commute_mins" if k == "maxCommuteMins" else
+            "min_sqft" if k == "minSqft" else
+            "max_sqft" if k == "maxSqft" else
+            "min_year_built" if k == "minYearBuilt" else
+            "max_year_built" if k == "maxYearBuilt" else
+            "min_garage_spaces" if k == "minGarageSpaces" else
+            "max_maintenance_fee" if k == "maxMaintenanceFee" else
+            "min_lot_size_sqft" if k == "minLotSizeSqft" else
+            "max_days_on_market" if k == "maxDaysOnMarket" else
             k
         )
         columns.append(col)
@@ -445,6 +453,14 @@ def update_profile(profile_id: int, updates: BuyerProfileUpdate, agent_id: int =
             "parent_profile_id" if k == "parentProfileId" else
             "work_address" if k == "workAddress" else
             "max_commute_mins" if k == "maxCommuteMins" else
+            "min_sqft" if k == "minSqft" else
+            "max_sqft" if k == "maxSqft" else
+            "min_year_built" if k == "minYearBuilt" else
+            "max_year_built" if k == "maxYearBuilt" else
+            "min_garage_spaces" if k == "minGarageSpaces" else
+            "max_maintenance_fee" if k == "maxMaintenanceFee" else
+            "min_lot_size_sqft" if k == "minLotSizeSqft" else
+            "max_days_on_market" if k == "maxDaysOnMarket" else
             k
         )
         sets.append(f"{col} = %s")

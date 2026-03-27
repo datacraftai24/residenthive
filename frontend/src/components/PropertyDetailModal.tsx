@@ -119,24 +119,33 @@ interface PropertyNote {
   updatedAt?: string;
 }
 
+interface FitChip {
+  label: string;
+  type: 'positive' | 'hard' | 'soft';
+}
+
 interface PropertyDetailModalProps {
   listing: Listing | null;
   rank: number;
+  rankWhy?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onScheduleShowing: () => void;
   shareId?: string;
   propertyNotes?: PropertyNote[];
+  fitChips?: FitChip[];
 }
 
 export function PropertyDetailModal({
   listing,
   rank,
+  rankWhy,
   open,
   onOpenChange,
   onScheduleShowing,
   shareId,
-  propertyNotes = []
+  propertyNotes = [],
+  fitChips
 }: PropertyDetailModalProps) {
   const [imageIndex, setImageIndex] = useState(0);
   const images = listing?.images || [];
@@ -232,6 +241,43 @@ export function PropertyDetailModal({
             </span>
           </div>
         </div>
+
+        {/* Fit Analysis Section */}
+        {((fitChips && fitChips.length > 0) || rankWhy) && (
+          <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden divide-y divide-gray-200">
+            {/* How This Property Stacks Up — Fit Chips */}
+            {fitChips && fitChips.length > 0 && (
+              <div className="px-4 py-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">How This Property Stacks Up</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {fitChips.map((chip, i) => (
+                    <span
+                      key={i}
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                        chip.type === 'positive'
+                          ? 'bg-green-100 text-green-800'
+                          : chip.type === 'hard'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {chip.type === 'positive' ? '\u2705 ' : chip.type === 'hard' ? '\u274C ' : '\u26A0\uFE0F '}
+                      {chip.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Agent's Take */}
+            {rankWhy && (
+              <div className="px-4 py-3 bg-blue-50">
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Agent's Take</p>
+                <p className="text-sm text-blue-900 leading-relaxed">{rankWhy}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabbed Content */}
         <Tabs defaultValue="analysis" className="mt-4">

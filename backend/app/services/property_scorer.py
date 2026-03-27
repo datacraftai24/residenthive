@@ -124,6 +124,53 @@ class PropertyScorer:
             except (ValueError, TypeError):
                 pass
 
+        # Hard Filter 3: Square footage WAY below minimum (50% threshold)
+        # Soft misses (e.g., 1400 vs 1500 min) are handled by buyer_ranking scoring.
+        # Only hard-reject extreme misses like a 500 sqft trailer vs 1500 min.
+        min_sqft = profile.get("minSqft")
+        if min_sqft:
+            listing_sqft = listing.get("square_feet") or listing.get("sqft") or 0
+            try:
+                if float(listing_sqft) > 0 and float(listing_sqft) < int(min_sqft) * 0.50:
+                    return True
+            except (ValueError, TypeError):
+                pass
+
+        # Hard Filter 4: Year built FAR below minimum (30+ years)
+        # Soft misses (e.g., 1995 vs 2000 min) are handled by buyer_ranking scoring.
+        # Only hard-reject extreme misses like 1920 vs 2000 min.
+        min_year_built = profile.get("minYearBuilt")
+        if min_year_built:
+            listing_year = listing.get("year_built") or listing.get("yearBuilt") or 0
+            try:
+                if int(listing_year) > 0 and int(listing_year) < int(min_year_built) - 30:
+                    return True
+            except (ValueError, TypeError):
+                pass
+
+        # Hard Filter 5: Dealbreaker property type exclusion
+        dealbreakers = profile.get("dealbreakers") or []
+        if dealbreakers:
+            property_type = str(listing.get("property_type") or listing.get("propertyType") or "").lower()
+            if property_type:
+                dealbreaker_text = " ".join(d.lower() for d in dealbreakers)
+                if "no condo" in dealbreaker_text and ("condo" in property_type or "condominium" in property_type):
+                    return True
+                if "no townhouse" in dealbreaker_text and ("townhouse" in property_type or "attached" in property_type):
+                    return True
+                if "no multi" in dealbreaker_text and ("multi" in property_type or "duplex" in property_type):
+                    return True
+
+            # Also scan listing description for dealbreaker keywords
+            desc = (listing.get("description") or "").lower()[:500]
+            if desc:
+                if ("no flood" in dealbreaker_text or "flood zone" in dealbreaker_text) and ("flood zone" in desc or "fema" in desc):
+                    return True
+                if "no hoa" in dealbreaker_text and ("hoa" in desc or "association fee" in desc or "homeowner association" in desc):
+                    return True
+                if "no basement" in dealbreaker_text and "basement" in desc and "no basement" not in desc:
+                    return True
+
         return False
 
     def _score_budget(self, listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, Any]:

@@ -109,6 +109,12 @@ class RepliersClient:
             q["long"] = str(profile["long"])
             if profile.get("radius"):
                 q["radius"] = int(profile["radius"])
+        # NOTE: Secondary filters (sqft, yearBuilt, garage, lot, HOA, DOM, amenities)
+        # are intentionally NOT sent to Repliers. We cast a broad net at the API level
+        # (location, price, beds, baths, type) and let the scoring layer in
+        # buyer_ranking.py + property_scorer.py curate results with trade-off chips.
+        # This prevents near-miss properties from being hidden (e.g., 1,450 sqft
+        # when buyer wants 1,500).
         # Note: preferredAreas is NOT used for Repliers search - only location field matters
         return q
 
@@ -161,11 +167,26 @@ class RepliersClient:
 
         # Filter out non-habitable property types (Land, Commercial, etc.)
         # Repliers returns these under class=residential but they're not homes
-        EXCLUDED_TYPES = {"land", "vacant land", "lots and land", "commercial"}
-        filtered = [
-            l for l in normalized
-            if (l.get("property_type") or "").strip().lower() not in EXCLUDED_TYPES
-        ]
+        EXCLUDED_TYPES = {"land", "vacant land", "lots and land", "commercial",
+                          "mobile", "mobile home", "manufactured", "trailer"}
+        # Also check style field (Repliers uses style for property subtype)
+        EXCLUDED_STYLES = {"mobile/trailer", "mobile home", "manufactured"}
+        # Description keywords that indicate non-standard housing
+        EXCLUDED_DESC_KEYWORDS = ["trailer in trailer park", "trailer park community",
+                                  "mobile home park", "manufactured home community"]
+        filtered = []
+        for l in normalized:
+            ptype = (l.get("property_type") or "").strip().lower()
+            raw = l.get("_raw") or {}
+            style = (raw.get("details", {}).get("style") or raw.get("style") or "").strip().lower()
+            desc = (l.get("description") or "").lower()[:300]  # Check first 300 chars
+            if ptype in EXCLUDED_TYPES:
+                continue
+            if style in EXCLUDED_STYLES:
+                continue
+            if any(kw in desc for kw in EXCLUDED_DESC_KEYWORDS):
+                continue
+            filtered.append(l)
         if len(filtered) < len(normalized):
             excluded_count = len(normalized) - len(filtered)
             print(f"[REPLIERS] Filtered out {excluded_count} non-habitable listings (Land/Commercial)")
@@ -332,6 +353,20 @@ class RepliersClient:
         seen = set()
         special_flags = [f for f in special_flags if not (f in seen or seen.add(f))]
 
+        # Garage spaces (top-level for scoring layer)
+        garage_spaces = (
+            details.get("numGarageSpaces")
+            or item.get("garageSpaces")
+            or details.get("garageSpaces")
+        )
+
+        # HOA / maintenance fee (top-level for scoring layer)
+        hoa_fee = (
+            details.get("maintenanceFee")
+            or item.get("maintenanceFee")
+            or details.get("condoFee")
+        )
+
         return {
             "id": item.get("id") or item.get("mlsNumber") or item.get("listingId") or item.get("_id"),
             "mls_number": item.get("mlsNumber") or item.get("mls_id"),
@@ -359,6 +394,8 @@ class RepliersClient:
             "price_trend_direction": price_trend_direction,
             # Additional context
             "lot_acres": lot_acres,
+            "garage_spaces": garage_spaces,
+            "hoa_fee": hoa_fee,
             "special_flags": special_flags,
             "_raw": item,  # Preserve raw API response for quality analysis
         }

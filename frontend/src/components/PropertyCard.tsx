@@ -16,10 +16,11 @@ interface PropertyCardProps {
     fitScore?: number;
   };
   rank: number;
+  rankWhy?: string;
   onViewDetails: () => void;
 }
 
-export function PropertyCard({ listing, rank, onViewDetails }: PropertyCardProps) {
+export function PropertyCard({ listing, rank, rankWhy, onViewDetails }: PropertyCardProps) {
   const rankLabel = rank === 1 ? "TOP PICK" : rank === 2 ? "ALTERNATIVE" : "OPTION";
   const rankColor = rank === 1 ? "bg-green-600" : rank === 2 ? "bg-blue-600" : "bg-gray-600";
 

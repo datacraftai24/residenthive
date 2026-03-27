@@ -56,6 +56,7 @@ import {
   UserCheck,
   ListChecks,
   StickyNote,
+  RefreshCw,
 } from "lucide-react";
 import TaskQueue from "./task-queue";
 import { checkHintsCompliance, hasAnyFHAFlags, generateEmailComplianceNote } from "@/lib/fha-compliance";
@@ -2087,6 +2088,7 @@ export default function LeadIntelTab({ profileId, onLeadConverted }: LeadIntelTa
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isGeneratingOutreach, setIsGeneratingOutreach] = useState(false);
+  const [isRegeneratingReport, setIsRegeneratingReport] = useState(false);
   const [leadStage, setLeadStage] = useState("new");
   const [isQualifying, setIsQualifying] = useState(false);
   const [showQualifyConfirm, setShowQualifyConfirm] = useState(false);
@@ -2201,6 +2203,35 @@ export default function LeadIntelTab({ profileId, onLeadConverted }: LeadIntelTa
       });
     } finally {
       setIsGeneratingOutreach(false);
+    }
+  };
+
+  const handleRegenerateReport = async () => {
+    if (!leadData?.lead?.id) return;
+
+    setIsRegeneratingReport(true);
+    try {
+      const response = await apiRequest("POST", `/api/leads/${leadData.lead.id}/generate-outreach`, {});
+      const data = await response.json();
+
+      toast({
+        title: "Report regenerated!",
+        description: `Updated report with ${data.propertiesIncluded} properties.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: [`/api/buyer-profiles/${profileId}/lead`] });
+
+      if (data.reportUrl) {
+        window.open(data.reportUrl, "_blank");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Regeneration failed",
+        description: error?.message || "Failed to regenerate report",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegeneratingReport(false);
     }
   };
 
@@ -2474,15 +2505,30 @@ export default function LeadIntelTab({ profileId, onLeadConverted }: LeadIntelTa
                   </p>
                 </div>
               </div>
-              {lead.reportShareId && (
+              <div className="flex items-center gap-2">
+                {lead.reportShareId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(`/buyer-report/${lead.reportShareId}`, "_blank")}
+                  >
+                    View Report
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/buyer-report/${lead.reportShareId}`, "_blank")}
+                  onClick={handleRegenerateReport}
+                  disabled={isRegeneratingReport}
                 >
-                  View Report
+                  {isRegeneratingReport ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                  )}
+                  Regenerate
                 </Button>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>

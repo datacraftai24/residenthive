@@ -1024,6 +1024,7 @@ class WhatsAppHandlers:
             profile_data = BuyerProfileCreate(
                 name=extracted.get("name") or "Unknown",
                 email=extracted.get("email") or "placeholder@residenthive.com",
+                phone=extracted.get("phone"),
                 location=extracted.get("location") or "",
                 budget=extracted.get("budget") or "",
                 budgetMin=extracted.get("budgetMin"),
@@ -1033,6 +1034,22 @@ class WhatsAppHandlers:
                 bathrooms=str(extracted.get("bathrooms") or "2"),
                 mustHaveFeatures=extracted.get("mustHaveFeatures") or [],
                 dealbreakers=extracted.get("dealbreakers") or [],
+                niceToHaves=extracted.get("niceToHaves") or [],
+                preferredAreas=extracted.get("preferredAreas") or [],
+                lifestyleDrivers=extracted.get("lifestyleDrivers") or [],
+                specialNeeds=extracted.get("specialNeeds") or [],
+                budgetFlexibility=extracted.get("budgetFlexibility"),
+                locationFlexibility=extracted.get("locationFlexibility"),
+                timingFlexibility=extracted.get("timingFlexibility"),
+                emotionalContext=extracted.get("emotionalContext"),
+                minSqft=extracted.get("minSqft"),
+                maxSqft=extracted.get("maxSqft"),
+                minYearBuilt=extracted.get("minYearBuilt"),
+                maxYearBuilt=extracted.get("maxYearBuilt"),
+                minGarageSpaces=extracted.get("minGarageSpaces"),
+                maxMaintenanceFee=extracted.get("maxMaintenanceFee"),
+                minLotSizeSqft=extracted.get("minLotSizeSqft"),
+                maxDaysOnMarket=extracted.get("maxDaysOnMarket"),
                 rawInput=extracted.get("rawInput") or "",
                 inputMethod="whatsapp",
             )
@@ -1149,7 +1166,7 @@ class WhatsAppHandlers:
         if value is None:
             return value
         # Budget and numeric fields must be integers
-        if field in ("budgetMin", "budgetMax", "bedrooms", "bathrooms"):
+        if field in ("budgetMin", "budgetMax", "bedrooms", "bathrooms", "minSqft", "maxSqft", "minYearBuilt", "maxYearBuilt", "minGarageSpaces", "maxMaintenanceFee", "minLotSizeSqft", "maxDaysOnMarket"):
             if isinstance(value, (int, float)):
                 return int(value)
             # Strip currency formatting: "$1,010,000" -> 1010000
@@ -1334,7 +1351,7 @@ Current lead:
 
 Edit request: "{changes_description}"
 
-Return ONLY a JSON object with the fields to update. Keys must be one of: budgetMin, budgetMax, location, email, phone, bedrooms, name, homeType.
+Return ONLY a JSON object with the fields to update. Keys must be one of: budgetMin, budgetMax, location, email, phone, bedrooms, name, homeType, minSqft, maxSqft, minYearBuilt, maxYearBuilt, minGarageSpaces, maxMaintenanceFee, minLotSizeSqft, maxDaysOnMarket.
 For budget changes like "increase by $50K", calculate the new value.
 Example: {{"budgetMax": 850000, "email": "new@email.com"}}"""
 
@@ -1670,7 +1687,7 @@ Current profile for {buyer.get('name', 'Buyer')}:
 User request: "{edit_text}"
 
 Extract the changes as a JSON array. Each change should have:
-- "field": one of ["budgetMin", "budgetMax", "bedrooms", "bathrooms", "location", "mustHaveFeatures", "dealbreakers", "homeType"]
+- "field": one of ["budgetMin", "budgetMax", "bedrooms", "bathrooms", "location", "mustHaveFeatures", "dealbreakers", "homeType", "minSqft", "maxSqft", "minYearBuilt", "maxYearBuilt", "minGarageSpaces", "maxMaintenanceFee", "minLotSizeSqft", "maxDaysOnMarket"]
 - "action": one of ["update", "add", "remove"]
 - "oldValue": current value (or null)
 - "newValue": new value
