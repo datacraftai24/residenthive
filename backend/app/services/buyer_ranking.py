@@ -30,9 +30,75 @@ INVESTOR_KEYWORDS = [
     'contractor'
 ]
 
+# Remarks-based penalty patterns: (compiled_regex, type, chip_label)
+# HARD penalties (-30): property is fundamentally not move-in ready
+# SOFT penalties (-10): property has notable caveats
+REMARKS_PENALTY_PATTERNS = [
+    # HARD: Not habitable / not financeable
+    (re.compile(r'\b(sold?\s+)?as[\s\-]?is\b', re.IGNORECASE), "hard", "Sold As-Is"),
+    (re.compile(r'\bas[\s\-]?seen\b', re.IGNORECASE), "hard", "Sold As-Is"),
+    (re.compile(r'\bwill\s+not\s+qualify\b', re.IGNORECASE), "hard", "Cash buyers only"),
+    (re.compile(r'\bcash\s+only\b', re.IGNORECASE), "hard", "Cash buyers only"),
+    (re.compile(r'\bno\s+conventional\b', re.IGNORECASE), "hard", "Cash buyers only"),
+    (re.compile(r'\bunder\s+construction\b', re.IGNORECASE), "hard", "Under construction"),
+    (re.compile(r'\brough\s+plumbing\b', re.IGNORECASE), "hard", "Under construction"),
+    (re.compile(r'\bno\s+kitchen\b', re.IGNORECASE), "hard", "Under construction"),
+    (re.compile(r'\bunfinished\b', re.IGNORECASE), "hard", "Under construction"),
+    (re.compile(r'\bno\s+flooring\b', re.IGNORECASE), "hard", "Under construction"),
+    # SOFT: Notable caveats
+    (re.compile(r'\bhandyman\b', re.IGNORECASE), "soft", "Needs renovation"),
+    (re.compile(r'\bneeds\s+work\b', re.IGNORECASE), "soft", "Needs renovation"),
+    (re.compile(r'\btlc\b', re.IGNORECASE), "soft", "Needs renovation"),
+    (re.compile(r'\bfixer\b', re.IGNORECASE), "soft", "Needs renovation"),
+    (re.compile(r'\bcontractor\s+special\b', re.IGNORECASE), "soft", "Needs renovation"),
+    (re.compile(r'\bestate\s+sale\b', re.IGNORECASE), "soft", "Estate/Probate sale"),
+    (re.compile(r'\bprobate\b', re.IGNORECASE), "soft", "Estate/Probate sale"),
+    (re.compile(r'\btenant\s+occupied\b', re.IGNORECASE), "soft", "Tenant occupied"),
+    (re.compile(r'\blease\s+in\s+place\b', re.IGNORECASE), "soft", "Tenant occupied"),
+    (re.compile(r'\bflood\s+zone\b', re.IGNORECASE), "soft", "Flood risk"),
+    (re.compile(r'\bwetland\b', re.IGNORECASE), "soft", "Flood risk"),
+]
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+def _scan_remarks_penalties(listing: Dict[str, Any]) -> tuple:
+    """
+    Scan listing description/remarks for red-flag patterns.
+
+    Returns:
+        (hard_chips, soft_chips) — deduplicated by chip label
+    """
+    description = listing.get("description") or ""
+    remarks = listing.get("remarks") or ""
+    text = f"{description} {remarks}"
+
+    if not text.strip():
+        return [], []
+
+    hard_chips = []
+    soft_chips = []
+    seen_labels = set()
+
+    for pattern, penalty_type, label in REMARKS_PENALTY_PATTERNS:
+        if label in seen_labels:
+            continue
+        if pattern.search(text):
+            seen_labels.add(label)
+            chip = {
+                "type": "hard" if penalty_type == "hard" else "soft",
+                "icon": "X" if penalty_type == "hard" else "!",
+                "label": label,
+                "key": f"remarks-{label.lower().replace(' ', '-').replace('/', '-')}",
+            }
+            if penalty_type == "hard":
+                hard_chips.append(chip)
+            else:
+                soft_chips.append(chip)
+
+    return hard_chips, soft_chips
+
 
 def is_investor_listing(listing: Dict[str, Any]) -> bool:
     """
@@ -98,6 +164,12 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
     if isinstance(preferred_areas, str):
         preferred_areas = [a.strip() for a in preferred_areas.split(",") if a.strip()]
 
+    # Extract profile values (new)
+    profile_garage = int(profile.get("minGarageSpaces") or 0)
+    profile_max_hoa_raw = profile.get("maxMaintenanceFee")
+    profile_max_hoa = int(profile_max_hoa_raw) if profile_max_hoa_raw is not None and profile_max_hoa_raw != "" else None
+    profile_min_lot = int(profile.get("minLotSizeSqft") or 0)
+
     # Extract listing values
     listing_beds = int(listing.get("bedrooms") or 0)
     listing_baths = float(listing.get("bathrooms") or 0)
@@ -106,6 +178,13 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
     sqft = float(listing.get("square_feet") or listing.get("sqft") or 0)
     property_type = str(listing.get("property_type") or listing.get("propertyType") or "").lower()
     city = str(listing.get("city") or "").lower()
+
+    # Extract listing values (new)
+    listing_garage = int(listing.get("garage_spaces") or listing.get("garageSpaces") or 0)
+    listing_hoa_raw = listing.get("hoa_fee") or listing.get("maintenanceFee")
+    listing_hoa = int(float(listing_hoa_raw)) if listing_hoa_raw else 0
+    listing_lot_sqft = int(float(listing.get("lot_size") or listing.get("lotSize") or 0))
+    listing_dom = int(listing.get("days_on_market") or listing.get("daysOnMarket") or 0)
 
     # =========================================================================
     # HARD MISMATCHES (deal-breakers) - max 2
@@ -139,14 +218,44 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
             "key": "over-budget",
         })
 
-    # 4. Year built <1900 (rehab risk)
-    if year_built > 0 and year_built < 1900:
+    # 4. No garage when buyer wants one
+    if profile_garage > 0 and listing_garage == 0:
         hard_chips.append({
             "type": "hard",
             "icon": "X",
-            "label": f"Built {year_built} - rehab risk",
-            "key": "rehab-risk",
+            "label": f"No garage (need {profile_garage}-car)",
+            "key": "garage-missing",
         })
+
+    # 5. HOA dealbreaker (buyer said no HOA, listing has HOA)
+    if profile_max_hoa is not None and profile_max_hoa == 0 and listing_hoa > 0:
+        hard_chips.append({
+            "type": "hard",
+            "icon": "X",
+            "label": f"Has HOA (${listing_hoa:,}/mo)",
+            "key": "hoa-dealbreaker",
+        })
+
+    # 6. Year built below buyer's minimum (or <1900 default)
+    min_year_threshold = int(profile.get("minYearBuilt") or 1900)
+    if year_built > 0 and year_built < min_year_threshold:
+        year_gap = min_year_threshold - year_built
+        if year_gap > 30:
+            # Way below minimum — hard mismatch
+            hard_chips.append({
+                "type": "hard",
+                "icon": "X",
+                "label": f"Built {year_built} (wanted {min_year_threshold}+)",
+                "key": "year-mismatch",
+            })
+        else:
+            # Close to minimum — soft caution
+            soft_chips.append({
+                "type": "soft",
+                "icon": "!",
+                "label": f"Built {year_built} (wanted {min_year_threshold}+)",
+                "key": "year-close",
+            })
 
     # =========================================================================
     # SOFT RISKS (caution flags) - max 2
@@ -161,8 +270,8 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
             "key": "budget-limit",
         })
 
-    # 2. Old construction (1900-1959)
-    if year_built >= 1900 and year_built < 1960:
+    # 2. Old construction (only if not already flagged by year-mismatch/year-close above)
+    if year_built >= min_year_threshold and year_built < 1960:
         soft_chips.append({
             "type": "soft",
             "icon": "!",
@@ -170,13 +279,54 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
             "key": "old-build",
         })
 
-    # 3. Small home (<1200 sqft)
-    if sqft > 0 and sqft < 1200:
+    # 3. Small home (below buyer's minimum or <1200 sqft default)
+    min_sqft_threshold = int(profile.get("minSqft") or 1200)
+    if sqft > 0 and sqft < min_sqft_threshold:
+        sqft_ratio = sqft / min_sqft_threshold if min_sqft_threshold > 0 else 1
+        if sqft_ratio < 0.70:
+            # Way below minimum — hard mismatch
+            hard_chips.append({
+                "type": "hard",
+                "icon": "X",
+                "label": f"{int(sqft):,} sqft (wanted {min_sqft_threshold:,}+)",
+                "key": "sqft-mismatch",
+            })
+        else:
+            # Close to minimum — soft caution
+            soft_chips.append({
+                "type": "soft",
+                "icon": "!",
+                "label": f"{int(sqft):,} sqft (wanted {min_sqft_threshold:,}+)",
+                "key": "sqft-close",
+            })
+
+    # 4. Garage short (has fewer than wanted, but not zero)
+    if profile_garage > 0 and listing_garage > 0 and listing_garage < profile_garage:
         soft_chips.append({
             "type": "soft",
             "icon": "!",
-            "label": f"{int(sqft):,} sqft",
-            "key": "small-home",
+            "label": f"{listing_garage}-car garage (wanted {profile_garage})",
+            "key": "garage-short",
+        })
+
+    # 5. HOA over buyer's max (but buyer didn't say "no HOA")
+    if (profile_max_hoa is not None and profile_max_hoa > 0
+            and listing_hoa > profile_max_hoa):
+        soft_chips.append({
+            "type": "soft",
+            "icon": "!",
+            "label": f"HOA ${listing_hoa:,}/mo (max ${profile_max_hoa:,})",
+            "key": "hoa-over",
+        })
+
+    # 6. Lot smaller than buyer's minimum
+    if profile_min_lot > 0 and listing_lot_sqft > 0 and listing_lot_sqft < profile_min_lot:
+        pct = round(listing_lot_sqft / profile_min_lot * 100)
+        soft_chips.append({
+            "type": "soft",
+            "icon": "!",
+            "label": f"Lot {listing_lot_sqft:,} sqft ({pct}% of wanted)",
+            "key": "lot-small",
         })
 
     # =========================================================================
@@ -229,7 +379,7 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
                 "key": "baths-match",
             })
 
-    # 4. Home type match (fuzzy)
+    # 4. Home type match/mismatch (fuzzy)
     if home_type and property_type:
         type_matches = (
             home_type in property_type or
@@ -244,6 +394,13 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
                 "icon": "check",
                 "label": property_type.title() if property_type else home_type.title(),
                 "key": "type-match",
+            })
+        else:
+            hard_chips.append({
+                "type": "hard",
+                "icon": "X",
+                "label": f"{property_type.title()} (wanted {home_type.title()})",
+                "key": "type-mismatch",
             })
 
     # 5. Preferred area match
@@ -269,20 +426,72 @@ def compute_fit_score(listing: Dict[str, Any], profile: Dict[str, Any]) -> Dict[
             "key": "newer-build",
         })
 
+    # 7. Days on market insights
+    if listing_dom > 0 and listing_dom <= 7:
+        positive_chips.append({
+            "type": "positive",
+            "icon": "check",
+            "label": "Just listed!",
+            "key": "dom-fresh",
+        })
+    elif listing_dom >= 45:
+        positive_chips.append({
+            "type": "positive",
+            "icon": "check",
+            "label": f"{listing_dom} days — negotiation room",
+            "key": "dom-stale",
+        })
+
+    # 8. Garage meets/exceeds buyer need
+    if profile_garage > 0 and listing_garage >= profile_garage:
+        positive_chips.append({
+            "type": "positive",
+            "icon": "check",
+            "label": f"{listing_garage}-car garage",
+            "key": "garage-match",
+        })
+
     # =========================================================================
-    # ASSEMBLE CHIPS (max 2 hard, max 2 soft, fill to 5 with positives)
+    # REMARKS PENALTIES (scan description for "AS IS", "cash only", etc.)
     # =========================================================================
 
-    hard_count = min(len(hard_chips), 2)
-    soft_count = min(len(soft_chips), 2)
+    remarks_hard, remarks_soft = _scan_remarks_penalties(listing)
+    # Deduplicate against existing chip keys
+    existing_keys = {c["key"] for c in hard_chips + soft_chips}
+    for chip in remarks_hard:
+        if chip["key"] not in existing_keys:
+            hard_chips.append(chip)
+            existing_keys.add(chip["key"])
+    for chip in remarks_soft:
+        if chip["key"] not in existing_keys:
+            soft_chips.append(chip)
+            existing_keys.add(chip["key"])
+
+    # =========================================================================
+    # ASSEMBLE CHIPS (display max 2 hard + 2 soft, but score ALL)
+    # =========================================================================
+
+    # Score uses ALL hard/soft counts — no cap
+    hard_count = len(hard_chips)
+    soft_count = len(soft_chips)
+
+    # Display: prioritize remarks-based chips (more critical), then structured
+    # This ensures "Sold As-Is" shows instead of "No garage" when both exist
+    remarks_hard = [c for c in hard_chips if c["key"].startswith("remarks-")]
+    struct_hard = [c for c in hard_chips if not c["key"].startswith("remarks-")]
+    display_hard = (remarks_hard + struct_hard)[:2]
+
+    remarks_soft = [c for c in soft_chips if c["key"].startswith("remarks-")]
+    struct_soft = [c for c in soft_chips if not c["key"].startswith("remarks-")]
+    display_soft = (remarks_soft + struct_soft)[:2]
 
     chips = []
-    chips.extend(hard_chips[:2])
-    chips.extend(soft_chips[:2])
+    chips.extend(display_hard)
+    chips.extend(display_soft)
     remaining_slots = 5 - len(chips)
     chips.extend(positive_chips[:remaining_slots])
 
-    # Calculate fit score
+    # Calculate fit score — all penalties count
     fit_score = max(0, 100 - (30 * hard_count) - (10 * soft_count))
 
     return {
