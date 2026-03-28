@@ -21,6 +21,9 @@ from .routers import buyer_reports as buyer_reports_router
 from .routers import leads as leads_router
 from .routers import contact as contact_router
 from .routers import whatsapp as whatsapp_router
+from .routers import onboarding as onboarding_router
+from .routers import brokerages as brokerages_router
+from .routers import admin as admin_router
 from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
 
@@ -106,6 +109,9 @@ def create_app() -> FastAPI:
     app.include_router(leads_router.router)
     app.include_router(contact_router.router)
     app.include_router(whatsapp_router.router)
+    app.include_router(onboarding_router.router)
+    app.include_router(brokerages_router.router)
+    app.include_router(admin_router.router)
 
     # Global exception handler
     @app.exception_handler(Exception)

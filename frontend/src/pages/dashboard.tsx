@@ -9,9 +9,16 @@ import ProfileViewer from "@/components/profile-viewer";
 import LeadDisplay from "@/components/lead-display";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Home, FormInput, Mic, BarChart3, LogOut } from "lucide-react";
+import { Bell, Home, FormInput, Mic, BarChart3, LogOut, Building2, Users, Activity, KeyRound, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/clerk-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Lead extraction response type
 interface LeadExtractionResponse {
@@ -49,6 +56,19 @@ export default function Dashboard() {
     queryKey: ["/api/buyer-profiles"],
     enabled: isSignedIn && isLoaded
   });
+
+  const { data: onboardingStatus } = useQuery<{
+    role: string;
+    brokerage: { id: number; name: string } | null;
+  }>({
+    queryKey: ["/api/onboarding/status"],
+    staleTime: 60_000,
+  });
+
+  const userRole = onboardingStatus?.role || "agent";
+  const isAdmin = userRole === "admin";
+  const isBrokerageAdmin = userRole === "brokerage_admin";
+  const brokerageId = onboardingStatus?.brokerage?.id;
 
   const handleLogout = () => {
     signOut(() => setLocation("/sign-in"));
@@ -129,6 +149,64 @@ export default function Dashboard() {
                   <span className="hidden sm:inline">Analytics</span>
                 </button>
               </Link>
+
+              {/* Brokerage Admin nav */}
+              {isBrokerageAdmin && (
+                <>
+                  <Link href="/dashboard/agents">
+                    <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+                      <Users className="h-4 w-4" />
+                      <span className="hidden sm:inline">Team</span>
+                    </button>
+                  </Link>
+                  <Link href="/dashboard/pilot-status">
+                    <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+                      <Activity className="h-4 w-4" />
+                      <span className="hidden sm:inline">Pilot</span>
+                    </button>
+                  </Link>
+                </>
+              )}
+
+              {/* Admin nav */}
+              {isAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors">
+                      <Settings className="h-4 w-4" />
+                      <span className="hidden sm:inline">Admin</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <Link href="/admin/brokerages">
+                      <DropdownMenuItem className="cursor-pointer">
+                        <Building2 className="h-4 w-4 mr-2" />
+                        Brokerages
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/admin/invite-codes">
+                      <DropdownMenuItem className="cursor-pointer">
+                        <KeyRound className="h-4 w-4 mr-2" />
+                        Invite Codes
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
+                    <Link href="/dashboard/agents">
+                      <DropdownMenuItem className="cursor-pointer">
+                        <Users className="h-4 w-4 mr-2" />
+                        Team
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/dashboard/pilot-status">
+                      <DropdownMenuItem className="cursor-pointer">
+                        <Activity className="h-4 w-4 mr-2" />
+                        Pilot Status
+                      </DropdownMenuItem>
+                    </Link>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               <button className="text-slate-400 hover:text-slate-600 transition-colors">
                 <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
