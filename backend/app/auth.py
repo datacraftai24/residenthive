@@ -57,7 +57,38 @@ async def get_or_create_agent(clerk_user_id: str) -> dict:
                 public_metadata = user_data.public_metadata or {}
                 brokerage = public_metadata.get("brokerageName", "Independent")
 
-                # Create new agent record
+                # Check if this email matches a pre-created brokerage (auto-link)
+                cur.execute(
+                    "SELECT * FROM brokerages WHERE email = %s AND clerk_user_id IS NULL",
+                    (email,)
+                )
+                matching_brokerage = fetchone_dict(cur)
+
+                if matching_brokerage:
+                    # Auto-link: this is a broker of record signing up
+                    cur.execute(
+                        """
+                        INSERT INTO agents (
+                            clerk_user_id, email, first_name, last_name,
+                            brokerage_name, brokerage_id, role, is_activated, created_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, 'brokerage_admin', %s, NOW())
+                        RETURNING *
+                        """,
+                        (clerk_user_id, email, first_name, last_name,
+                         matching_brokerage["name"], matching_brokerage["id"], True)
+                    )
+                    agent = fetchone_dict(cur)
+
+                    # Link brokerage to this Clerk user
+                    cur.execute(
+                        "UPDATE brokerages SET clerk_user_id = %s, updated_at = NOW() WHERE id = %s",
+                        (clerk_user_id, matching_brokerage["id"])
+                    )
+                    conn.commit()
+                    return agent
+
+                # Create new agent record (normal flow)
                 cur.execute(
                     """
                     INSERT INTO agents (
@@ -79,6 +110,84 @@ async def get_or_create_agent(clerk_user_id: str) -> dict:
                     status_code=500,
                     detail=f"Failed to create agent from Clerk user: {str(e)}"
                 )
+
+
+async def get_current_agent(request: Request) -> dict:
+    """
+    FastAPI dependency that returns the full authenticated agent dict.
+    Needed for role checks and brokerage access.
+    """
+    if not clerk_sdk:
+        raise HTTPException(
+            status_code=500,
+            detail="Clerk SDK not initialized. Check CLERK_SECRET_KEY environment variable."
+        )
+
+    try:
+        request_state = clerk_sdk.authenticate_request(
+            request,
+            AuthenticateRequestOptions()
+        )
+
+        if not request_state.is_signed_in:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        clerk_user_id = request_state.payload.get("sub")
+        if not clerk_user_id:
+            raise HTTPException(status_code=401, detail="Invalid token: missing user ID")
+
+        agent = await get_or_create_agent(clerk_user_id)
+        if not agent or not agent.get("id"):
+            raise HTTPException(status_code=403, detail="Agent record not found")
+
+        # Attach clerk_user_id for convenience
+        agent["clerk_user_id_from_token"] = clerk_user_id
+        return agent
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+
+def require_role(*roles: str):
+    """
+    Dependency factory for role-based access control.
+    Usage: agent = Depends(require_role("admin", "brokerage_admin"))
+    """
+    async def role_checker(request: Request) -> dict:
+        agent = await get_current_agent(request)
+        agent_role = agent.get("role", "agent")
+        if agent_role not in roles:
+            raise HTTPException(status_code=403, detail=f"Requires role: {', '.join(roles)}")
+        return agent
+    return role_checker
+
+
+async def get_clerk_user_id(request: Request) -> str:
+    """
+    FastAPI dependency that returns just the Clerk user ID from the JWT.
+    Useful for onboarding status checks before an agent record exists.
+    """
+    if not clerk_sdk:
+        raise HTTPException(status_code=500, detail="Clerk SDK not initialized")
+
+    try:
+        request_state = clerk_sdk.authenticate_request(
+            request, AuthenticateRequestOptions()
+        )
+        if not request_state.is_signed_in:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        clerk_user_id = request_state.payload.get("sub")
+        if not clerk_user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return clerk_user_id
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
 
 async def get_current_agent_id(request: Request) -> int:

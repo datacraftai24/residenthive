@@ -17,6 +17,13 @@ import AgentSetup from "@/pages/agent-setup";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import OnboardingGuard from "@/components/OnboardingGuard";
+import OnboardAgentPage from "@/pages/onboard-agent";
+import OnboardCompliancePage from "@/pages/onboard-compliance";
+import DashboardAgentsPage from "@/pages/dashboard-agents";
+import DashboardPilotStatusPage from "@/pages/dashboard-pilot-status";
+import AdminBrokeragesPage from "@/pages/admin-brokerages";
+import AdminInviteCodesPage from "@/pages/admin-invite-codes";
 
 
 // Component to handle the root path based on auth state
@@ -67,6 +74,14 @@ function Router() {
       <Route path="/buyer-report/:shareId" component={BuyerReportPage} />
       <Route path="/shared/reports/:shareId/property/:listingId" component={SharedPropertyDetail} />
 
+      {/* Onboarding routes */}
+      <Route path="/onboard/agent" component={OnboardAgentPage} />
+      <Route path="/onboard/compliance">
+        <ProtectedRoute>
+          <OnboardCompliancePage />
+        </ProtectedRoute>
+      </Route>
+
       {/* Protected routes - authentication required */}
       <Route path="/analytics">
         <ProtectedRoute>
@@ -74,9 +89,39 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
+      <Route path="/dashboard/agents">
+        <ProtectedRoute>
+          <OnboardingGuard>
+            <DashboardAgentsPage />
+          </OnboardingGuard>
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/dashboard/pilot-status">
+        <ProtectedRoute>
+          <OnboardingGuard>
+            <DashboardPilotStatusPage />
+          </OnboardingGuard>
+        </ProtectedRoute>
+      </Route>
+
       <Route path="/dashboard">
         <ProtectedRoute>
-          <Dashboard />
+          <OnboardingGuard>
+            <Dashboard />
+          </OnboardingGuard>
+        </ProtectedRoute>
+      </Route>
+
+      {/* Admin routes */}
+      <Route path="/admin/brokerages">
+        <ProtectedRoute>
+          <AdminBrokeragesPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/invite-codes">
+        <ProtectedRoute>
+          <AdminInviteCodesPage />
         </ProtectedRoute>
       </Route>
 
