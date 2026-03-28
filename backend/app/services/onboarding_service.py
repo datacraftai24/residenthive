@@ -19,7 +19,7 @@ from .email_templates import broker_welcome_email, agent_invitation_email
 
 logger = get_logger(__name__)
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:5173"))
+FRONTEND_URL = os.getenv("FRONTEND_URL", os.getenv("FRONTEND_BASE_URL", os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:5173")))
 INVITATION_EXPIRY_DAYS = 7
 
 
