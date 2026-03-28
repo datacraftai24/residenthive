@@ -87,7 +87,7 @@ export default function OnboardAgentPage() {
       sessionStorage.removeItem(INVITATION_TOKEN_KEY);
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding/status"] });
       toast({
-        title: "Welcome to ResidentHive!",
+        title: "Welcome to ResidenceHive!",
         description: "One more step — please complete the compliance acknowledgment.",
       });
       window.location.href = "/onboard/compliance";
@@ -165,7 +165,7 @@ export default function OnboardAgentPage() {
           <CardTitle className="text-2xl">Complete Your Setup</CardTitle>
           <CardDescription className="text-base">
             You're joining <strong>{invitation.brokerage_name}</strong> on
-            ResidentHive. Confirm your details below.
+            ResidenceHive. Confirm your details below.
           </CardDescription>
         </CardHeader>
         <CardContent>

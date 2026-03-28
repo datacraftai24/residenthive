@@ -3,7 +3,7 @@ import AuthLayout from "@/components/AuthLayout";
 
 export default function SignInPage() {
   return (
-    <AuthLayout title="Welcome Back" subtitle="Sign in to your ResidentHive account">
+    <AuthLayout title="Welcome Back" subtitle="Sign in to your ResidenceHive account">
       <SignIn
         routing="path"
         path="/sign-in"

@@ -35,21 +35,21 @@ function getComplianceItems(jurisdiction: string): ComplianceItem[] {
       icon: <Scale className="h-5 w-5 text-blue-600" />,
       title: "Agency Disclosure",
       description:
-        "I acknowledge that buyer briefs generated through ResidentHive are sent under my brokerage's name and license. I am responsible for providing the Massachusetts mandatory agency disclosure form (254 CMR 3.00(13)(a)) to buyers at the appropriate time in accordance with state regulations.",
+        "I acknowledge that buyer briefs generated through ResidenceHive are sent under my brokerage's name and license. I am responsible for providing the Massachusetts mandatory agency disclosure form (254 CMR 3.00(13)(a)) to buyers at the appropriate time in accordance with state regulations.",
     },
     {
       id: "buyer_representation",
       icon: <FileCheck className="h-5 w-5 text-blue-600" />,
       title: "Buyer Representation Agreement",
       description:
-        'I acknowledge that per the NAR settlement (effective August 2024), a written buyer representation agreement is required before touring a home. Any "Request Showing" action through ResidentHive does not replace this obligation. I am responsible for ensuring compliance with buyer representation requirements.',
+        'I acknowledge that per the NAR settlement (effective August 2024), a written buyer representation agreement is required before touring a home. Any "Request Showing" action through ResidenceHive does not replace this obligation. I am responsible for ensuring compliance with buyer representation requirements.',
     },
     {
       id: "ai_disclosure",
       icon: <Brain className="h-5 w-5 text-blue-600" />,
       title: "AI Disclosure",
       description:
-        "I acknowledge that ResidentHive uses artificial intelligence to generate buyer briefs, property analysis, and compliance flags. Flagged topics require my professional judgment — the platform does not provide legal or real estate advice. I understand that AI-generated content should be reviewed before sharing with clients.",
+        "I acknowledge that ResidenceHive uses artificial intelligence to generate buyer briefs, property analysis, and compliance flags. Flagged topics require my professional judgment — the platform does not provide legal or real estate advice. I understand that AI-generated content should be reviewed before sharing with clients.",
     },
   ];
 }

@@ -26,7 +26,7 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         </div>
 
         <div className="text-center mt-8 text-sm text-gray-500">
-          <p>ResidentHive © {new Date().getFullYear()}</p>
+          <p>ResidenceHive © {new Date().getFullYear()}</p>
         </div>
       </div>
     </div>

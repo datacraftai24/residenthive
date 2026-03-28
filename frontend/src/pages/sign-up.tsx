@@ -27,7 +27,7 @@ export default function SignUpPage() {
     : "/dashboard";
 
   return (
-    <AuthLayout title="Join ResidentHive" subtitle="Create your account to get started">
+    <AuthLayout title="Join ResidenceHive" subtitle="Create your account to get started">
       <SignUp
         routing="path"
         path="/sign-up"

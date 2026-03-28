@@ -152,7 +152,7 @@ export default function AgentSetup() {
               <Building2 className="h-8 w-8 text-blue-600" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to ResidentHive</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to ResidenceHive</h1>
           <p className="text-gray-600">Complete your account setup</p>
         </div>
 
@@ -267,7 +267,7 @@ export default function AgentSetup() {
         </Card>
 
         <div className="text-center mt-8 text-sm text-gray-500">
-          <p>ResidentHive Agent Portal © 2024</p>
+          <p>ResidenceHive Agent Portal © 2024</p>
         </div>
       </div>
     </div>
