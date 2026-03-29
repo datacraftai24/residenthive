@@ -24,6 +24,9 @@ export function LandingFooter() {
             <a href="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
             </a>
+            <a href="/compliance" className="hover:text-white transition-colors">
+              Compliance
+            </a>
           </div>
         </div>
 
