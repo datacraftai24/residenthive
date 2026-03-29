@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Navigation
 } from 'lucide-react';
+import ComplianceFooter from '@/components/ComplianceFooter';
 
 interface PropertyData {
   listingId: string;
@@ -78,6 +79,9 @@ interface SharedPropertyDetailData {
   aiAnalysis: AIAnalysis | null;
   agent: AgentInfo;
   reportUrl: string;
+  brokerageName?: string;
+  brokerageLicense?: string;
+  jurisdiction?: string;
 }
 
 export function SharedPropertyDetail() {
@@ -540,13 +544,23 @@ export function SharedPropertyDetail() {
         </Card>
 
         {/* Back to Report */}
-        <div className="text-center pb-8">
+        <div className="text-center pb-4">
           <Button asChild variant="outline" size="lg">
             <a href={reportUrl}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Full Report
             </a>
           </Button>
+        </div>
+
+        {/* Compliance Footer */}
+        <div className="pb-8">
+          <ComplianceFooter
+            agentName={agent.name || "Your Agent"}
+            brokerageName={data?.brokerageName}
+            brokerageLicense={data?.brokerageLicense}
+            jurisdiction={data?.jurisdiction}
+          />
         </div>
       </main>
     </div>

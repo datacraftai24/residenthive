@@ -351,6 +351,9 @@ export function PropertyDetailModal({
                     </div>
                   ))}
                 </div>
+                <p className="text-xs text-gray-400 italic mt-3">
+                  AI-generated insights based on listing data and public records. Buyer should verify all property conditions independently with qualified professionals.
+                </p>
               </div>
             )}
 
@@ -446,6 +449,9 @@ export function PropertyDetailModal({
                     </div>
                   </div>
                 )}
+                <p className="text-xs text-gray-400 italic mt-3">
+                  Photo analysis is AI-generated and for informational purposes only. Listing photos may not reflect current property conditions. Verify in person before making decisions.
+                </p>
               </div>
             )}
 

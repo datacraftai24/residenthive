@@ -54,6 +54,10 @@ class BuyerReportResponse(BaseModel):
     agentName: Optional[str] = "Your Agent"
     agentEmail: Optional[str] = None
     agentPhone: Optional[str] = None
+    brokerageName: Optional[str] = None
+    brokerageLicense: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    hasKids: Optional[bool] = None
     location: str
     createdAt: str
     listings: List[Dict[str, Any]]
@@ -83,6 +87,9 @@ class SharedPropertyDetailResponse(BaseModel):
     aiAnalysis: Optional[Dict[str, Any]] = None
     agent: Dict[str, Any]
     reportUrl: str
+    brokerageName: Optional[str] = None
+    brokerageLicense: Optional[str] = None
+    jurisdiction: Optional[str] = None
 
 
 class SendReportEmailRequest(BaseModel):
@@ -114,13 +121,18 @@ def get_buyer_report(share_id: str):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Get report metadata including buyer prefs for email and buyer notes
+            # Get report metadata including buyer prefs, brokerage compliance data, and buyer notes
             cur.execute(
                 """
                 SELECT br.*, bp.name as buyer_name, bp.location, bp.budget, bp.budget_min, bp.budget_max, bp.bedrooms,
-                       br.buyer_notes, br.buyer_notes_updated_at
+                       bp.has_kids,
+                       br.buyer_notes, br.buyer_notes_updated_at,
+                       b.name as brokerage_name, b.license_number as brokerage_license,
+                       b.jurisdiction as brokerage_jurisdiction
                 FROM buyer_reports br
                 JOIN buyer_profiles bp ON br.profile_id = bp.id
+                LEFT JOIN agents a ON br.agent_id = a.id
+                LEFT JOIN brokerages b ON a.brokerage_id = b.id
                 WHERE br.share_id = %s
                 """,
                 (share_id,)
@@ -327,6 +339,10 @@ def get_buyer_report(share_id: str):
         agentName=report_row.get('agent_name', 'Your Agent'),
         agentEmail=report_row.get('agent_email'),
         agentPhone=report_row.get('agent_phone'),
+        brokerageName=report_row.get('brokerage_name'),
+        brokerageLicense=report_row.get('brokerage_license'),
+        jurisdiction=report_row.get('brokerage_jurisdiction'),
+        hasKids=report_row.get('has_kids'),
         location=report_row.get('location', ''),
         createdAt=report_row['created_at'].isoformat() if report_row.get('created_at') else '',
         listings=ordered_listings,
@@ -349,7 +365,33 @@ def create_buyer_report(
     """
     AGENT-only endpoint - Create buyer report with LLM synthesis.
     Requires vision analysis to be complete.
+    Enforces compliance preconditions before generating a shareable report.
     """
+    # Compliance precondition check — enforce at generation time, not read time
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.first_name, a.last_name, a.brokerage_id,
+                       b.name as brokerage_name, b.jurisdiction, b.license_number,
+                       b.compliance_setup_at
+                FROM agents a
+                LEFT JOIN brokerages b ON a.brokerage_id = b.id
+                WHERE a.id = %s
+            """, (agent_id,))
+            compliance = fetchone_dict(cur)
+
+    if compliance and compliance.get("brokerage_id"):
+        if not compliance.get("brokerage_name"):
+            raise HTTPException(status_code=422, detail="Brokerage name is required. Contact your administrator.")
+        if not compliance.get("jurisdiction"):
+            raise HTTPException(status_code=422, detail="Jurisdiction is required. Contact your administrator.")
+        if compliance.get("jurisdiction") == "MA" and not compliance.get("license_number"):
+            raise HTTPException(status_code=422, detail="MA broker license number is required. Contact your administrator.")
+        if not (compliance.get("first_name") or compliance.get("last_name")):
+            raise HTTPException(status_code=422, detail="Agent name is required for AI disclaimer. Contact your administrator.")
+        if not compliance.get("compliance_setup_at"):
+            raise HTTPException(status_code=422, detail="Brokerage compliance setup is incomplete. Contact your administrator.")
+
     # Get search context
     search_context = get_search_context(request.searchId)
     if not search_context:
@@ -761,12 +803,16 @@ def get_shared_property_detail(share_id: str, listing_id: str):
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # 1. Fetch report by share_id
+            # 1. Fetch report by share_id with brokerage compliance data
             cur.execute(
                 """
-                SELECT br.*, bp.name as buyer_name, bp.location
+                SELECT br.*, bp.name as buyer_name, bp.location,
+                       b.name as brokerage_name, b.license_number as brokerage_license,
+                       b.jurisdiction as brokerage_jurisdiction
                 FROM buyer_reports br
                 JOIN buyer_profiles bp ON br.profile_id = bp.id
+                LEFT JOIN agents a ON br.agent_id = a.id
+                LEFT JOIN brokerages b ON a.brokerage_id = b.id
                 WHERE br.share_id = %s
                 """,
                 (share_id,)
@@ -859,7 +905,10 @@ def get_shared_property_detail(share_id: str, listing_id: str):
         property=property_data,
         aiAnalysis=ai_analysis,
         agent=agent_data,
-        reportUrl=f"/buyer-report/{share_id}"
+        reportUrl=f"/buyer-report/{share_id}",
+        brokerageName=report_row.get('brokerage_name'),
+        brokerageLicense=report_row.get('brokerage_license'),
+        jurisdiction=report_row.get('brokerage_jurisdiction'),
     )
 
 

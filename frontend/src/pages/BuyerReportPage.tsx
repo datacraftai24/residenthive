@@ -11,7 +11,8 @@ import { ComparisonTable } from '@/components/ComparisonTable';
 import { AIInsightsPanel } from '@/components/AIInsightsPanel';
 import { FloatingChatButton } from '@/components/FloatingChatButton';
 import { BuyerNotes } from '@/components/BuyerNotes';
-import { Home, Mail, Phone, Loader2, Scale, CalendarDays } from 'lucide-react';
+import { Home, Mail, Phone, Loader2, Scale, CalendarDays, AlertTriangle } from 'lucide-react';
+import ComplianceFooter from '@/components/ComplianceFooter';
 
 interface RankedPick {
   mlsNumber: string;
@@ -147,6 +148,10 @@ interface BuyerReportData {
   agentName: string;
   agentEmail?: string;
   agentPhone?: string;
+  brokerageName?: string;
+  brokerageLicense?: string;
+  jurisdiction?: string;
+  hasKids?: boolean;
   location: string;
   createdAt: string;
   listings: Listing[];
@@ -384,12 +389,17 @@ export function BuyerReportPage() {
                 initialNotes={report.buyerNotes}
                 lastUpdated={report.buyerNotesUpdatedAt}
               />
-              {/* AI Assistant hint */}
-              <p className="text-sm text-gray-500 mt-3 flex items-center gap-1">
-                <span>Use the</span>
-                <span className="font-medium text-blue-600">AI Assistant</span>
-                <span>button below to ask questions about any property.</span>
-              </p>
+              {/* Buyer notes visibility notice + AI Assistant hint */}
+              <div className="mt-3 space-y-1">
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <span>Information you share through ResidenceHive may be included in reports provided to {report.agentName} to better serve your home search.</span>
+                </p>
+                <p className="text-sm text-gray-500 flex items-center gap-1">
+                  <span>Use the</span>
+                  <span className="font-medium text-blue-600">AI Assistant</span>
+                  <span>button below to ask questions about any property.</span>
+                </p>
+              </div>
             </section>
 
             {/* Property Grid - Visual First */}
@@ -408,6 +418,15 @@ export function BuyerReportPage() {
                       rankWhy={pick?.why}
                       onViewDetails={() => setSelectedListing(listing)}
                     />
+                    {/* Lead Paint Badge */}
+                    {report.hasKids && listing.yearBuilt && listing.yearBuilt < 1978 && (
+                      <div className="mt-1 px-1">
+                        <div className="bg-orange-500 text-white text-xs font-medium rounded px-2 py-1 text-center flex items-center justify-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Built before 1978 — Lead Paint Disclosure Required
+                        </div>
+                      </div>
+                    )}
                     <Button
                       variant={showingRequested[listing.mlsNumber] ? "secondary" : "outline"}
                       size="sm"
@@ -418,6 +437,10 @@ export function BuyerReportPage() {
                       <CalendarDays className="h-4 w-4 mr-1" />
                       {showingRequested[listing.mlsNumber] ? 'Showing Requested' : 'Request Showing'}
                     </Button>
+                    {/* NAR Buyer Representation Warning */}
+                    <p className="text-[11px] text-gray-400 mt-1 text-center leading-tight">
+                      A written buyer representation agreement is required before touring a property. Your agent will provide this agreement prior to scheduling a showing.
+                    </p>
                   </div>
                   );
                 })}
@@ -494,11 +517,13 @@ export function BuyerReportPage() {
               </CardContent>
             </Card>
 
-            {/* Compliance Footer: AI Disclaimer + Verify Independently */}
-            <div className="mt-8 text-center text-xs text-gray-400 border-t border-gray-200 pt-4 space-y-1">
-              <p>AI-generated insights based on public records and listing data. Buyer to verify all property conditions independently.</p>
-              <p>This report was prepared with the assistance of AI technology. All data is subject to human review by {report.agentName}.</p>
-            </div>
+            {/* Compliance Footer */}
+            <ComplianceFooter
+              agentName={report.agentName}
+              brokerageName={report.brokerageName}
+              brokerageLicense={report.brokerageLicense}
+              jurisdiction={report.jurisdiction}
+            />
           </>
         )}
       </div>
