@@ -382,6 +382,16 @@ export function BuyerReportPage() {
               </section>
             )}
 
+            {/* Agency Disclosure */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 mb-4">
+              <p className="font-semibold mb-1">Agency Disclosure</p>
+              <p>
+                {report.agentName} is acting as your Buyer's Agent and represents your interests in this transaction.
+                A written Buyer Representation Agreement is required prior to touring any property and will be
+                provided by your agent before any showing is scheduled.
+              </p>
+            </div>
+
             {/* Buyer Notes - Auto-sync to agent dashboard */}
             <section className="mb-8">
               <BuyerNotes
