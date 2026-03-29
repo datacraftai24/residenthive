@@ -181,7 +181,6 @@ export default function PrivacyPage() {
             <div className="mt-3 text-gray-700">
               <p className="font-medium">ResidenceHive, Inc.</p>
               <p>Email: <a href="mailto:privacy@residencehive.com" className="text-blue-600 hover:underline">privacy@residencehive.com</a></p>
-              <p>Phone: <a href="tel:+18607969167" className="text-blue-600 hover:underline">(860) 796-9167</a></p>
             </div>
           </section>
         </div>
