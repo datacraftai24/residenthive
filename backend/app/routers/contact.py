@@ -20,24 +20,26 @@ DEMO_REQUEST_TO = "info@datacraftai.com"
 class DemoRequest(BaseModel):
     name: str
     email: EmailStr
-    phone: str
-    brokerage: str
+    phone: str = ""
+    brokerage: str = ""
+    message: str = ""
 
 
 @router.post("/demo-request")
 async def submit_demo_request(request: DemoRequest):
     """
-    Submit a demo request from the landing page.
+    Submit a demo request from the landing page or signup request form.
     Sends email notification to the team.
     """
     try:
         # Format the email body
-        body = f"""New Demo Request from ResidenceHive Landing Page
+        body = f"""New Access Request — ResidenceHive
 
 Name: {request.name}
 Email: {request.email}
 Phone: {request.phone}
 Brokerage: {request.brokerage}
+Message: {request.message or '(none)'}
 
 ---
 This is an automated message from the ResidenceHive website.
