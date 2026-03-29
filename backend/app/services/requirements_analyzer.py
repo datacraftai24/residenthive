@@ -62,7 +62,7 @@ LABEL_TEMPLATES: Dict[str, Callable[[Dict], str]] = {
     "low_noise": lambda p: "Quiet Street",
     "has_parking": lambda p: "Off-Street Parking",
     "good_commute": lambda p: f"≤{p.get('max_commute_mins', 35)} min commute",
-    "good_schools": lambda p: "Near Good Schools",
+    "good_schools": lambda p: "Schools Nearby",
 }
 
 
