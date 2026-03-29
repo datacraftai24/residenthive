@@ -557,6 +557,8 @@ export function SharedPropertyDetail() {
         <div className="pb-8">
           <ComplianceFooter
             agentName={agent.name || "Your Agent"}
+            agentPhone={agent.phone}
+            agentEmail={agent.email}
             brokerageName={data?.brokerageName}
             brokerageLicense={data?.brokerageLicense}
             jurisdiction={data?.jurisdiction}

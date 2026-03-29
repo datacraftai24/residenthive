@@ -520,9 +520,12 @@ export function BuyerReportPage() {
             {/* Compliance Footer */}
             <ComplianceFooter
               agentName={report.agentName}
+              agentPhone={report.agentPhone}
+              agentEmail={report.agentEmail}
               brokerageName={report.brokerageName}
               brokerageLicense={report.brokerageLicense}
               jurisdiction={report.jurisdiction}
+              reportGeneratedAt={report.createdAt}
             />
           </>
         )}
