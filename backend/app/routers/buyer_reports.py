@@ -572,6 +572,17 @@ def create_buyer_report(
     synthesis["listing_snapshots"] = listing_snapshots
     logger.info(f"[BUYER REPORT] Persisted {len(listing_snapshots)} listing snapshots for database fallback")
 
+    # Fetch compliance fields from Repliers raw data (selective, not full raw)
+    try:
+        from ..services.repliers import RepliersClient
+        repliers = RepliersClient()
+        compliance_data = repliers.get_compliance_fields_batch(top_5_ids)
+        synthesis["compliance"] = compliance_data
+        logger.info(f"[BUYER REPORT] Fetched compliance fields for {len(compliance_data)} listings")
+    except Exception as e:
+        logger.warning(f"[BUYER REPORT] Compliance fields fetch failed (non-blocking): {e}")
+        synthesis["compliance"] = {}
+
     # Get agent info - handle empty first_name/last_name gracefully
     agent_name = None
     agent_email = None

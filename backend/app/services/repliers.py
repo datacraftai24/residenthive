@@ -400,6 +400,75 @@ class RepliersClient:
             "_raw": item,  # Preserve raw API response for quality analysis
         }
 
+    # Selective raw compliance fields to request from Repliers
+    COMPLIANCE_RAW_FIELDS = ",".join([
+        "raw.OriginatingSystemName",
+        "raw.MLSPIN_LEAD_PAINT",
+        "raw.MLSPIN_DISCLOSURE",
+        "raw.Disclosures",
+        "raw.ElementarySchool",
+        "raw.MiddleOrJuniorSchool",
+        "raw.HighSchool",
+        "raw.LivingAreaSource",
+        "raw.BuildingAreaSource",
+        "raw.YearBuiltSource",
+    ])
+
+    def get_compliance_fields(self, mls_number: str) -> Dict[str, Any]:
+        """
+        Fetch selective raw compliance fields for a single listing.
+        Separate from search — does NOT affect search flow.
+        Returns a compliance dict or empty dict on failure.
+        """
+        url = f"{self.base_url}/listings/{mls_number}"
+        params = {"fields": self.COMPLIANCE_RAW_FIELDS}
+
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                r = client.get(url, params=params, headers=self._headers())
+                if r.status_code != 200:
+                    print(f"[REPLIERS] Compliance fields fetch failed for {mls_number}: {r.status_code}")
+                    return {}
+
+                data = r.json()
+                raw = data.get("raw", {})
+
+                compliance = {
+                    "originatingSystemName": raw.get("OriginatingSystemName"),
+                    "leadPaintStatus": raw.get("MLSPIN_LEAD_PAINT"),
+                    "disclosureFlag": raw.get("MLSPIN_DISCLOSURE"),
+                    "disclosures": raw.get("Disclosures"),
+                    "elementarySchool": raw.get("ElementarySchool"),
+                    "middleSchool": raw.get("MiddleOrJuniorSchool"),
+                    "highSchool": raw.get("HighSchool"),
+                    "livingAreaSource": raw.get("LivingAreaSource"),
+                    "buildingAreaSource": raw.get("BuildingAreaSource"),
+                    "yearBuiltSource": raw.get("YearBuiltSource"),
+                }
+
+                # Log notable compliance data
+                if compliance.get("disclosureFlag") == "Y":
+                    print(f"[REPLIERS] Disclosure flag Y for {mls_number}")
+                lead_paint = compliance.get("leadPaintStatus")
+                if lead_paint and isinstance(lead_paint, list) and any(v != "Unknown" for v in lead_paint):
+                    print(f"[REPLIERS] Lead paint status for {mls_number}: {lead_paint}")
+
+                return compliance
+
+        except Exception as e:
+            print(f"[REPLIERS] Compliance fields error for {mls_number}: {e}")
+            return {}
+
+    def get_compliance_fields_batch(self, mls_numbers: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch compliance fields for multiple listings.
+        Returns dict mapping mlsNumber -> compliance data.
+        """
+        results = {}
+        for mls in mls_numbers:
+            results[mls] = self.get_compliance_fields(mls)
+        return results
+
     def lookup_address(self, street_name: str, street_number: str = None, city: str = None, state: str = None, zip_code: str = None) -> dict:
         """
         Look up property by address using fuzzy search, then get history.
