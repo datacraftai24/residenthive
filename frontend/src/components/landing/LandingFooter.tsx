@@ -21,11 +21,11 @@ export function LandingFooter() {
             >
               Contact
             </a>
-            <a href="#" className="hover:text-white transition-colors">
+            <a href="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
             </a>
-            <a href="#" className="hover:text-white transition-colors">
-              Terms
+            <a href="/compliance" className="hover:text-white transition-colors">
+              Compliance
             </a>
           </div>
         </div>

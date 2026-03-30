@@ -465,6 +465,9 @@ export function ClientSummaryDeep({
                 );
               })}
             </ul>
+            <p className="text-xs text-gray-400 italic mt-3">
+              AI-generated insights based on listing data and public records. Buyer should verify all property conditions independently with qualified professionals.
+            </p>
           </div>
         )}
 

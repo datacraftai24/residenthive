@@ -23,6 +23,8 @@ import OnboardCompliancePage from "@/pages/onboard-compliance";
 import DashboardAgentsPage from "@/pages/dashboard-agents";
 import DashboardPilotStatusPage from "@/pages/dashboard-pilot-status";
 import AdminBrokeragesPage from "@/pages/admin-brokerages";
+import PrivacyPage from "@/pages/privacy";
+import CompliancePage from "@/pages/compliance";
 import AdminInviteCodesPage from "@/pages/admin-invite-codes";
 
 
@@ -71,6 +73,8 @@ function Router() {
       <Route path="/agent-login/:rest*" component={AgentLogin} />
       <Route path="/agent-setup" component={AgentSetup} />
       <Route path="/client/:shareId" component={ClientDashboard} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/compliance" component={CompliancePage} />
       <Route path="/buyer-report/:shareId" component={BuyerReportPage} />
       <Route path="/shared/reports/:shareId/property/:listingId" component={SharedPropertyDetail} />
 
