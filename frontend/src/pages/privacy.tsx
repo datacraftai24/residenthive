@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         </Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-500 mb-8">Last updated: March 29, 2026</p>
+        <p className="text-sm text-gray-500 mb-8">Last updated: April 2, 2026</p>
 
         <div className="prose prose-gray max-w-none space-y-8">
           <section>
@@ -106,7 +106,30 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">7. Data Security</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">7. SMS & Messaging Consent</h2>
+            <p className="text-gray-700 leading-relaxed">
+              During onboarding, agents provide their phone number and explicitly consent to receive SMS and
+              WhatsApp notifications from ResidenceHive. These notifications include lead alerts, buyer report
+              delivery links, property price drop notifications, appointment reminders, and daily activity
+              briefings. Messages may also be sent to buyers and leads on behalf of their agent, including
+              property recommendations, report links, and follow-up communications.
+            </p>
+            <p className="text-gray-700 leading-relaxed mt-3">
+              All messages are transactional and triggered by platform activity. We do not send marketing
+              messages or share your phone number with third parties for promotional purposes.
+            </p>
+            <p className="text-gray-700 leading-relaxed mt-3">
+              You may opt out of SMS notifications at any time by replying STOP to any message. You may also
+              contact us at{" "}
+              <a href="mailto:privacy@residencehive.com" className="text-blue-600 hover:underline">
+                privacy@residencehive.com
+              </a>{" "}
+              to update your messaging preferences. Message and data rates may apply.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">8. Data Security</h2>
             <p className="text-gray-700 leading-relaxed">
               We implement industry-standard security measures to protect your information, including encrypted
               data transmission (TLS/SSL), secure cloud infrastructure (Google Cloud Platform), and access
@@ -116,7 +139,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">8. Data Retention</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. Data Retention</h2>
             <p className="text-gray-700 leading-relaxed">
               We retain your information for as long as your account is active or as needed to provide the Service.
               Buyer reports and associated data are retained to ensure continued access to shared report links.
@@ -125,7 +148,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. Your Rights</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Your Rights</h2>
             <p className="text-gray-700 leading-relaxed mb-3">
               Depending on your jurisdiction, you may have the right to:
             </p>
@@ -144,7 +167,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. MLS Data Usage</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">11. MLS Data Usage</h2>
             <p className="text-gray-700 leading-relaxed">
               Property listing data is provided by MLS Property Information Network, Inc. This data is for the
               personal, non-commercial use of consumers having a good faith interest in purchasing or leasing
@@ -156,7 +179,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">11. Children's Privacy</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Children's Privacy</h2>
             <p className="text-gray-700 leading-relaxed">
               The Service is not intended for individuals under the age of 18. We do not knowingly collect
               personal information from children. If we become aware that we have collected information from
@@ -165,7 +188,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">13. Changes to This Policy</h2>
             <p className="text-gray-700 leading-relaxed">
               We may update this Privacy Policy from time to time. We will notify you of material changes by
               posting the updated policy on this page with a revised "Last updated" date. Your continued use
@@ -174,7 +197,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">13. Contact Us</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">14. Contact Us</h2>
             <p className="text-gray-700 leading-relaxed">
               If you have questions about this Privacy Policy or our data practices, contact us at:
             </p>

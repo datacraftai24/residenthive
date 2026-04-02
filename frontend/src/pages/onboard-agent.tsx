@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Building2, Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,6 +39,7 @@ export default function OnboardAgentPage() {
   const [licenseNumber, setLicenseNumber] = useState("");
   const [designation, setDesignation] = useState("");
   const [coverageAreas, setCoverageAreas] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
 
   // Validate invitation token
   const {
@@ -80,6 +82,8 @@ export default function OnboardAgentPage() {
         license_number: licenseNumber || null,
         designation: designation || null,
         coverage_areas: areas.length > 0 ? areas : null,
+        sms_consent: smsConsent,
+        sms_consent_at: smsConsent ? new Date().toISOString() : null,
       });
       return res.json();
     },
@@ -151,7 +155,7 @@ export default function OnboardAgentPage() {
   }
 
   const cleanDigits = phoneDigits.replace(/\D/g, "");
-  const isFormValid = firstName && lastName && cleanDigits.length === 10;
+  const isFormValid = firstName && lastName && cleanDigits.length === 10 && smsConsent;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -252,6 +256,21 @@ export default function OnboardAgentPage() {
               <p className="text-xs text-gray-500">
                 Comma-separated list of cities or regions you cover.
               </p>
+            </div>
+
+            <div className="flex items-start space-x-3 rounded-md border border-gray-200 p-4 bg-gray-50">
+              <Checkbox
+                id="smsConsent"
+                checked={smsConsent}
+                onCheckedChange={(checked) => setSmsConsent(checked === true)}
+                className="mt-0.5"
+              />
+              <label htmlFor="smsConsent" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+                I consent to receive SMS and WhatsApp notifications from ResidenceHive, including lead alerts,
+                buyer reports, property updates, and appointment reminders. Message & data rates may apply.
+                Reply STOP to unsubscribe at any time.{" "}
+                <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</a>
+              </label>
             </div>
 
             <Button
