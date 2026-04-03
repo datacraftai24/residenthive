@@ -232,41 +232,73 @@ async def verify_webhook(
 async def receive_webhook(request: Request):
     """
     Webhook endpoint for receiving WhatsApp messages.
-    
-    Processes incoming messages, status updates, and other events from Meta.
+
+    Supports both Twilio (form-encoded) and Meta (JSON) webhook formats.
+    Twilio sends application/x-www-form-urlencoded, Meta sends application/json.
     """
-    # Get raw body for signature verification
+    from ..services.whatsapp.client import USE_TWILIO
+
+    if USE_TWILIO:
+        # Twilio sends form-encoded data
+        form_data = await request.form()
+        body = dict(form_data)
+
+        # Validate Twilio signature
+        twilio_signature = request.headers.get("X-Twilio-Signature", "")
+        if twilio_signature:
+            from twilio.request_validator import RequestValidator
+            import os
+            validator = RequestValidator(os.getenv("TWILIO_AUTH_TOKEN", ""))
+            # Build the full URL for validation
+            url = str(request.url)
+            if not validator.validate(url, body, twilio_signature):
+                logger.warning("Invalid Twilio webhook signature")
+                raise HTTPException(status_code=403, detail="Invalid signature")
+
+        logger.debug(f"Received Twilio webhook: From={body.get('From')}")
+
+        # Check for message
+        message_data = parse_webhook_message(body)
+        if message_data:
+            await _handle_incoming_message(message_data)
+            # Twilio expects empty 200 response (or TwiML)
+            from fastapi.responses import Response
+            return Response(content="", media_type="text/xml", status_code=200)
+
+        # Check for status update
+        status_data = get_status_update(body)
+        if status_data:
+            await _handle_status_update(status_data)
+            return Response(content="", media_type="text/xml", status_code=200)
+
+        return Response(content="", media_type="text/xml", status_code=200)
+
+    # Meta webhook handling (legacy)
     body_bytes = await request.body()
-    
-    # Verify signature
+
     signature = request.headers.get("X-Hub-Signature-256", "")
     if not WhatsAppClient.verify_webhook_signature(body_bytes, signature):
         logger.warning("Invalid webhook signature")
         raise HTTPException(status_code=403, detail="Invalid signature")
-    
-    # Parse body
+
     try:
         body = await request.json()
     except Exception as e:
         logger.error(f"Failed to parse webhook body: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
-    # Log webhook type
+
     logger.debug(f"Received webhook: {body}")
-    
-    # Check for message
+
     message_data = parse_webhook_message(body)
     if message_data:
         await _handle_incoming_message(message_data)
         return {"status": "ok"}
-    
-    # Check for status update
+
     status_data = get_status_update(body)
     if status_data:
         await _handle_status_update(status_data)
         return {"status": "ok"}
-    
-    # Unknown event type - acknowledge anyway
+
     logger.debug("Webhook received but no actionable content")
     return {"status": "ok"}
 
