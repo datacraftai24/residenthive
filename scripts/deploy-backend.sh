@@ -71,7 +71,12 @@ gcloud run deploy ${SERVICE_NAME} \
   --update-secrets MAILJET_API_SECRET=MAILJET_API_SECRET:latest \
   --update-env-vars WHATSAPP_PHONE_NUMBER_ID=1013325431863810 \
   --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest \
-  --update-secrets WHATSAPP_VERIFY_TOKEN=whatsapp-verify-token:latest
+  --update-secrets WHATSAPP_VERIFY_TOKEN=whatsapp-verify-token:latest \
+  --update-secrets TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest \
+  --update-secrets TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest \
+  --update-env-vars TWILIO_WHATSAPP_NUMBER=+18447980101 \
+  --update-env-vars SMS_ENABLED=false \
+  --update-env-vars TWILIO_WELCOME_TEMPLATE_SID=HXf89e00b29ab47bb8544b6549ee553400
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format 'value(status.url)')
