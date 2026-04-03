@@ -587,6 +587,11 @@ def _parse_twilio_webhook(body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     # Strip whatsapp: prefix
     sender = from_number.replace("whatsapp:", "")
 
+    # Ignore messages from our own number (status echoes)
+    our_number = TWILIO_WHATSAPP_NUMBER
+    if our_number and sender.replace("+", "") == our_number.replace("+", ""):
+        return None
+
     message_sid = body.get("MessageSid")
     message_body = body.get("Body", "")
     num_media = int(body.get("NumMedia", 0))
