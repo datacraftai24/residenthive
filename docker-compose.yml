@@ -54,7 +54,7 @@ services:
       TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN}"
       TWILIO_WHATSAPP_NUMBER: "+18447980101"
       SMS_ENABLED: "false"
-      TWILIO_WELCOME_TEMPLATE_SID: "HXf89e00b29ab47bb8544b6549ee553400"
+      TWILIO_WELCOME_TEMPLATE_SID: "HX72dd67b06601d115547cacb209687b14"
     ports:
       - "8001:8000"  # Use 8001 on host to avoid conflicts
     volumes:

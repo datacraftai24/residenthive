@@ -539,7 +539,7 @@ async def _send_welcome_whatsapp(phone: str, first_name: str, agent_id: int):
             return
 
         # Use Twilio Content API to send approved template
-        WELCOME_TEMPLATE_SID = os.getenv("TWILIO_WELCOME_TEMPLATE_SID", "HXf89e00b29ab47bb8544b6549ee553400")
+        WELCOME_TEMPLATE_SID = os.getenv("TWILIO_WELCOME_TEMPLATE_SID", "HX72dd67b06601d115547cacb209687b14")
 
         # Normalize phone
         if not phone.startswith("+"):
