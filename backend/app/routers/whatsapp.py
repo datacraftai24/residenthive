@@ -244,18 +244,23 @@ async def receive_webhook(request: Request):
         body = dict(form_data)
 
         # Validate Twilio signature
-        # Behind Cloud Run, request.url is the internal URL, not what Twilio signed.
-        # Use the public webhook URL configured in Twilio's WhatsApp sender settings.
+        # Behind a reverse proxy, reconstruct the public URL from forwarded headers
         import os
         twilio_signature = request.headers.get("X-Twilio-Signature", "")
         auth_token = os.getenv("TWILIO_AUTH_TOKEN", "")
-        webhook_url = os.getenv("WHATSAPP_WEBHOOK_URL", "https://api.residencehive.com/api/whatsapp/webhook")
 
         if auth_token and twilio_signature:
             from twilio.request_validator import RequestValidator
             validator = RequestValidator(auth_token)
-            if not validator.validate(webhook_url, body, twilio_signature):
-                logger.warning(f"Invalid Twilio webhook signature for {webhook_url}")
+
+            # Reconstruct the public-facing URL Twilio signed against
+            proto = request.headers.get("X-Forwarded-Proto", request.url.scheme)
+            host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", request.url.hostname))
+            path = request.url.path
+            public_url = f"{proto}://{host}{path}"
+
+            if not validator.validate(public_url, body, twilio_signature):
+                logger.warning(f"Invalid Twilio webhook signature for {public_url}")
                 raise HTTPException(status_code=403, detail="Invalid signature")
         elif not twilio_signature:
             logger.warning("Missing X-Twilio-Signature header")
