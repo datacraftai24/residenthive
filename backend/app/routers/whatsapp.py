@@ -382,7 +382,8 @@ async def _handle_incoming_message(message_data: dict):
             audio_id=audio_data.get("id"),
             mime_type=audio_data.get("mime_type", "audio/ogg"),
             agent_id=agent_id,
-            phone=sender_phone
+            phone=sender_phone,
+            audio_url=audio_data.get("url"),
         )
         
         if voice_result.get("type") == "transcribed":

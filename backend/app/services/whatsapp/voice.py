@@ -2,7 +2,7 @@
 Voice Note Transcription for WhatsApp
 
 Handles voice note messages by:
-1. Downloading audio from WhatsApp media API
+1. Downloading audio from WhatsApp (Twilio direct URL or Meta media API)
 2. Transcribing with OpenAI Whisper
 3. Processing transcribed text as a regular message
 
@@ -23,91 +23,115 @@ WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
 WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v18.0")
 WHATSAPP_API_BASE = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
 
 class VoiceTranscriber:
     """
     Transcribe WhatsApp voice notes using OpenAI Whisper.
+    Supports both Twilio (direct URL) and Meta (media ID) audio sources.
     """
-    
+
     def __init__(self):
         if not OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY not set")
         self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
-    
+
     async def transcribe_voice_note(
         self,
         audio_id: str,
-        mime_type: str = "audio/ogg"
+        mime_type: str = "audio/ogg",
+        audio_url: str = None
     ) -> Optional[str]:
         """
         Transcribe a WhatsApp voice note.
-        
+
         Args:
-            audio_id: WhatsApp media ID
-            mime_type: Audio MIME type (usually audio/ogg; codecs=opus)
-            
+            audio_id: WhatsApp media ID (Meta) or MediaSid (Twilio)
+            mime_type: Audio MIME type
+            audio_url: Direct download URL (Twilio provides this)
+
         Returns:
             Transcribed text or None if failed
         """
         try:
-            # Step 1: Get media URL from WhatsApp
-            media_url = await self._get_media_url(audio_id)
-            if not media_url:
-                logger.error(f"Failed to get media URL for {audio_id}")
-                return None
-            
-            # Step 2: Download the audio file
-            audio_data = await self._download_media(media_url)
+            # Download audio
+            if audio_url:
+                # Twilio: direct URL with basic auth
+                audio_data = await self._download_twilio_media(audio_url)
+            else:
+                # Meta: resolve media ID to URL, then download
+                media_url = await self._get_media_url(audio_id)
+                if not media_url:
+                    logger.error(f"Failed to get media URL for {audio_id}")
+                    return None
+                audio_data = await self._download_meta_media(media_url)
+
             if not audio_data:
-                logger.error(f"Failed to download media for {audio_id}")
+                logger.error(f"Failed to download audio")
                 return None
-            
-            # Step 3: Transcribe with Whisper
+
+            # Transcribe with Whisper
             transcript = await self._transcribe_audio(audio_data, mime_type)
-            
+
             if transcript:
                 logger.info(f"Transcribed voice note: {transcript[:50]}...")
-            
+
             return transcript
-            
+
         except Exception as e:
             logger.error(f"Voice transcription failed: {e}", exc_info=True)
             return None
-    
+
+    async def _download_twilio_media(self, media_url: str) -> Optional[bytes]:
+        """Download media from Twilio's URL with basic auth."""
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(
+                media_url,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+                follow_redirects=True
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Failed to download Twilio media: {response.status_code}")
+                return None
+
+            return response.content
+
     async def _get_media_url(self, media_id: str) -> Optional[str]:
-        """Get the download URL for a WhatsApp media file."""
+        """Get the download URL for a Meta WhatsApp media file."""
         if not WHATSAPP_ACCESS_TOKEN:
             logger.error("WHATSAPP_ACCESS_TOKEN not set")
             return None
-        
+
         url = f"{WHATSAPP_API_BASE}/{media_id}"
         headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers)
-            
+
             if response.status_code != 200:
                 logger.error(f"Failed to get media info: {response.status_code} {response.text}")
                 return None
-            
+
             data = response.json()
             return data.get("url")
-    
-    async def _download_media(self, media_url: str) -> Optional[bytes]:
-        """Download media file from WhatsApp."""
+
+    async def _download_meta_media(self, media_url: str) -> Optional[bytes]:
+        """Download media file from Meta's WhatsApp API."""
         if not WHATSAPP_ACCESS_TOKEN:
             return None
-        
+
         headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(media_url, headers=headers)
-            
+
             if response.status_code != 200:
                 logger.error(f"Failed to download media: {response.status_code}")
                 return None
-            
+
             return response.content
     
     async def _transcribe_audio(
@@ -157,23 +181,25 @@ async def handle_voice_message(
     audio_id: str,
     mime_type: str,
     agent_id: int,
-    phone: str
+    phone: str,
+    audio_url: str = None
 ) -> Dict[str, Any]:
     """
     Handle a voice note message.
-    
+
     Args:
-        audio_id: WhatsApp media ID
+        audio_id: WhatsApp media ID (Meta) or MediaSid (Twilio)
         mime_type: Audio MIME type
         agent_id: Agent's database ID
         phone: Sender's phone number
-        
+        audio_url: Direct download URL (Twilio provides this)
+
     Returns:
         Response dict with transcribed text or error
     """
     try:
         transcriber = VoiceTranscriber()
-        transcript = await transcriber.transcribe_voice_note(audio_id, mime_type)
+        transcript = await transcriber.transcribe_voice_note(audio_id, mime_type, audio_url=audio_url)
         
         if not transcript:
             return {
