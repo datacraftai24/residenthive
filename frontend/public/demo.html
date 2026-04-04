@@ -1,0 +1,375 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#08090a;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'DM Sans',-apple-system,sans-serif;overflow:hidden}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+
+.banner{height:26px;display:flex;align-items:center;justify-content:center;gap:8px;opacity:0;transition:opacity .5s}
+.banner.on{opacity:1}
+.banner .d{width:5px;height:5px;border-radius:50%;background:#00a884;box-shadow:0 0 6px rgba(0,168,132,.5)}
+.banner .l{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#8696a0}
+
+.frame{width:370px;height:690px;background:#000;border-radius:42px;padding:5px;box-shadow:0 0 0 1.5px #222,0 20px 60px rgba(0,0,0,.5);transition:all .8s cubic-bezier(.4,0,.2,1)}
+.frame.wide{width:760px;border-radius:14px}
+.screen{width:100%;height:100%;border-radius:38px;overflow:hidden;display:flex;flex-direction:column;transition:all .8s}
+.frame.wide .screen{border-radius:10px}
+
+/* === WA === */
+.wa-bg{background:#0b141a}
+.sb{height:38px;background:#1f2c34;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:11px;color:#fff;font-weight:600}
+.wh{background:#1f2c34;padding:4px 10px 7px;display:flex;align-items:center;gap:7px}
+.wh-av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#00a884,#008f6f);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700}
+.wh-n{color:#e9edef;font-size:13px;font-weight:500}.wh-s{color:#8696a0;font-size:10px}
+.ca{flex:1;overflow-y:auto;padding:5px 9px;display:flex;flex-direction:column;gap:3px;scrollbar-width:none}
+.ca::-webkit-scrollbar{display:none}
+.ib{background:#1f2c34;padding:4px 6px;display:flex;align-items:center;gap:5px}
+.ib-f{flex:1;background:#2a3942;border:none;border-radius:16px;padding:6px 10px;color:#8696a0;font-size:11px}
+.ib-m{width:28px;height:28px;background:#00a884;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px}
+
+.m{max-width:88%;padding:4px 6px 2px;border-radius:6px;font-size:11.5px;line-height:1.35;color:#e9edef;opacity:0;transform:translateY(5px);animation:mi .25s ease forwards}
+@keyframes mi{to{opacity:1;transform:translateY(0)}}
+.ms{background:#005c4b;align-self:flex-end;border-radius:6px 0 6px 6px}
+.mr{background:#1f2c34;align-self:flex-start;border-radius:0 6px 6px 6px}
+.mt{font-size:8px;color:rgba(255,255,255,.3);text-align:right;margin-top:1px;display:flex;justify-content:flex-end;gap:2px}
+.mt .ck{color:#53bdeb;font-size:9px}
+
+.vw{display:flex;align-items:center;gap:1.5px;flex:1;height:14px}
+.vb{width:2px;border-radius:1px;background:rgba(255,255,255,.5);animation:vba .6s ease-in-out infinite alternate}
+@keyframes vba{0%{opacity:.4}100%{opacity:1}}
+
+.tp{align-self:flex-start;background:#1f2c34;border-radius:0 6px 6px 6px;padding:7px 10px;display:flex;gap:3px}
+.td{width:4px;height:4px;background:#8696a0;border-radius:50%;animation:tb 1.2s ease-in-out infinite}
+.td:nth-child(2){animation-delay:.2s}.td:nth-child(3){animation-delay:.4s}
+@keyframes tb{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
+
+.lc{background:rgba(255,255,255,.04);border-radius:4px;padding:4px 5px;margin:2px 0;font-size:10px;line-height:1.6}
+.lt{font-weight:600;font-size:10.5px;margin-bottom:1px}
+
+.rc{background:rgba(0,168,132,.08);border:1px solid rgba(0,168,132,.2);border-radius:6px;padding:6px;margin:2px 0}
+.rb-t{font-size:8px;font-weight:700;color:#00a884;text-transform:uppercase;letter-spacing:.5px}
+.rc-t{font-size:10.5px;font-weight:500;margin:2px 0 3px}
+.rc-l{font-size:9px;color:#53bdeb;word-break:break-all;display:block;margin-bottom:3px}
+.rc-a{display:flex;gap:4px}
+.rc-b{padding:3px 8px;border-radius:4px;font-size:9.5px;font-weight:600;border:none}
+.b-a{background:#00a884;color:#fff}.b-r{background:rgba(255,255,255,.1);color:#aebac1}
+
+/* === REPORT === */
+.rp-bg{background:#fafbfc;color:#1a1a1a}
+.rph{padding:12px 16px 8px;border-bottom:2px solid #2563eb;background:#fff}
+.rph h1{font-family:'Instrument Serif',Georgia,serif;font-size:16px;font-weight:400;color:#111;margin-bottom:1px}
+.rph p{font-size:10px;color:#64748b}.rph p span{color:#2563eb;font-weight:500}
+.rps{flex:1;overflow-y:auto;padding:8px 12px;scrollbar-width:none}
+.rps::-webkit-scrollbar{display:none}
+.rs{opacity:0;transform:translateY(8px);transition:all .4s ease;margin-bottom:8px}
+.rs.on{opacity:1;transform:translateY(0)}
+.ri{background:#f0f7ff;border-radius:7px;padding:8px 10px;font-size:10.5px;line-height:1.5;color:#334155;border-left:3px solid #2563eb}
+.rd{background:#fffbeb;border-radius:7px;padding:7px 10px;border-left:3px solid #f59e0b}
+.rdt{font-size:9.5px;font-weight:700;color:#b45309;margin-bottom:2px}.rdx{font-size:9px;color:#92400e;line-height:1.4}
+
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.pc{border-radius:7px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid #e2e8f0;opacity:0;transform:scale(.97);transition:all .3s}
+.pc.on{opacity:1;transform:scale(1)}
+.pi{height:60px;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px}
+.pb{position:absolute;top:3px;left:3px;padding:1px 5px;border-radius:3px;font-size:7.5px;font-weight:700;color:#fff}
+.pp{padding:4px 6px}.ppr{font-size:12px;font-weight:700;color:#111}.ppm{font-size:8.5px;color:#64748b;margin-top:1px}.ppa{font-size:8.5px;color:#94a3b8;margin-top:1px}
+
+.ai{background:#fff;border-radius:7px;padding:8px 10px;box-shadow:0 1px 2px rgba(0,0,0,.05);border:1px solid #e2e8f0}
+.ait{font-size:10.5px;font-weight:700;color:#111;margin-bottom:4px}
+.tgs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px}
+.tag{padding:1px 5px;border-radius:3px;font-size:7.5px;font-weight:600}
+.t-r{background:#fef2f2;color:#dc2626}.t-y{background:#fffbeb;color:#d97706}.t-g{background:#f0fdf4;color:#16a34a}
+.atk{font-size:9.5px;line-height:1.45;color:#475569;padding:5px 7px;background:#f8fafc;border-radius:4px;border-left:3px solid #2563eb}
+.atkl{font-size:7.5px;font-weight:700;color:#2563eb;margin-bottom:1px;text-transform:uppercase;letter-spacing:.5px}
+
+.ph{background:#f0f9ff;border-radius:7px;padding:7px 10px}
+.pht{font-size:10px;font-weight:700;color:#0c4a6e;margin-bottom:3px}
+.phi{font-size:9px;color:#334155;padding:1px 0}
+
+.ct{background:#fff;border-radius:7px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.05);border:1px solid #e2e8f0}
+.cth{padding:6px 9px;font-size:10.5px;font-weight:700;border-bottom:1px solid #e2e8f0}
+.ctb{width:100%;font-size:8.5px;border-collapse:collapse}
+.ctb th{background:#f8fafc;padding:3px 5px;text-align:left;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;font-size:7.5px}
+.ctb td{padding:2px 5px;border-bottom:1px solid #f1f5f9;color:#334155}
+.star{color:#f59e0b}
+.sr{display:flex;gap:3px;justify-content:center;padding:5px 8px 7px;flex-wrap:wrap}
+.sb2{padding:3px 8px;background:#2563eb;color:#fff;border:none;border-radius:4px;font-size:8.5px;font-weight:600;cursor:pointer}
+
+/* === CHATBOT === */
+.cb-bg{background:#fafbfc;color:#1a1a1a}
+.cbh{padding:8px 12px 6px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:7px}
+.cb-av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px}
+.cb-n{font-size:12px;font-weight:600;color:#111}.cb-s{font-size:9px;color:#64748b}
+.cbc{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:4px;scrollbar-width:none}
+.cbc::-webkit-scrollbar{display:none}
+.cbm{max-width:90%;padding:6px 9px;border-radius:9px;font-size:10.5px;line-height:1.4;opacity:0;animation:mi .25s ease forwards}
+.cb-s2{background:#2563eb;color:#fff;align-self:flex-end;border-radius:9px 9px 2px 9px}
+.cb-r{background:#f1f5f9;color:#334155;align-self:flex-start;border-radius:9px 9px 9px 2px}
+.cbi{background:#fff;padding:5px 8px;border-top:1px solid #e2e8f0;display:flex;gap:5px}
+.cbi-f{flex:1;background:#f1f5f9;border:none;border-radius:16px;padding:6px 10px;color:#64748b;font-size:10px}
+
+.si{padding-left:5px;border-left:2px solid #e2e8f0;margin-bottom:2px}
+.si-n{font-weight:600;font-size:9.5px;color:#1e293b}.si-m{font-size:8.5px;color:#64748b}
+
+/* === DASHBOARD === */
+.db-bg{background:#f8fafc;color:#1a1a1a}
+.dbh{padding:10px 16px 8px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.dbh-t{font-size:14px;font-weight:700;color:#111}.dbh-s{font-size:9px;color:#64748b}
+.dbh-r{display:flex;gap:8px;align-items:center;font-size:9px;color:#64748b}
+.dbs{flex:1;overflow-y:auto;padding:10px 14px;scrollbar-width:none}
+.dbs::-webkit-scrollbar{display:none}
+
+.db-status{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:#fff;border-radius:8px;border:1px solid #e2e8f0}
+.db-cold{background:#eff6ff;color:#2563eb;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;display:flex;align-items:center;gap:4px}
+.db-cold-icon{font-size:12px}
+.db-status-text{font-size:10px;color:#64748b;flex:1}
+.db-action-tag{font-size:8px;font-weight:600;color:#6366f1;background:#eef2ff;padding:2px 6px;border-radius:3px}
+
+.db-metrics{display:flex;gap:12px;margin-bottom:8px;font-size:9.5px;color:#64748b;flex-wrap:wrap}
+.db-metric b{color:#111}
+.db-eng{color:#f59e0b;font-weight:600;background:#fffbeb;padding:1px 5px;border-radius:3px;font-size:8.5px}
+
+.db-tone{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:8px 10px;margin-bottom:8px}
+.db-tone-label{font-size:8px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.db-tone-text{font-size:10px;color:#334155}
+
+.db-btns{display:flex;gap:6px;margin-bottom:10px}
+.db-btn{padding:6px 14px;border-radius:6px;font-size:10px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;gap:4px}
+.db-btn-call{background:#16a34a;color:#fff}.db-btn-text{background:#fff;color:#334155;border:1px solid #e2e8f0}.db-btn-email{background:#7c3aed;color:#fff}
+
+.db-section{margin-bottom:8px;opacity:0;transform:translateY(6px);transition:all .4s}
+.db-section.on{opacity:1;transform:translateY(0)}
+.db-section-title{font-size:8px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;padding-bottom:3px;border-bottom:1px solid #f1f5f9}
+
+.db-verify{display:flex;align-items:center;gap:5px;font-size:10px;color:#334155;padding:3px 0}
+.db-verify-icon{color:#64748b;font-size:11px}
+
+.db-fha{background:#fffbeb;border-radius:6px;padding:6px 8px;margin-bottom:5px}
+.db-fha-warn{font-size:9px;color:#b45309;display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.db-fha-item{font-size:9.5px;color:#334155;display:flex;align-items:center;gap:4px}
+.db-fha-sub{font-size:8.5px;color:#dc2626;font-style:italic}
+
+.db-action-item{display:flex;align-items:center;justify-content:space-between;padding:5px 0}
+.db-action-text{font-size:10px;color:#334155;display:flex;align-items:center;gap:4px}
+.db-action-pri{font-size:7.5px;font-weight:700;color:#dc2626;background:#fef2f2;padding:1px 5px;border-radius:3px}
+
+.brand{text-align:center;margin-top:8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#444}
+.brand span{color:#00a884;font-weight:600}
+
+.cta-wrap{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:100;opacity:0;pointer-events:none;transition:opacity .3s;display:flex;gap:8px}
+.cta-wrap.on{opacity:1;pointer-events:all}
+.cta-btn{padding:7px 18px;border-radius:18px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+.cta-1{background:#00a884;color:#fff}.cta-2{background:rgba(255,255,255,.1);color:#aebac1;border:1px solid rgba(255,255,255,.15)}
+</style>
+
+<div class="wrap">
+  <div class="banner" id="bn"><div class="d"></div><div class="l" id="bl"></div><div class="d"></div></div>
+  <div class="frame" id="fr">
+    <div class="screen wa-bg" id="sc">
+
+      <!-- WA -->
+      <div id="waL" style="display:flex;flex-direction:column;height:100%">
+        <div class="sb"><span>7:36 PM</span><span style="font-size:9px">📶 🔋</span></div>
+        <div class="wh"><span style="color:#00a884;font-size:16px">‹</span><div class="wh-av">R</div><div><div class="wh-n">ResidenceHive</div><div class="wh-s">online</div></div></div>
+        <div class="ca" id="ca"></div>
+        <div class="ib"><div class="ib-f" id="inp">Type a message</div><div class="ib-m">🎤</div></div>
+      </div>
+
+      <!-- Report -->
+      <div id="rpL" style="display:none;flex-direction:column;height:100%">
+        <div class="rph"><h1>Property Recommendations for Ankita & Rohan</h1><p>Curated by <span>Piyush Tiwari</span> · Quincy, MA</p></div>
+        <div class="rps" id="rps">
+          <div class="rs" id="s1"><div class="ri">Hello! I've put together a preliminary list of properties in Quincy within your price range. While some might need work, I wanted to share a comprehensive overview.</div></div>
+          <div class="rs" id="s2"><div class="rd"><div class="rdt">Agency Disclosure</div><div class="rdx">Piyush Tiwari is acting as your Buyer's Agent. A Buyer Representation Agreement is required prior to touring any property.</div></div></div>
+          <div class="rs" id="s3"><div style="font-size:11px;font-weight:700;margin-bottom:4px;color:#111">Your Property Matches</div><div class="pg" id="pg"></div></div>
+          <div class="rs" id="s4"><div class="ai"><div class="ait">🏠 #1 Top Pick · 16 Littlefield St</div><div class="tgs"><span class="tag t-r">✕ No garage</span><span class="tag t-r">✕ Residential</span><span class="tag t-y">⚠ Built 1920</span><span class="tag t-g">✓ 19% under budget</span><span class="tag t-g">✓ +1 bed</span></div><div class="atk"><div class="atkl">Agent's Take</div>Photos show water stains in kitchen and sunroom. No garage. $567K with 4 beds and beach access but needs significant updates.</div></div></div>
+          <div class="rs" id="s5"><div class="ph"><div class="pht">📷 What We Saw in Photos</div><div class="phi">✅ Original hardwood floors and recessed lighting</div><div class="phi">✅ Multiple windows for natural light</div><div class="phi">⚠️ Water stains on kitchen ceiling</div><div class="phi">⚠️ Water stains on porch ceiling</div></div></div>
+          <div class="rs" id="s6"><div class="ct"><div class="cth">📊 Compare Properties</div><table class="ctb"><thead><tr><th></th><th>#1</th><th>#2</th><th>#3</th><th>#4</th></tr></thead><tbody><tr><td style="font-weight:600">Price</td><td>$567K</td><td>$537K</td><td>$488K⭐</td><td>$499K</td></tr><tr><td style="font-weight:600">Beds</td><td>4⭐</td><td>3</td><td>2</td><td>3</td></tr><tr><td style="font-weight:600">Schools</td><td>2</td><td>7</td><td>11⭐</td><td>8</td></tr></tbody></table><div class="sr"><button class="sb2">📅 #1</button><button class="sb2">📅 #2</button><button class="sb2">📅 #3</button><button class="sb2">📅 #4</button></div></div></div>
+        </div>
+      </div>
+
+      <!-- Chatbot -->
+      <div id="cbL" style="display:none;flex-direction:column;height:100%">
+        <div class="cbh"><div class="cb-av">🤖</div><div><div class="cb-n">AI Assistant</div><div class="cb-s">Ask about any property</div></div></div>
+        <div class="cbc" id="cbc"></div>
+        <div class="cbi"><div class="cbi-f">Ask a question...</div></div>
+      </div>
+
+      <!-- Dashboard -->
+      <div id="dbL" style="display:none;flex-direction:column;height:100%">
+        <div class="dbh">
+          <div><div class="dbh-t">Buyer Profile Management</div><div class="dbh-s">AI-powered buyer insights</div></div>
+          <div class="dbh-r"><span>📊 Analytics</span></div>
+        </div>
+        <div class="dbs" id="dbs">
+          <div class="db-section" id="d1">
+            <div class="db-status">
+              <div class="db-cold"><span class="db-cold-icon">❄️</span>[COLD]</div>
+              <div class="db-status-text">Lower engagement and intent - nurture with value</div>
+              <div class="db-action-tag">NURTURE DRIP</div>
+            </div>
+            <div class="db-metrics">
+              <span>◉ Intent: <b>LOW</b></span>
+              <span>⚡ Engagement: <span class="db-eng">MEDIUM</span></span>
+              <span>💬 2 msgs</span>
+              <span>⏱ 23m ago</span>
+            </div>
+          </div>
+          <div class="db-section" id="d2">
+            <div class="db-tone">
+              <div class="db-tone-label">Communication Tone</div>
+              <div class="db-tone-text">Value-first approach. Share market updates and helpful content.</div>
+            </div>
+            <div class="db-btns">
+              <button class="db-btn db-btn-call">📞 Call Now</button>
+              <button class="db-btn db-btn-text">💬 Send Text</button>
+              <button class="db-btn db-btn-email">✉️ Draft Email</button>
+            </div>
+          </div>
+          <div class="db-section" id="d3">
+            <div class="db-section-title">⏰ Before You Contact</div>
+            <div class="db-section-title" style="border:none;margin-top:4px">Topics to Verify</div>
+            <div class="db-verify"><span class="db-verify-icon">⊙</span> school</div>
+          </div>
+          <div class="db-section" id="d4">
+            <div class="db-section-title">Property Strengths to Highlight</div>
+            <div class="db-fha">
+              <div class="db-fha-warn">⚠ Some strengths reference FHA-sensitive topics. Use objective, verifiable facts.</div>
+              <div class="db-fha-item">⚠ good schools nearby</div>
+              <div class="db-fha-sub">FHA Sensitive (Familial Status) — Use objective facts only</div>
+            </div>
+          </div>
+          <div class="db-section" id="d5">
+            <div class="db-section-title">Action Items</div>
+            <div class="db-action-item">
+              <div class="db-action-text">☰ Encourage the buyer to start chatting with the AI assistant</div>
+              <div class="db-action-pri">High</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="brand"><span>ResidenceHive</span> · AI-Powered Lead Engagement</div>
+</div>
+
+<div class="cta-wrap" id="cta">
+  <button class="cta-btn cta-2" onclick="startDemo()">↻ Replay</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const ca=$('ca'),inp=$('inp'),bn=$('bn'),bl=$('bl'),fr=$('fr'),sc=$('sc'),
+  waL=$('waL'),rpL=$('rpL'),cbL=$('cbL'),dbL=$('dbL'),
+  rps=$('rps'),cbc=$('cbc'),pg=$('pg'),cta=$('cta');
+
+const W=ms=>new Promise(r=>setTimeout(r,ms));
+const bars=n=>Array.from({length:n},(_,i)=>{const h=Math.random()*11+3;return`<div class="vb" style="height:${h}px;animation-delay:${i*.03}s"></div>`}).join('');
+const tm=()=>'7:'+String(36+Math.floor(Math.random()*4)).padStart(2,'0');
+
+function scene(t){bl.textContent=t;bn.classList.add('on')}
+function addM(h,c,d){return new Promise(r=>{setTimeout(()=>{const e=document.createElement('div');e.className='m '+c;e.innerHTML=h+`<div class="mt">${tm()}${c==='ms'?' <span class="ck">✓✓</span>':''}</div>`;ca.appendChild(e);ca.scrollTop=ca.scrollHeight;r()},d)})}
+function typ(ms){return new Promise(r=>{const e=document.createElement('div');e.className='tp';e.id='ty';e.innerHTML='<div class="td"></div><div class="td"></div><div class="td"></div>';ca.appendChild(e);ca.scrollTop=ca.scrollHeight;setTimeout(()=>{$('ty')?.remove();r()},ms)})}
+function typeIn(t,ms){return new Promise(r=>{inp.style.color='#e9edef';let i=0;const s=ms/t.length;const iv=setInterval(()=>{i++;inp.textContent=t.substring(0,i);if(i>=t.length){clearInterval(iv);setTimeout(()=>{inp.textContent='Type a message';inp.style.color='#8696a0';r()},150)}},s)})}
+function addCB(h,c,d){return new Promise(r=>{setTimeout(()=>{const e=document.createElement('div');e.className='cbm '+c;e.innerHTML=h;cbc.appendChild(e);cbc.scrollTop=cbc.scrollHeight;r()},d)})}
+function cbTyp(ms){return new Promise(r=>{const e=document.createElement('div');e.className='cbm cb-r';e.id='cbt';e.style.padding='7px 10px';e.innerHTML='<div style="display:flex;gap:3px"><div class="td" style="background:#94a3b8"></div><div class="td" style="background:#94a3b8"></div><div class="td" style="background:#94a3b8"></div></div>';cbc.appendChild(e);cbc.scrollTop=cbc.scrollHeight;setTimeout(()=>{$('cbt')?.remove();r()},ms)})}
+
+const props=[
+  {a:'16 Littlefield St',p:'$567K',b:4,ba:2,sq:'1,274',bg:'#1 TOP PICK',bc:'#2563eb'},
+  {a:'36 Palmer St',p:'$537K',b:3,ba:3,sq:'968',bg:'#2 ALT',bc:'#059669'},
+  {a:'212-A Quincy Shore',p:'$488K',b:2,ba:1,sq:'864',bg:'#3 OPTION',bc:'#6366f1'},
+  {a:'27 Sixth Ave',p:'$499K',b:3,ba:1,sq:'1,134',bg:'#4 OPTION',bc:'#6366f1'},
+];
+
+function buildProps(){pg.innerHTML='';props.forEach(p=>{const e=document.createElement('div');e.className='pc';e.innerHTML=`<div class="pi" style="background:linear-gradient(135deg,${p.bc}22,${p.bc}11)">🏠<div class="pb" style="background:${p.bc}">${p.bg}</div></div><div class="pp"><div class="ppr">${p.p}</div><div class="ppm">🛏${p.b} 🛁${p.ba} 📐${p.sq}</div><div class="ppa">📍${p.a}</div></div>`;pg.appendChild(e)})}
+
+function switchView(v){
+  waL.style.display='none';rpL.style.display='none';cbL.style.display='none';dbL.style.display='none';
+  fr.classList.remove('wide');
+  sc.className='screen '+(v==='wa'?'wa-bg':v==='db'?'db-bg':v==='cb'?'cb-bg':'rp-bg');
+  if(v==='wa')waL.style.display='flex';
+  if(v==='rp'){rpL.style.display='flex';fr.classList.add('wide')}
+  if(v==='cb')cbL.style.display='flex';
+  if(v==='db'){dbL.style.display='flex';fr.classList.add('wide')}
+}
+
+async function startDemo(){
+  ca.innerHTML='';cbc.innerHTML='';cta.classList.remove('on');bn.classList.remove('on');
+  document.querySelectorAll('.rs,.db-section').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.pc').forEach(e=>e.classList.remove('on'));
+  rps.scrollTop=0;$('dbs').scrollTop=0;
+  switchView('wa');await W(400);
+
+  // WA FLOW
+  scene('STEP 1 · Agent sends voice note');
+  await addM(`<div style="display:flex;align-items:center;gap:4px;padding:2px 0"><span style="font-size:11px;color:#fff">▶</span><div class="vw">${bars(22)}</div><span style="font-size:9px;color:rgba(255,255,255,.5)">0:21</span><div style="width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:9px">🧑‍💼</div></div><div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:1px;font-style:italic">🎙️ "3 bed condo, Quincy, 500-700K, garage, good schools"</div>`,'ms',400);
+  await typ(1400);
+  scene('STEP 2 · Lead created instantly');
+  await addM(`Added <b>Ankita & Rohan</b> to leads.<div class="lc"><div class="lt">Lead Summary:</div>🧑 Ankita & Rohan · 📍 Quincy<br>💰 $500K–$700K · 🛏️ 3 bed Condo<br>✨ Garage, schools · 🎯 Intent: 20</div>Search for properties?`,'mr',200);
+  await W(1400);
+
+  scene('STEP 3 · Generate report');
+  await typeIn('generate a report',500);await addM('generate a report','ms',150);
+  await typ(1600);
+  await addM(`No exact matches for Quincy, $500K–$700K, 3 beds.<br>Widening budget or locations?`,'mr',150);
+  await W(400);
+  await addM(`<div class="rc"><div class="rb-t">📄 Outreach Approval</div><div class="rc-t">Report for <b>Ankita & Rohan</b></div><span class="rc-l">🔗 residencehive.com/buyer-report/...</span><div class="rc-a"><span class="rc-b b-a">✓ Approve</span><span class="rc-b b-r">Reject</span></div></div>`,'mr',150);
+  await W(900);
+
+  await addM('1','ms',200);await typ(600);
+  await addM(`What budget for <b>Ankita & Rohan</b>? Or add locations?`,'mr',150);
+  await W(900);
+
+  scene('STEP 4 · Agent challenges the AI');
+  await typeIn('Why can\'t you find? What are the constraints?',600);
+  await addM('Why can\'t you find? What are the constraints?','ms',150);
+  await typ(1800);
+  scene('STEP 5 · AI explains market reality');
+  await addM(`Constraints for <b>Ankita & Rohan</b>:<div class="lc">· Location: Quincy<br>· Budget: $500K–$700K<br>· Beds: 3 · Type: Condo<br>· Garage: Min 1 space</div>A 3-bed condo with garage in Quincy under $700K is quite tight. Remove garage or increase to $800K?`,'mr',150);
+  await W(2500);
+
+  // REPORT
+  scene('STEP 6 · What the buyer receives');
+  switchView('rp');await W(600);buildProps();
+  const secs=['s1','s2','s3','s4','s5','s6'];
+  const lbl=[null,null,'Personalized matches','AI flags concerns honestly','Photo analysis','Compare & schedule'];
+  for(let i=0;i<secs.length;i++){
+    await W(550);$(secs[i]).classList.add('on');
+    if(lbl[i])scene('STEP '+(i+4)+' · '+lbl[i]);
+    if(secs[i]==='s3'){const c=pg.querySelectorAll('.pc');for(let j=0;j<c.length;j++){await W(150);c[j].classList.add('on')}}
+    if(i>2)rps.scrollTo({top:$(secs[i]).offsetTop-6,behavior:'smooth'});
+    await W(400);
+  }
+  await W(2000);
+
+  // CHATBOT
+  scene('STEP 10 · Buyer asks about schools');
+  switchView('cb');await W(500);
+  await addCB('tell me about the schools','cb-s2',200);
+  await cbTyp(2000);
+  scene('STEP 11 · Compliant school data');
+  await addCB(`<div style="font-size:9px;color:#64748b;font-style:italic;margin-bottom:4px">School assignments must be verified with the district.</div><div style="font-weight:600;margin-bottom:4px">Schools near your properties:</div><div style="margin-bottom:4px"><b style="font-size:10px">16 Littlefield St</b><div class="si"><div class="si-n">Atherton Hough Elem</div><div class="si-m">4/10 · 1.5mi</div></div><div class="si"><div class="si-n">Quincy High</div><div class="si-m">5/10 · 2.5mi</div></div></div><div style="margin-bottom:4px"><b style="font-size:10px">212-A Quincy Shore</b><div class="si"><div class="si-n">Atlantic Middle</div><div class="si-m">8/10 · 0.6mi</div></div><div class="si"><div class="si-n">North Quincy High</div><div class="si-m">8/10 · 0.6mi</div></div></div><div style="font-size:7.5px;color:#94a3b8;font-style:italic">Source: GreatSchools/Zillow</div>`,'cb-r',150);
+  await W(3000);
+
+  // DASHBOARD
+  scene('STEP 12 · Agent dashboard — the loop closes');
+  switchView('db');await W(600);
+  const ds=['d1','d2','d3','d4','d5'];
+  const dl=[null,'Communication guidance','Topics to verify before calling','FHA compliance flag on schools','Next action: get buyer chatting'];
+  for(let i=0;i<ds.length;i++){
+    await W(700);$(ds[i]).classList.add('on');
+    if(dl[i])scene('STEP '+(12+i)+' · '+dl[i]);
+    $('dbs').scrollTo({top:$(ds[i]).offsetTop-6,behavior:'smooth'});
+    await W(500);
+  }
+  await W(2500);
+
+  scene('VOICE NOTE → REPORT → ENGAGEMENT → INTELLIGENCE · FULL LOOP');
+  await W(3500);
+  bn.classList.remove('on');cta.classList.add('on');
+}
+
+setTimeout(startDemo,500);
+</script>

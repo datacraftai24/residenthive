@@ -492,12 +492,11 @@ async def _send_unregistered_response(phone: str):
         client = WhatsAppClient()
         await client.send_text(
             phone,
-            "This number isn't connected to a ResidentHive account.\n\n"
-            "To connect your WhatsApp:\n"
-            "1. Log in to app.residenthive.com\n"
-            "2. Go to Settings → WhatsApp\n"
-            "3. Enter this phone number\n\n"
-            "Need help? Contact support@residenthive.com"
+            "Hey! Thanks for reaching out to ResidenceHive.\n\n"
+            "We'd love to show you how it works. "
+            "Drop us a note at piyush@residencehive.com "
+            "or visit residencehive.com to request a demo.\n\n"
+            "Talk soon!"
         )
     except Exception as e:
         logger.error(f"Failed to send unregistered response: {e}")
