@@ -232,41 +232,84 @@ async def verify_webhook(
 async def receive_webhook(request: Request):
     """
     Webhook endpoint for receiving WhatsApp messages.
-    
-    Processes incoming messages, status updates, and other events from Meta.
+
+    Supports both Twilio (form-encoded) and Meta (JSON) webhook formats.
+    Twilio sends application/x-www-form-urlencoded, Meta sends application/json.
     """
-    # Get raw body for signature verification
+    from ..services.whatsapp.client import USE_TWILIO
+
+    if USE_TWILIO:
+        # Twilio sends form-encoded data
+        form_data = await request.form()
+        body = dict(form_data)
+
+        # Validate Twilio signature
+        # Behind a reverse proxy, reconstruct the public URL from forwarded headers
+        import os
+        twilio_signature = request.headers.get("X-Twilio-Signature", "")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN", "")
+
+        if auth_token and twilio_signature:
+            from twilio.request_validator import RequestValidator
+            validator = RequestValidator(auth_token)
+
+            # Reconstruct the public-facing URL Twilio signed against
+            proto = request.headers.get("X-Forwarded-Proto", request.url.scheme)
+            host = request.headers.get("X-Forwarded-Host", request.headers.get("Host", request.url.hostname))
+            path = request.url.path
+            public_url = f"{proto}://{host}{path}"
+
+            if not validator.validate(public_url, body, twilio_signature):
+                logger.warning(f"Invalid Twilio webhook signature for {public_url}")
+                raise HTTPException(status_code=403, detail="Invalid signature")
+        elif not twilio_signature:
+            logger.warning("Missing X-Twilio-Signature header")
+            raise HTTPException(status_code=403, detail="Missing signature")
+
+        logger.debug(f"Received Twilio webhook: From={body.get('From')}")
+
+        from fastapi.responses import Response
+
+        # Check for message
+        message_data = parse_webhook_message(body)
+        if message_data:
+            await _handle_incoming_message(message_data)
+            return Response(content="", media_type="text/xml", status_code=200)
+
+        # Check for status update
+        status_data = get_status_update(body)
+        if status_data:
+            await _handle_status_update(status_data)
+            return Response(content="", media_type="text/xml", status_code=200)
+
+        return Response(content="", media_type="text/xml", status_code=200)
+
+    # Meta webhook handling (legacy)
     body_bytes = await request.body()
-    
-    # Verify signature
+
     signature = request.headers.get("X-Hub-Signature-256", "")
     if not WhatsAppClient.verify_webhook_signature(body_bytes, signature):
         logger.warning("Invalid webhook signature")
         raise HTTPException(status_code=403, detail="Invalid signature")
-    
-    # Parse body
+
     try:
         body = await request.json()
     except Exception as e:
         logger.error(f"Failed to parse webhook body: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
-    # Log webhook type
+
     logger.debug(f"Received webhook: {body}")
-    
-    # Check for message
+
     message_data = parse_webhook_message(body)
     if message_data:
         await _handle_incoming_message(message_data)
         return {"status": "ok"}
-    
-    # Check for status update
+
     status_data = get_status_update(body)
     if status_data:
         await _handle_status_update(status_data)
         return {"status": "ok"}
-    
-    # Unknown event type - acknowledge anyway
+
     logger.debug("Webhook received but no actionable content")
     return {"status": "ok"}
 
@@ -339,7 +382,8 @@ async def _handle_incoming_message(message_data: dict):
             audio_id=audio_data.get("id"),
             mime_type=audio_data.get("mime_type", "audio/ogg"),
             agent_id=agent_id,
-            phone=sender_phone
+            phone=sender_phone,
+            audio_url=audio_data.get("url"),
         )
         
         if voice_result.get("type") == "transcribed":

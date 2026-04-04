@@ -516,7 +516,59 @@ def complete_agent_onboarding(
         }
     })
 
+    # Send WhatsApp welcome message (async, non-blocking)
+    if phone:
+        try:
+            import asyncio
+            asyncio.create_task(_send_welcome_whatsapp(phone, first_name, agent["id"]))
+        except RuntimeError:
+            # No event loop running (e.g., in sync context) — skip silently
+            logger.debug("Skipping WhatsApp welcome: no event loop")
+
     return {"agent": agent, "mls_match": mls_match, "verification_status": verification_status}
+
+
+async def _send_welcome_whatsapp(phone: str, first_name: str, agent_id: int):
+    """Send WhatsApp welcome message to newly onboarded agent via template."""
+    try:
+        from .whatsapp.client import WhatsAppClient, USE_TWILIO, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER
+        import httpx
+
+        if not USE_TWILIO:
+            logger.debug("Twilio not configured, skipping WhatsApp welcome")
+            return
+
+        # Use Twilio Content API to send approved template
+        WELCOME_TEMPLATE_SID = os.getenv("TWILIO_WELCOME_TEMPLATE_SID", "HX72dd67b06601d115547cacb209687b14")
+
+        # Normalize phone
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+        data = {
+            "From": f"whatsapp:{TWILIO_WHATSAPP_NUMBER}",
+            "To": f"whatsapp:{phone}",
+            "ContentSid": WELCOME_TEMPLATE_SID,
+            "ContentVariables": f'{{"1": "{first_name}"}}',
+        }
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                url,
+                data=data,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+            )
+
+            if response.status_code >= 400:
+                result = response.json()
+                logger.warning(f"WhatsApp welcome failed for agent {agent_id}: {result.get('message', 'unknown')}")
+            else:
+                logger.info(f"WhatsApp welcome sent to agent {agent_id} at {phone}")
+
+    except Exception as e:
+        # Never fail onboarding because of a welcome message
+        logger.warning(f"WhatsApp welcome error for agent {agent_id}: {e}")
 
 
 def acknowledge_compliance(agent_id: int) -> Dict:
