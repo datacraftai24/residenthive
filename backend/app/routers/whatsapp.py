@@ -268,12 +268,12 @@ async def receive_webhook(request: Request):
 
         logger.debug(f"Received Twilio webhook: From={body.get('From')}")
 
+        from fastapi.responses import Response
+
         # Check for message
         message_data = parse_webhook_message(body)
         if message_data:
             await _handle_incoming_message(message_data)
-            # Twilio expects empty 200 response (or TwiML)
-            from fastapi.responses import Response
             return Response(content="", media_type="text/xml", status_code=200)
 
         # Check for status update
