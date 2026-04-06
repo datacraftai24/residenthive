@@ -24,7 +24,6 @@ from .messages import MessageBuilder
 from .buyer_codes import (
     get_buyer_by_code,
     get_buyers_by_name,
-    resolve_buyer_reference,
     resolve_entity_reference,
     assign_code_to_buyer,
     format_buyer_code_display
@@ -210,36 +209,45 @@ class WhatsAppHandlers:
                 intent.buyer_reference or ""
             )
         
-        # Get buyer by ID or reference
-        buyer = None
+        # Get entity by ID or reference (searches both buyers and leads)
+        entity = None
         if intent.buyer_id:
-            buyer = self._get_buyer_by_id(intent.buyer_id)
+            entity = self._get_buyer_by_id(intent.buyer_id)
+            if entity:
+                entity["entity_type"] = "buyer"
         elif intent.buyer_reference:
-            matches = resolve_buyer_reference(self.agent_id, intent.buyer_reference)
+            matches = resolve_entity_reference(self.agent_id, intent.buyer_reference)
             if len(matches) == 1:
-                buyer = matches[0]
+                entity = matches[0]
             elif len(matches) > 1:
                 return MessageBuilder.disambiguation(matches, intent.buyer_reference)
-        
-        if not buyer:
+
+        if not entity:
             return MessageBuilder.text(
-                f"I couldn't find a buyer matching \"{intent.buyer_reference}\".\n\n"
+                f"I couldn't find a buyer or lead matching \"{intent.buyer_reference}\".\n\n"
                 "Try typing their full name or code (e.g., SC1)."
             )
-        
-        # Enter buyer context
-        code = buyer.get("whatsapp_code") or ""
-        name = buyer.get("name", "Unknown")
-        
-        # Assign code if missing
-        if not code:
-            code = assign_code_to_buyer(buyer["id"], self.agent_id, name)
-            buyer["whatsapp_code"] = code
-        
-        self.session.set_buyer_context(buyer["id"], code, name)
-        await SessionManager.save(self.session)
-        
-        return MessageBuilder.buyer_context_entered(buyer)
+
+        entity_type = entity.get("entity_type", "buyer")
+        code = entity.get("whatsapp_code") or entity.get("code") or ""
+        name = entity.get("name") or entity.get("extracted_name") or "Unknown"
+
+        if entity_type == "lead":
+            # Enter lead context
+            from .buyer_codes import assign_code_to_lead
+            if not code:
+                code = assign_code_to_lead(entity["id"], self.agent_id, name)
+            self.session.set_lead_context(entity["id"], code, name)
+            await SessionManager.save(self.session)
+            return MessageBuilder.lead_context_entered(entity)
+        else:
+            # Enter buyer context
+            if not code:
+                code = assign_code_to_buyer(entity["id"], self.agent_id, name)
+                entity["whatsapp_code"] = code
+            self.session.set_buyer_context(entity["id"], code, name)
+            await SessionManager.save(self.session)
+            return MessageBuilder.buyer_context_entered(entity)
     
     async def _handle_exit_context(self) -> Dict[str, Any]:
         """Exit buyer context, return to idle."""
@@ -1508,10 +1516,10 @@ Example: {{"budgetMax": 850000, "email": "new@email.com"}}"""
         buyer_email = None
         for intent in intents:
             if intent.buyer_reference:
-                matches = resolve_buyer_reference(self.agent_id, intent.buyer_reference)
+                matches = resolve_entity_reference(self.agent_id, intent.buyer_reference)
                 if len(matches) == 1:
-                    buyer_name = matches[0].get("name")
-                    buyer_email = matches[0].get("email")
+                    buyer_name = matches[0].get("name") or matches[0].get("extracted_name")
+                    buyer_email = matches[0].get("email") or matches[0].get("extracted_email")
                 break
         if not buyer_name and self.session.active_buyer_name:
             buyer_name = self.session.active_buyer_name
