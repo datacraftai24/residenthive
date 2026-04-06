@@ -600,6 +600,13 @@ class IntentParser:
         if msg_lower in ("no", "cancel", "nevermind", "stop", "abort"):
             return Intent(type=IntentType.CANCEL, raw_text=message)
 
+        # Numeric fallbacks for button-as-text rendering (only in confirming state)
+        if session_state == "confirming":
+            if msg_lower in ("1", "y"):
+                return Intent(type=IntentType.CONFIRM, raw_text=message)
+            if msg_lower in ("2", "n"):
+                return Intent(type=IntentType.CANCEL, raw_text=message)
+
         # In buyer context — context-specific commands
         if active_buyer:
             if msg_lower in ("search", "find", "find properties", "search properties", "run search"):

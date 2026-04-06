@@ -1253,6 +1253,18 @@ class WhatsAppHandlers:
         "homeType": "extracted_home_type",
     }
 
+    # Mapping from agent-facing names to buyer_profiles columns for sync
+    LEAD_TO_BUYER_SYNC = {
+        "budgetMin": "budget_min",
+        "budgetMax": "budget_max",
+        "location": "location",
+        "email": "email",
+        "phone": "phone",
+        "bedrooms": "bedrooms",
+        "name": "name",
+        "homeType": "home_type",
+    }
+
     async def _execute_edit_entity(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute entity edit after confirmation (handles both leads and buyers)."""
         entity_id = action_data.get("entity_id")
@@ -1287,18 +1299,62 @@ class WhatsAppHandlers:
 
                 with get_conn() as conn:
                     with conn.cursor() as cur:
+                        # Sanitize all values first
+                        sanitized = {}
                         for field_name, new_value in changes.items():
+                            sanitized[field_name] = self._sanitize_change_value(field_name, new_value)
+
+                        # Update lead table
+                        for field_name, new_value in sanitized.items():
                             col = self.LEAD_FIELD_MAP.get(field_name, field_name)
-                            # Sanitize numeric values
-                            new_value = self._sanitize_change_value(field_name, new_value)
                             cur.execute(
                                 f"UPDATE leads SET {col} = %s WHERE id = %s AND agent_id = %s",
                                 (new_value, entity_id, self.agent_id),
                             )
 
+                        # If budget changed, update the display text on leads
+                        budget_changed = "budgetMin" in sanitized or "budgetMax" in sanitized
+                        display = None
+                        if budget_changed:
+                            from ...routers.conversational import _format_budget_display
+                            cur.execute(
+                                "SELECT extracted_budget_min, extracted_budget_max FROM leads WHERE id = %s",
+                                (entity_id,),
+                            )
+                            row = fetchone_dict(cur)
+                            if row:
+                                display = _format_budget_display(
+                                    row["extracted_budget_min"], row["extracted_budget_max"]
+                                )
+                                cur.execute(
+                                    "UPDATE leads SET extracted_budget = %s WHERE id = %s AND agent_id = %s",
+                                    (display, entity_id, self.agent_id),
+                                )
+
+                        # Sync changes to buyer_profiles if one exists
+                        cur.execute(
+                            "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                            (entity_id, self.agent_id),
+                        )
+                        bp_row = fetchone_dict(cur)
+                        if bp_row:
+                            bp_id = bp_row["id"]
+                            for field_name, new_value in sanitized.items():
+                                bp_col = self.LEAD_TO_BUYER_SYNC.get(field_name)
+                                if bp_col:
+                                    cur.execute(
+                                        f"UPDATE buyer_profiles SET {bp_col} = %s WHERE id = %s",
+                                        (new_value, bp_id),
+                                    )
+                            if budget_changed and display:
+                                cur.execute(
+                                    "UPDATE buyer_profiles SET budget = %s WHERE id = %s",
+                                    (display, bp_id),
+                                )
+
                 lead_name = self.session.active_lead_name or f"Lead #{entity_id}"
                 change_lines = [f"✅ Updated lead *{lead_name}*", ""]
-                for field_name, new_value in changes.items():
+                for field_name, new_value in sanitized.items():
                     change_lines.append(f"• {field_name} → {new_value}")
 
                 return MessageBuilder.buttons(
