@@ -121,38 +121,85 @@ class WhatsAppClient:
             logger.debug(f"Twilio message sent: SID={result.get('sid')}")
             return result
 
+    # Registry: frozenset of button IDs → env var name for Twilio Content Template SID
+    TEMPLATE_REGISTRY = {
+        frozenset(["confirm", "cancel"]): "TWILIO_TPL_CONFIRM_CANCEL",
+        frozenset(["btn_approve_report", "btn_reject_report"]): "TWILIO_TPL_APPROVE_REJECT_REPORT",
+        frozenset(["btn_approve_outreach", "btn_reject_outreach"]): "TWILIO_TPL_APPROVE_REJECT_OUTREACH",
+        frozenset(["done"]): "TWILIO_TPL_DONE",
+        frozenset(["search", "edit", "done"]): "TWILIO_TPL_SEARCH_EDIT_DONE",
+        frozenset(["new_buyer", "help"]): "TWILIO_TPL_CREATE_HELP",
+        frozenset(["view_buyers", "done"]): "TWILIO_TPL_VIEWBUYERS_DONE",
+        frozenset(["view_buyers", "new_buyer", "help"]): "TWILIO_TPL_VIEWBUYERS_NEW_HELP",
+    }
+
+    async def _twilio_send_content_template(
+        self, to: str, content_sid: str, body_text: str
+    ) -> Dict[str, Any]:
+        """Send a message using a Twilio Content Template with dynamic body."""
+        import json as _json
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{self.account_sid}/Messages.json"
+        data = {
+            "From": f"whatsapp:{self.from_number}",
+            "To": f"whatsapp:{to}",
+            "ContentSid": content_sid,
+            "ContentVariables": _json.dumps({"1": body_text}),
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                url, data=data, auth=(self.account_sid, self.auth_token),
+            )
+            result = response.json()
+            if response.status_code >= 400:
+                error_msg = result.get("message", "Unknown Twilio error")
+                logger.warning(f"Content template send failed ({content_sid}): {error_msg}")
+                raise WhatsAppClientError(error_msg, status_code=response.status_code, response=result)
+            logger.debug(f"Twilio content template sent: SID={result.get('sid')}")
+            return result
+
     async def _twilio_send_interactive(self, to: str, interactive_payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Send an interactive message via Twilio Content API.
-
-        Twilio doesn't support WhatsApp interactive messages via the basic Messages API.
-        For buttons/lists, we use Twilio's Content API with ContentSid, or fall back to
-        a text representation.
+        Send an interactive message via Twilio Content Templates (native buttons)
+        or fall back to plain-text numbered options.
         """
-        # Twilio interactive WhatsApp messages require Content Templates or
-        # using the native WhatsApp format via the Content-Type header.
-        # For now, we send interactive messages using Twilio's native WhatsApp support
-        # by passing the interactive payload as a JSON body parameter.
-
         import json
         url = f"https://api.twilio.com/2010-04-01/Accounts/{self.account_sid}/Messages.json"
 
-        # Build the request with Twilio's WhatsApp interactive message support
         to_formatted = f"whatsapp:{to}"
         from_formatted = f"whatsapp:{self.from_number}"
 
-        # Twilio supports sending native WhatsApp interactive messages
-        # via the ContentVariables approach or direct JSON
         interactive_type = interactive_payload.get("type")
 
         if interactive_type == "button":
-            # For buttons, format as text with numbered options
-            body_text = interactive_payload.get("body", {}).get("text", "")
             buttons = interactive_payload.get("action", {}).get("buttons", [])
-
+            body_text = interactive_payload.get("body", {}).get("text", "")
             header = interactive_payload.get("header", {}).get("text", "")
             footer = interactive_payload.get("footer", {}).get("text", "")
 
+            # Try native buttons via Content Template
+            button_ids = frozenset(
+                btn.get("reply", {}).get("id", "") for btn in buttons
+            )
+            env_var = self.TEMPLATE_REGISTRY.get(button_ids)
+            content_sid = os.getenv(env_var) if env_var else None
+
+            if content_sid:
+                # Build body with header/footer inline since template only has {{1}}
+                parts = []
+                if header:
+                    parts.append(f"*{header}*")
+                parts.append(body_text)
+                if footer:
+                    parts.append(f"\n_{footer}_")
+                full_body = "\n".join(parts)
+                try:
+                    result = await self._twilio_send_content_template(to, content_sid, full_body)
+                    logger.info(f"Sent native buttons to {to} via template {env_var}")
+                    return result
+                except WhatsAppClientError:
+                    logger.warning(f"Falling back to text buttons for {to}")
+
+            # Fallback: format as text with numbered options
             message_parts = []
             if header:
                 message_parts.append(f"*{header}*")
