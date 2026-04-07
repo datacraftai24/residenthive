@@ -1119,9 +1119,8 @@ async def _tool_list_all_entities(args: Dict, session) -> ToolResult:
 
 
 async def _tool_process_lead(args: Dict, session) -> ToolResult:
-    """Extract and save a new lead from pasted text."""
-    from .agent import process_lead_from_text
-    from .buyer_codes import assign_code_to_lead
+    """Extract lead info from text and show preview for agent confirmation."""
+    from ...routers.leads import extract_lead_fields
 
     raw_text = args.get("raw_text", "")
     source = args.get("source", "unknown")
@@ -1133,42 +1132,60 @@ async def _tool_process_lead(args: Dict, session) -> ToolResult:
         )
 
     try:
-        lead_data = process_lead_from_text(raw_text, source, session.agent_id)
-        if not lead_data:
+        fields = extract_lead_fields(raw_text, source)
+        if not fields:
             return ToolResult(
                 success=False, data={}, message="Could not extract lead information.",
-                error="The text didn't contain enough information to create a lead.",
+                error="The text didn't contain enough information to create a profile.",
             )
 
-        lead_id = lead_data["lead_id"]
-        lead_name = lead_data.get("name") or "Lead"
+        extracted = fields["extracted"]
+        classification = fields["classification"]
+        name = extracted.get("name") or "Unknown"
 
-        # Assign code to the new lead
-        code = assign_code_to_lead(lead_id, session.agent_id, lead_name)
+        # Build preview lines
+        preview = [f"*{name}*", ""]
+        if extracted.get("email"):
+            preview.append(f"📧 {extracted['email']}")
+        if extracted.get("phone"):
+            preview.append(f"📱 {extracted['phone']}")
+        if extracted.get("location"):
+            preview.append(f"📍 {extracted['location']}")
+        budget_parts = []
+        if extracted.get("budgetMin"):
+            budget_parts.append(f"${extracted['budgetMin']:,}")
+        if extracted.get("budgetMax"):
+            budget_parts.append(f"${extracted['budgetMax']:,}")
+        if budget_parts:
+            preview.append(f"💰 {' - '.join(budget_parts)}")
+        if extracted.get("bedrooms"):
+            preview.append(f"🛏️ {extracted['bedrooms']} bed")
+        if extracted.get("homeType"):
+            preview.append(f"🏠 {extracted['homeType']}")
+        if fields.get("property_address"):
+            preview.append(f"📌 Property: {fields['property_address']}")
+        preview.append(f"\n*Source:* {fields['source']} | *Intent:* {fields['intent_score']}/100")
 
-        # Fire outreach generation as background task
-        asyncio.create_task(
-            _background_generate_outreach(lead_id, lead_name, lead_data.get("email"), session)
-        )
-
+        # Return pending confirmation — do NOT persist yet
         return ToolResult(
             success=True,
-            data={
-                "lead_id": lead_id,
-                "name": lead_name,
-                "code": code,
-                "email": lead_data.get("email"),
-                "phone": lead_data.get("phone"),
-                "location": lead_data.get("location"),
-                "budget_min": lead_data.get("budget_min"),
-                "budget_max": lead_data.get("budget_max"),
-                "bedrooms": lead_data.get("bedrooms"),
-                "source": lead_data.get("source"),
-                "intent_score": lead_data.get("intent_score"),
+            data={"extracted_fields": fields},
+            message="\n".join(preview),
+            needs_confirmation=True,
+            pending_action={
+                "type": "create_profile",
+                "data": {
+                    "extracted_fields": fields,
+                    "agent_id": session.agent_id,
+                },
             },
-            message=f"Lead processed: {lead_name} ({code or 'no code'}). Outreach report is being generated in background — you'll be notified when ready.",
+            actions=[
+                {"id": "confirm", "title": "Confirm"},
+                {"id": "cancel", "title": "Cancel"},
+            ],
         )
     except Exception as e:
+        logger.error(f"Lead extraction failed: {e}", exc_info=True)
         return ToolResult(
             success=False, data={}, message="Failed to process lead.",
             error=str(e),

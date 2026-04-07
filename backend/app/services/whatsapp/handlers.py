@@ -15,6 +15,7 @@ Each handler:
 """
 
 import asyncio
+import json
 import logging
 from typing import Dict, Any, Optional, List
 
@@ -998,7 +999,9 @@ class WhatsAppHandlers:
         action_data = pending.get("data", {})
 
         try:
-            if action_type == "create_buyer":
+            if action_type == "create_profile":
+                return await self._execute_create_profile(action_data)
+            elif action_type == "create_buyer":
                 return await self._execute_create_buyer(action_data)
             elif action_type == "edit_buyer":
                 return await self._execute_edit_buyer(action_data)
@@ -1020,6 +1023,153 @@ class WhatsAppHandlers:
         finally:
             await SessionManager.clear_pending_action(self.phone)
     
+    async def _execute_create_profile(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a unified profile (profile_type='lead') after agent confirmation."""
+        fields = action_data.get("extracted_fields", {})
+        extracted = fields.get("extracted", {})
+        classification = fields.get("classification", {})
+        agent_id = action_data.get("agent_id", self.agent_id)
+
+        try:
+            from ...routers.conversational import _format_budget_display
+            from .buyer_codes import assign_code_to_buyer
+
+            name = extracted.get("name") or "Unknown"
+            budget_min = extracted.get("budgetMin")
+            budget_max = extracted.get("budgetMax")
+            budget_display = _format_budget_display(budget_min, budget_max) if (budget_min or budget_max) else extracted.get("budget")
+
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO buyer_profiles (
+                            agent_id, name, email, phone, location,
+                            budget, budget_min, budget_max,
+                            bedrooms, bathrooms, home_type,
+                            profile_type, intent_score, lead_source, lead_type,
+                            property_url, property_address,
+                            property_listing_id, property_list_price,
+                            property_bedrooms, property_bathrooms, property_sqft,
+                            suggested_message, hints, lead_raw_input,
+                            extraction_confidence,
+                            raw_input, input_method, created_by_method,
+                            created_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s,
+                            %s, %s, %s,
+                            'lead', %s, %s, %s,
+                            %s, %s,
+                            %s, %s,
+                            %s, %s, %s,
+                            %s, %s, %s,
+                            %s,
+                            %s, 'whatsapp', 'lead',
+                            NOW()
+                        )
+                        RETURNING id
+                    """, (
+                        agent_id, name,
+                        extracted.get("email"), extracted.get("phone"),
+                        extracted.get("location"),
+                        budget_display, budget_min, budget_max,
+                        extracted.get("bedrooms"), extracted.get("bathrooms"),
+                        extracted.get("homeType"),
+                        fields.get("intent_score"),
+                        fields.get("source"),
+                        classification.get("leadType"),
+                        fields.get("property_url"),
+                        fields.get("property_address"),
+                        fields["property_details"].get("listingId") if fields.get("property_details") else None,
+                        fields["property_details"].get("listPrice") if fields.get("property_details") else None,
+                        fields["property_details"].get("bedrooms") if fields.get("property_details") else None,
+                        str(fields["property_details"].get("bathrooms")) if fields.get("property_details") and fields["property_details"].get("bathrooms") else None,
+                        fields["property_details"].get("sqft") if fields.get("property_details") else None,
+                        fields.get("suggested_message"),
+                        json.dumps(extracted.get("hints", [])),
+                        fields.get("raw_text"),
+                        fields.get("extraction_confidence"),
+                        fields.get("raw_text"),
+                    ))
+                    row = fetchone_dict(cur)
+                    profile_id = row["id"]
+
+            # Assign whatsapp code
+            code = assign_code_to_buyer(profile_id, agent_id, name)
+
+            # Set profile context
+            self.session.set_buyer_context(profile_id, code, name)
+            await SessionManager.save(self.session)
+
+            # Fire report generation in background
+            asyncio.create_task(
+                self._background_generate_report(profile_id, name, extracted.get("email"), code)
+            )
+
+            return MessageBuilder.buttons(
+                f"✅ Created profile for *{name}* ({code})\n\n"
+                f"Generating report...",
+                [{"id": "done", "title": "Done"}],
+            )
+
+        except Exception as e:
+            logger.error(f"Create profile failed: {e}", exc_info=True)
+            return MessageBuilder.error("Failed to create profile. Please try again.")
+
+    async def _background_generate_report(self, profile_id: int, name: str, email: str, code: str):
+        """Background: generate report for newly created profile and notify agent."""
+        try:
+            from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
+            from ...routers.search import agent_search_photos, agent_search_location
+            from ...routers.listings import listings_search, _load_profile
+            from ...routers.search import _map_to_agent_listing
+            from ..search_context_store import generate_search_id, store_search_context
+            from .notifications import on_lead_outreach_ready
+            import os
+
+            # Step 1: Search for properties
+            profile = _load_profile(profile_id)
+            result = listings_search({"profileId": profile_id, "profile": {}})
+            listings = _map_to_agent_listing(result)
+
+            if not listings:
+                logger.warning(f"[BG REPORT] No listings found for profile {profile_id}")
+                return
+
+            # Step 2: Store search context
+            search_id = generate_search_id()
+            store_search_context(search_id, profile, listings)
+
+            # Step 3: Run photo + location analysis
+            try:
+                agent_search_photos(searchId=search_id)
+            except Exception as e:
+                logger.warning(f"[BG REPORT] Photo analysis failed (non-blocking): {e}")
+            try:
+                await agent_search_location(searchId=search_id)
+            except Exception as e:
+                logger.warning(f"[BG REPORT] Location analysis failed (non-blocking): {e}")
+
+            # Step 4: Generate report
+            report = create_buyer_report(
+                CreateBuyerReportRequest(
+                    searchId=search_id,
+                    profileId=profile_id,
+                    allowPartial=True,
+                ),
+                agent_id=self.agent_id,
+            )
+
+            share_id = report.get("shareId")
+            if share_id:
+                await on_lead_outreach_ready(
+                    self.agent_id, name, email, profile_id, share_id
+                )
+                logger.info(f"[BG REPORT] Report ready for profile {profile_id}: {share_id}")
+
+        except Exception as e:
+            logger.error(f"[BG REPORT] Failed for profile {profile_id}: {e}", exc_info=True)
+
     async def _execute_create_buyer(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute buyer creation after confirmation."""
         extracted = action_data.get("extracted_profile", {})

@@ -1095,6 +1095,144 @@ def _convert_lead_analysis_to_ai_format(lead_analysis: dict) -> dict:
 # LEAD PROCESSING
 # ============================================================
 
+def extract_lead_fields(
+    raw_text: str,
+    source: str = "unknown",
+    property_url_or_address: str = None,
+) -> Optional[dict]:
+    """
+    Extract lead fields from raw text WITHOUT persisting.
+    Returns a dict with all extracted fields, classification, and property details.
+    Used by WhatsApp confirmation flow and process_lead().
+
+    Returns None if extraction fails completely.
+    """
+    # Auto-detect source if not provided
+    if source == "unknown":
+        source = detect_source(raw_text)
+
+    # Parse property URL if provided
+    property_url = None
+    property_address = None
+    if property_url_or_address:
+        if property_url_or_address.startswith("http"):
+            property_url = property_url_or_address
+        else:
+            property_address = property_url_or_address
+
+    # === STEP 1: Deterministic Classification ===
+    classification = classify_lead_deterministic(raw_text, source, property_url)
+    intent_score, intent_reasons = calculate_intent_score(raw_text, classification["leadType"])
+
+    # === STEP 1.5: Property Lookup ===
+    property_details = None
+    if classification["leadType"] == "property_specific":
+        property_details = lookup_property_details(raw_text, property_address)
+        if property_details:
+            if not property_address and property_details.get("address"):
+                full_addr = property_details.get("address", "")
+                if property_details.get("city"):
+                    full_addr += f", {property_details['city']}"
+                if property_details.get("state"):
+                    full_addr += f", {property_details['state']}"
+                property_address = full_addr
+
+    # === STEP 2: LLM Extraction ===
+    try:
+        extraction = extract_lead_with_llm(raw_text, property_details, classification)
+    except Exception as e:
+        logger.error(f"LLM extraction failed, using fallback: {e}")
+        extraction = {
+            "extracted": {
+                "name": None, "email": None, "phone": None,
+                "location": None, "budget": None, "budgetMin": None,
+                "budgetMax": None, "bedrooms": None, "bathrooms": None,
+                "homeType": None, "timeline": None, "hints": []
+            },
+            "suggestedMessage": generate_template_response(classification["role"]),
+            "clarifyingQuestion": get_clarifying_question_for_missing(
+                "Budget range", classification["role"], classification["leadType"]
+            )
+        }
+
+    extracted = extraction.get("extracted", {})
+
+    # === LLM Role Validation ===
+    llm_role = extraction.get("classifiedRole")
+    det_role = classification["role"]
+    if llm_role and llm_role != det_role:
+        if llm_role == "buyer_lead" and det_role in ("investor", "unknown"):
+            classification["role"] = "buyer_lead"
+            classification["roleReason"] = f"LLM override (deterministic was '{det_role}')"
+        elif llm_role == "investor" and det_role == "unknown":
+            classification["role"] = "investor"
+            classification["roleReason"] = f"LLM classified as investor"
+
+    # === LLM Property Relevance Validation ===
+    is_property_of_interest = extracted.get("isPropertyOfInterest", True)
+    validation_reason = extracted.get("propertyValidationReason", "")
+    if property_details:
+        if not is_property_of_interest:
+            property_details = None
+            property_address = None
+            if classification["leadType"] == "property_specific":
+                classification["leadType"] = "area_search"
+                classification["leadTypeReason"] = f"LLM override: {validation_reason}"
+
+    # Validate and enhance extraction
+    extracted = validate_and_enhance_extraction(
+        extracted, property_details=property_details, property_address=property_address
+    )
+
+    # === STEP 3: Post-Processing ===
+    suggested_message = extraction.get("suggestedMessage", "")
+    if len(suggested_message) > MAX_MESSAGE_LENGTH:
+        truncated = suggested_message[:MAX_MESSAGE_LENGTH]
+        last_period = truncated.rfind(".")
+        if last_period > MAX_MESSAGE_LENGTH // 2:
+            suggested_message = truncated[:last_period + 1]
+        else:
+            suggested_message = truncated.rstrip() + "..."
+
+    clarifying_question = extraction.get("clarifyingQuestion")
+    if clarifying_question and "?" in clarifying_question:
+        clarifying_question = clarifying_question.split("?")[0] + "?"
+
+    what_to_clarify = []
+    if not extracted.get("budgetMin") and not extracted.get("budgetMax"):
+        what_to_clarify.append("Budget range")
+    if not extracted.get("location"):
+        what_to_clarify.append("Preferred area")
+    if not extracted.get("timeline"):
+        what_to_clarify.append("Timeline")
+    if not extracted.get("bedrooms"):
+        what_to_clarify.append("Bedroom requirements")
+
+    if not clarifying_question and what_to_clarify:
+        clarifying_question = get_clarifying_question_for_missing(
+            what_to_clarify[0], classification["role"], classification["leadType"]
+        )
+
+    extraction_confidence = calculate_extraction_confidence(extracted)
+
+    return {
+        "classification": classification,
+        "extracted": extracted,
+        "intent_score": intent_score,
+        "intent_reasons": intent_reasons,
+        "source": source,
+        "property_url": property_url,
+        "property_address": property_address,
+        "property_details": property_details,
+        "suggested_message": suggested_message,
+        "clarifying_question": clarifying_question,
+        "what_to_clarify": what_to_clarify,
+        "extraction_confidence": extraction_confidence,
+        "raw_text": raw_text,
+        "normalized_input": normalize_for_dedupe(raw_text),
+    }
+
+
 def process_lead(
     request: LeadExtractionRequest,
     agent_id: int
