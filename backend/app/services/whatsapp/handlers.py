@@ -92,6 +92,15 @@ class WhatsAppHandlers:
 
             intent = intents[0]
 
+            # ── State gate: in confirming state, only allow confirm/cancel/reset ──
+            if self.session.state == SessionState.CONFIRMING:
+                allowed = (IntentType.CONFIRM, IntentType.CANCEL, IntentType.RESET)
+                if intent.type not in allowed:
+                    logger.info(f"[STATE GATE] Blocked {intent.type.value} during confirming state")
+                    return MessageBuilder.text(
+                        "You have a pending action. Reply *Confirm* or *Cancel* first."
+                    )
+
             # ── Layer 1 matched → route directly ──
             if intent.type != IntentType.UNKNOWN:
                 # Resolve buyer references
@@ -421,30 +430,15 @@ class WhatsAppHandlers:
         try:
             from ..search_context_store import generate_search_id, store_search_context
             from ...routers.listings import listings_search, _load_profile
-            
+            from ...routers.search import _map_to_agent_listing
+
             # Run the search
             profile = _load_profile(active_buyer["id"])
             result = listings_search({"profileId": active_buyer["id"], "profile": {}})
-            
-            # Get listings
-            all_listings = result.get("top_picks", []) + result.get("other_matches", [])
-            
-            # Map to consistent format
-            listings = []
-            for item in all_listings[:20]:
-                listing = item.get("listing", item)
-                listings.append({
-                    "mlsNumber": listing.get("mls_number") or listing.get("id"),
-                    "address": listing.get("address"),
-                    "city": listing.get("city"),
-                    "listPrice": listing.get("price"),
-                    "bedrooms": listing.get("bedrooms"),
-                    "bathrooms": listing.get("bathrooms"),
-                    "sqft": listing.get("square_feet"),
-                    "fitScore": item.get("fitScore") or item.get("match_score"),
-                    "aiAnalysis": item.get("ai_analysis"),
-                })
-            
+
+            # Use shared mapping (same as L2) — includes finalScore, rank, isTop20
+            listings = _map_to_agent_listing(result)
+
             # Generate search ID and store context
             search_id = generate_search_id()
             store_search_context(search_id, profile, listings)
@@ -516,15 +510,30 @@ class WhatsAppHandlers:
         try:
             # Generate report using existing API
             from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
+            from ...routers.search import agent_search_photos, agent_search_location
             import os
-            
+
+            search_id = self.session.last_search_id
+
+            # Run photo + location analysis first (same as L2 _tool_generate_report)
+            try:
+                logger.info(f"[L1 REPORT] Running photo analysis for searchId={search_id}")
+                agent_search_photos(searchId=search_id)
+            except Exception as e:
+                logger.warning(f"[L1 REPORT] Photo analysis failed (non-blocking): {e}")
+
+            try:
+                logger.info(f"[L1 REPORT] Running location analysis for searchId={search_id}")
+                await agent_search_location(searchId=search_id)
+            except Exception as e:
+                logger.warning(f"[L1 REPORT] Location analysis failed (non-blocking): {e}")
+
             request = CreateBuyerReportRequest(
-                searchId=self.session.last_search_id,
+                searchId=search_id,
                 profileId=active_buyer["id"],
                 allowPartial=True
             )
-            
-            # Call the report generation (without auth dependency for internal use)
+
             result = create_buyer_report(request, agent_id=self.agent_id)
             
             share_id = result.get("shareId")
