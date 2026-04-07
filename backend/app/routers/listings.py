@@ -357,7 +357,9 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
                        version, parent_profile_id, ai_summary, vision_checklist,
                        parent_lead_id,
                        min_sqft, max_sqft, min_year_built, max_year_built,
-                       min_garage_spaces, max_maintenance_fee, min_lot_size_sqft, max_days_on_market
+                       min_garage_spaces, max_maintenance_fee, min_lot_size_sqft, max_days_on_market,
+                       profile_type, property_listing_id, property_list_price,
+                       property_address, lead_source, lead_type, hints
                 FROM buyer_profiles WHERE id = %s
                 """,
                 (profile_id,),
@@ -425,6 +427,13 @@ def _load_profile(profile_id: int) -> Dict[str, Any]:
         "maxMaintenanceFee": row.get("max_maintenance_fee"),
         "minLotSizeSqft": row.get("min_lot_size_sqft"),
         "maxDaysOnMarket": row.get("max_days_on_market"),
+        "profileType": row.get("profile_type", "buyer"),
+        "propertyListingId": row.get("property_listing_id"),
+        "propertyListPrice": row.get("property_list_price"),
+        "propertyAddress": row.get("property_address"),
+        "leadSource": row.get("lead_source"),
+        "leadType": row.get("lead_type"),
+        "hints": cj(row.get("hints")),
     }
 
 

@@ -1272,39 +1272,8 @@ async def _tool_search(args: Dict, session) -> ToolResult:
         from ...routers.listings import listings_search, _load_profile
         from ...routers.search import _map_to_agent_listing
 
-        # For buyers, load profile directly. For leads, we need to map to buyer profile ID.
-        if entity_type == "buyer":
-            profile_id = entity_id
-        else:
-            # Check if lead has been converted to a buyer profile
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
-                        return ToolResult(
-                            success=False, data={},
-                            message=(
-                                f"*{lead_name}* is a lead without a buyer profile. "
-                                f"Would you like to convert them to a buyer first?"
-                            ),
-                            needs_confirmation=True,
-                            pending_action={"type": "convert_lead", "data": {
-                                "lead_id": entity_id,
-                                "intent": "search",
-                            }},
-                            actions=[
-                                {"id": "confirm", "title": "Convert to Buyer"},
-                                {"id": "cancel", "title": "Cancel"},
-                            ],
-                        )
+        # Unified profiles: entity_id IS the profile_id (both leads and buyers in buyer_profiles)
+        profile_id = entity_id
 
         profile = _load_profile(profile_id)
         result = listings_search({"profileId": profile_id, "profile": {}})
@@ -1317,7 +1286,7 @@ async def _tool_search(args: Dict, session) -> ToolResult:
         store_search_context(search_id, profile, listings)
 
         session.last_search_id = search_id
-        session.state = SessionState.BUYER_CONTEXT if entity_type == "buyer" else SessionState.LEAD_CONTEXT
+        session.state = SessionState.BUYER_CONTEXT
         session.sub_state = "results"
         await SessionManager.save(session)
 
@@ -1364,26 +1333,8 @@ async def _tool_generate_report(args: Dict, session) -> ToolResult:
         from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
         from ...routers.search import agent_search_photos, agent_search_location
 
-        # For leads, we need the buyer profile ID
-        if entity_type == "buyer":
-            profile_id = entity_id
-        else:
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        return ToolResult(
-                            success=False, data={},
-                            message="No buyer profile found for this lead.",
-                            error="Convert the lead first.",
-                        )
+        # Unified profiles: entity_id IS the profile_id
+        profile_id = entity_id
 
         # Run photo + location analysis before generating report
         # (In the dashboard flow, the frontend polls these endpoints)
@@ -1559,38 +1510,8 @@ async def _tool_search_and_report(args: Dict, session) -> ToolResult:
         from ...routers.listings import listings_search, _load_profile
         from ...routers.search import _map_to_agent_listing
 
-        # Resolve to buyer profile ID
-        if entity_type == "buyer":
-            profile_id = entity_id
-        else:
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
-                        return ToolResult(
-                            success=False, data={},
-                            message=(
-                                f"*{lead_name}* is a lead without a buyer profile. "
-                                f"Would you like to convert them to a buyer first?"
-                            ),
-                            needs_confirmation=True,
-                            pending_action={"type": "convert_lead", "data": {
-                                "lead_id": entity_id,
-                                "intent": "search_and_report",
-                            }},
-                            actions=[
-                                {"id": "confirm", "title": "Convert to Buyer"},
-                                {"id": "cancel", "title": "Cancel"},
-                            ],
-                        )
+        # Unified profiles: entity_id IS the profile_id
+        profile_id = entity_id
 
         # Step 1: Search
         profile = _load_profile(profile_id)
@@ -1601,7 +1522,7 @@ async def _tool_search_and_report(args: Dict, session) -> ToolResult:
         store_search_context(search_id, profile, listings)
 
         session.last_search_id = search_id
-        session.state = SessionState.BUYER_CONTEXT if entity_type == "buyer" else SessionState.LEAD_CONTEXT
+        session.state = SessionState.BUYER_CONTEXT
         session.sub_state = "results"
         await SessionManager.save(session)
 
