@@ -129,8 +129,8 @@ class AgentSession:
         return self.state == SessionState.BUYER_CONTEXT and self.active_buyer_id is not None
 
     def is_in_lead_context(self) -> bool:
-        """Check if currently focused on a specific lead"""
-        return self.state == SessionState.LEAD_CONTEXT and self.active_lead_id is not None
+        """Check if currently focused on a lead-type profile"""
+        return self.active_entity_type == "lead" and self.active_buyer_id is not None
 
     def is_in_entity_context(self) -> bool:
         """Check if currently focused on any entity (buyer or lead)"""
@@ -163,16 +163,16 @@ class AgentSession:
         self.pending_action = None
 
     def set_lead_context(self, lead_id: int, lead_code: str, lead_name: str):
-        """Enter lead context"""
-        self.state = SessionState.LEAD_CONTEXT
+        """Enter lead context — uses unified buyer fields (profile is in buyer_profiles table)"""
+        self.state = SessionState.BUYER_CONTEXT
+        self.active_buyer_id = lead_id
+        self.active_buyer_code = lead_code
+        self.active_buyer_name = lead_name
+        self.active_entity_type = "lead"
+        # Keep lead fields in sync for backward compat
         self.active_lead_id = lead_id
         self.active_lead_code = lead_code
         self.active_lead_name = lead_name
-        self.active_entity_type = "lead"
-        # Clear buyer context
-        self.active_buyer_id = None
-        self.active_buyer_code = None
-        self.active_buyer_name = None
         self.sub_state = None
         self.pending_action = None
 
@@ -481,8 +481,6 @@ class SessionManager:
         # Return to previous state (entity context if active, else idle)
         if session.active_buyer_id:
             session.state = SessionState.BUYER_CONTEXT
-        elif session.active_lead_id:
-            session.state = SessionState.LEAD_CONTEXT
         else:
             session.state = SessionState.IDLE
 

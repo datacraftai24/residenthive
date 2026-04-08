@@ -1519,8 +1519,8 @@ class WhatsAppHandlers:
                                     (display, bp_id),
                                 )
 
-                lead_name = self.session.active_lead_name or f"Lead #{entity_id}"
-                change_lines = [f"✅ Updated lead *{lead_name}*", ""]
+                lead_name = self.session.active_buyer_name or self.session.active_lead_name or f"Profile #{entity_id}"
+                change_lines = [f"✅ Updated *{lead_name}*", ""]
                 for field_name, new_value in sanitized.items():
                     change_lines.append(f"• {field_name} → {new_value}")
 

@@ -751,9 +751,8 @@ async def run_agent(message: str, session) -> AgentResult:
     # Active entity display
     active_entity = "None"
     if session.active_buyer_name:
-        active_entity = f"{session.active_buyer_name} ({session.active_buyer_code}) — buyer"
-    elif session.active_lead_name:
-        active_entity = f"{session.active_lead_name} ({session.active_lead_code}) — lead"
+        entity_label = session.active_entity_type or "buyer"
+        active_entity = f"{session.active_buyer_name} ({session.active_buyer_code}) — {entity_label}"
 
     pending_text = "None"
     if session.pending_action:
