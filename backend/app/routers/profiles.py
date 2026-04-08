@@ -182,7 +182,14 @@ def get_profile_lead(profile_id: int, agent_id: int = Depends(get_current_agent_
         with conn.cursor() as cur:
             # Get profile with lead info
             cur.execute("""
-                SELECT parent_lead_id, created_by_method
+                SELECT parent_lead_id, created_by_method, profile_type,
+                       name, email, phone, location, budget, budget_min, budget_max,
+                       bedrooms, bathrooms, home_type,
+                       intent_score, lead_source, lead_type,
+                       property_url, property_address, property_listing_id,
+                       property_list_price, property_bedrooms, property_bathrooms,
+                       property_sqft, suggested_message, hints,
+                       lead_raw_input, extraction_confidence, created_at
                 FROM buyer_profiles
                 WHERE id = %s AND agent_id = %s
             """, (profile_id, agent_id))
@@ -193,6 +200,60 @@ def get_profile_lead(profile_id: int, agent_id: int = Depends(get_current_agent_
 
             parent_lead_id = profile_row.get("parent_lead_id")
             created_by_method = profile_row.get("created_by_method") or "agent"
+            profile_type = profile_row.get("profile_type", "buyer")
+
+            # Unified profile (profile_type='lead', no parent_lead_id):
+            # build lead response from buyer_profiles fields directly
+            if not parent_lead_id and profile_type == "lead":
+                def parse_json(val):
+                    if val is None:
+                        return None
+                    if isinstance(val, (list, dict)):
+                        return val
+                    if isinstance(val, str):
+                        try:
+                            return json.loads(val)
+                        except Exception:
+                            return val
+                    return val
+
+                lead_data = {
+                    "id": profile_id,
+                    "agentId": agent_id,
+                    "status": "classified",
+                    "role": "buyer_lead",
+                    "leadType": profile_row.get("lead_type"),
+                    "source": profile_row.get("lead_source"),
+                    "propertyUrl": profile_row.get("property_url"),
+                    "propertyAddress": profile_row.get("property_address"),
+                    "intentScore": profile_row.get("intent_score"),
+                    "intentReasons": [],
+                    "extractedName": profile_row.get("name"),
+                    "extractedEmail": profile_row.get("email"),
+                    "extractedPhone": profile_row.get("phone"),
+                    "extractedLocation": profile_row.get("location"),
+                    "extractedBudget": profile_row.get("budget"),
+                    "extractedBudgetMin": profile_row.get("budget_min"),
+                    "extractedBudgetMax": profile_row.get("budget_max"),
+                    "extractedBedrooms": profile_row.get("bedrooms"),
+                    "extractedBathrooms": profile_row.get("bathrooms"),
+                    "extractedHomeType": profile_row.get("home_type"),
+                    "hints": parse_json(profile_row.get("hints")) or [],
+                    "suggestedMessage": profile_row.get("suggested_message"),
+                    "extractionConfidence": profile_row.get("extraction_confidence"),
+                    "propertyListingId": profile_row.get("property_listing_id"),
+                    "propertyListPrice": profile_row.get("property_list_price"),
+                    "propertyBedrooms": profile_row.get("property_bedrooms"),
+                    "propertyBathrooms": profile_row.get("property_bathrooms"),
+                    "propertySqft": profile_row.get("property_sqft"),
+                    "rawInput": profile_row.get("lead_raw_input"),
+                    "createdAt": profile_row["created_at"].isoformat() if profile_row.get("created_at") else None,
+                }
+                return {
+                    "hasLead": True,
+                    "createdByMethod": "lead",
+                    "lead": lead_data,
+                }
 
             if not parent_lead_id:
                 return {
