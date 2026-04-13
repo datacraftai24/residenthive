@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChatMarkdown } from '@/components/ui/chat-markdown';
+import { StructuredDataCard } from '@/components/ui/StructuredDataCard';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,6 +23,7 @@ interface Message {
   content: string;
   timestamp: Date;
   actionButtons?: ActionButton[];
+  structuredData?: Record<string, any>;
 }
 
 interface Listing {
@@ -191,6 +193,7 @@ export function ChatWidget({
         content: data.response || 'I apologize, I couldn\'t process that request. Please try again.',
         timestamp: new Date(),
         actionButtons: data.action_buttons || undefined,
+        structuredData: data.structured_data || undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -310,7 +313,10 @@ export function ChatWidget({
                       {msg.role === 'user' ? (
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                       ) : (
-                        <ChatMarkdown content={msg.content} />
+                        <>
+                          {msg.structuredData && <StructuredDataCard data={msg.structuredData} />}
+                          {(!msg.structuredData) && <ChatMarkdown content={msg.content} />}
+                        </>
                       )}
                     </div>
                     {/* Action buttons for assistant messages */}
@@ -437,7 +443,10 @@ export function ChatWidget({
                 {msg.role === 'user' ? (
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 ) : (
-                  <ChatMarkdown content={msg.content} />
+                  <>
+                    {msg.structuredData && <StructuredDataCard data={msg.structuredData} />}
+                    {(!msg.structuredData) && <ChatMarkdown content={msg.content} />}
+                  </>
                 )}
               </div>
               {/* Action buttons for assistant messages */}

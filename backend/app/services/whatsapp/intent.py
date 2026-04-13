@@ -600,6 +600,13 @@ class IntentParser:
         if msg_lower in ("no", "cancel", "nevermind", "stop", "abort"):
             return Intent(type=IntentType.CANCEL, raw_text=message)
 
+        # Numeric fallbacks for button-as-text rendering (only in confirming state)
+        if session_state == "confirming":
+            if msg_lower in ("1", "y"):
+                return Intent(type=IntentType.CONFIRM, raw_text=message)
+            if msg_lower in ("2", "n"):
+                return Intent(type=IntentType.CANCEL, raw_text=message)
+
         # In buyer context — context-specific commands
         if active_buyer:
             if msg_lower in ("search", "find", "find properties", "search properties", "run search"):
@@ -1773,18 +1780,18 @@ def resolve_buyer_from_intent(
     agent_id: int,
     active_buyer: Optional[Dict[str, Any]] = None,
 ) -> Intent:
-    """Resolve buyer reference in intent to actual buyer ID."""
-    from .buyer_codes import resolve_buyer_reference
+    """Resolve buyer/lead reference in intent to actual entity ID."""
+    from .buyer_codes import resolve_entity_reference
 
     if not intent.buyer_reference and active_buyer:
         intent.buyer_id = active_buyer.get("id")
         return intent
 
     if intent.buyer_reference:
-        matches = resolve_buyer_reference(agent_id, intent.buyer_reference)
+        matches = resolve_entity_reference(agent_id, intent.buyer_reference)
         if len(matches) == 1:
             intent.buyer_id = matches[0].get("id")
-            intent.buyer_reference = matches[0].get("whatsapp_code")
+            intent.buyer_reference = matches[0].get("whatsapp_code") or matches[0].get("code")
         elif len(matches) > 1:
             intent.params["ambiguous_matches"] = matches
 

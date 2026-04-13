@@ -76,6 +76,7 @@ class VoiceTranscriber:
             transcript = await self._transcribe_audio(audio_data, mime_type)
 
             if transcript:
+                transcript = self._normalize_transcript(transcript)
                 logger.info(f"Transcribed voice note: {transcript[:50]}...")
 
             return transcript
@@ -134,6 +135,21 @@ class VoiceTranscriber:
 
             return response.content
     
+    @staticmethod
+    def _normalize_transcript(text: str) -> str:
+        """Clean up common speech-to-text artifacts in transcribed text."""
+        import re
+        # "at the rate of" / "at the rate" → @ (email dictation)
+        text = re.sub(r'\bat the rate of\b', '@', text, flags=re.IGNORECASE)
+        text = re.sub(r'\bat the rate\b', '@', text, flags=re.IGNORECASE)
+        # "dot com" → .com, "dot org" → .org, etc.
+        text = re.sub(r'\bdot (com|org|net|edu|io|co)\b', r'.\1', text, flags=re.IGNORECASE)
+        # Collapse spaces around @ (e.g., "sachin @ gmail" → "sachin@gmail")
+        text = re.sub(r'\s*@\s*', '@', text)
+        # Collapse spaces around . in email-like patterns (e.g., "gmail . com" → "gmail.com")
+        text = re.sub(r'(\w)\s*\.\s*(com|org|net|edu|io|co)\b', r'\1.\2', text, flags=re.IGNORECASE)
+        return text.strip()
+
     async def _transcribe_audio(
         self,
         audio_data: bytes,
@@ -164,7 +180,8 @@ class VoiceTranscriber:
                 transcript = self.openai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    response_format="text"
+                    response_format="text",
+                    language="en"
                 )
             
             return transcript.strip() if transcript else None

@@ -24,7 +24,6 @@ from .messages import MessageBuilder
 from .buyer_codes import (
     get_buyer_by_code,
     get_buyers_by_name,
-    resolve_buyer_reference,
     resolve_entity_reference,
     assign_code_to_buyer,
     format_buyer_code_display
@@ -210,36 +209,45 @@ class WhatsAppHandlers:
                 intent.buyer_reference or ""
             )
         
-        # Get buyer by ID or reference
-        buyer = None
+        # Get entity by ID or reference (searches both buyers and leads)
+        entity = None
         if intent.buyer_id:
-            buyer = self._get_buyer_by_id(intent.buyer_id)
+            entity = self._get_buyer_by_id(intent.buyer_id)
+            if entity:
+                entity["entity_type"] = "buyer"
         elif intent.buyer_reference:
-            matches = resolve_buyer_reference(self.agent_id, intent.buyer_reference)
+            matches = resolve_entity_reference(self.agent_id, intent.buyer_reference)
             if len(matches) == 1:
-                buyer = matches[0]
+                entity = matches[0]
             elif len(matches) > 1:
                 return MessageBuilder.disambiguation(matches, intent.buyer_reference)
-        
-        if not buyer:
+
+        if not entity:
             return MessageBuilder.text(
-                f"I couldn't find a buyer matching \"{intent.buyer_reference}\".\n\n"
+                f"I couldn't find a buyer or lead matching \"{intent.buyer_reference}\".\n\n"
                 "Try typing their full name or code (e.g., SC1)."
             )
-        
-        # Enter buyer context
-        code = buyer.get("whatsapp_code") or ""
-        name = buyer.get("name", "Unknown")
-        
-        # Assign code if missing
-        if not code:
-            code = assign_code_to_buyer(buyer["id"], self.agent_id, name)
-            buyer["whatsapp_code"] = code
-        
-        self.session.set_buyer_context(buyer["id"], code, name)
-        await SessionManager.save(self.session)
-        
-        return MessageBuilder.buyer_context_entered(buyer)
+
+        entity_type = entity.get("entity_type", "buyer")
+        code = entity.get("whatsapp_code") or entity.get("code") or ""
+        name = entity.get("name") or entity.get("extracted_name") or "Unknown"
+
+        if entity_type == "lead":
+            # Enter lead context
+            from .buyer_codes import assign_code_to_lead
+            if not code:
+                code = assign_code_to_lead(entity["id"], self.agent_id, name)
+            self.session.set_lead_context(entity["id"], code, name)
+            await SessionManager.save(self.session)
+            return MessageBuilder.lead_context_entered(entity)
+        else:
+            # Enter buyer context
+            if not code:
+                code = assign_code_to_buyer(entity["id"], self.agent_id, name)
+                entity["whatsapp_code"] = code
+            self.session.set_buyer_context(entity["id"], code, name)
+            await SessionManager.save(self.session)
+            return MessageBuilder.buyer_context_entered(entity)
     
     async def _handle_exit_context(self) -> Dict[str, Any]:
         """Exit buyer context, return to idle."""
@@ -1253,6 +1261,18 @@ class WhatsAppHandlers:
         "homeType": "extracted_home_type",
     }
 
+    # Mapping from agent-facing names to buyer_profiles columns for sync
+    LEAD_TO_BUYER_SYNC = {
+        "budgetMin": "budget_min",
+        "budgetMax": "budget_max",
+        "location": "location",
+        "email": "email",
+        "phone": "phone",
+        "bedrooms": "bedrooms",
+        "name": "name",
+        "homeType": "home_type",
+    }
+
     async def _execute_edit_entity(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute entity edit after confirmation (handles both leads and buyers)."""
         entity_id = action_data.get("entity_id")
@@ -1287,18 +1307,62 @@ class WhatsAppHandlers:
 
                 with get_conn() as conn:
                     with conn.cursor() as cur:
+                        # Sanitize all values first
+                        sanitized = {}
                         for field_name, new_value in changes.items():
+                            sanitized[field_name] = self._sanitize_change_value(field_name, new_value)
+
+                        # Update lead table
+                        for field_name, new_value in sanitized.items():
                             col = self.LEAD_FIELD_MAP.get(field_name, field_name)
-                            # Sanitize numeric values
-                            new_value = self._sanitize_change_value(field_name, new_value)
                             cur.execute(
                                 f"UPDATE leads SET {col} = %s WHERE id = %s AND agent_id = %s",
                                 (new_value, entity_id, self.agent_id),
                             )
 
+                        # If budget changed, update the display text on leads
+                        budget_changed = "budgetMin" in sanitized or "budgetMax" in sanitized
+                        display = None
+                        if budget_changed:
+                            from ...routers.conversational import _format_budget_display
+                            cur.execute(
+                                "SELECT extracted_budget_min, extracted_budget_max FROM leads WHERE id = %s",
+                                (entity_id,),
+                            )
+                            row = fetchone_dict(cur)
+                            if row:
+                                display = _format_budget_display(
+                                    row["extracted_budget_min"], row["extracted_budget_max"]
+                                )
+                                cur.execute(
+                                    "UPDATE leads SET extracted_budget = %s WHERE id = %s AND agent_id = %s",
+                                    (display, entity_id, self.agent_id),
+                                )
+
+                        # Sync changes to buyer_profiles if one exists
+                        cur.execute(
+                            "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                            (entity_id, self.agent_id),
+                        )
+                        bp_row = fetchone_dict(cur)
+                        if bp_row:
+                            bp_id = bp_row["id"]
+                            for field_name, new_value in sanitized.items():
+                                bp_col = self.LEAD_TO_BUYER_SYNC.get(field_name)
+                                if bp_col:
+                                    cur.execute(
+                                        f"UPDATE buyer_profiles SET {bp_col} = %s WHERE id = %s",
+                                        (new_value, bp_id),
+                                    )
+                            if budget_changed and display:
+                                cur.execute(
+                                    "UPDATE buyer_profiles SET budget = %s WHERE id = %s",
+                                    (display, bp_id),
+                                )
+
                 lead_name = self.session.active_lead_name or f"Lead #{entity_id}"
                 change_lines = [f"✅ Updated lead *{lead_name}*", ""]
-                for field_name, new_value in changes.items():
+                for field_name, new_value in sanitized.items():
                     change_lines.append(f"• {field_name} → {new_value}")
 
                 return MessageBuilder.buttons(
@@ -1452,10 +1516,10 @@ Example: {{"budgetMax": 850000, "email": "new@email.com"}}"""
         buyer_email = None
         for intent in intents:
             if intent.buyer_reference:
-                matches = resolve_buyer_reference(self.agent_id, intent.buyer_reference)
+                matches = resolve_entity_reference(self.agent_id, intent.buyer_reference)
                 if len(matches) == 1:
-                    buyer_name = matches[0].get("name")
-                    buyer_email = matches[0].get("email")
+                    buyer_name = matches[0].get("name") or matches[0].get("extracted_name")
+                    buyer_email = matches[0].get("email") or matches[0].get("extracted_email")
                 break
         if not buyer_name and self.session.active_buyer_name:
             buyer_name = self.session.active_buyer_name

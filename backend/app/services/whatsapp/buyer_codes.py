@@ -142,6 +142,7 @@ def get_lead_by_code(agent_id: int, code: str) -> Optional[Dict[str, Any]]:
                 """
                 SELECT * FROM leads
                 WHERE agent_id = %s AND whatsapp_code = %s
+                AND status != 'converted'
                 """,
                 (agent_id, code),
             )
@@ -195,6 +196,7 @@ def get_leads_by_name(agent_id: int, name_query: str) -> List[Dict[str, Any]]:
                 SELECT * FROM leads
                 WHERE agent_id = %s
                 AND LOWER(extracted_name) LIKE %s
+                AND status != 'converted'
                 ORDER BY extracted_name
                 """,
                 (agent_id, f"%{name_query}%"),
@@ -443,6 +445,7 @@ def get_all_entities(agent_id: int, limit: int = 15) -> List[Dict[str, Any]]:
                        whatsapp_code, created_at
                 FROM leads
                 WHERE agent_id = %s AND whatsapp_code IS NOT NULL
+                AND status != 'converted'
                 ORDER BY created_at DESC
                 LIMIT %s
                 """,
