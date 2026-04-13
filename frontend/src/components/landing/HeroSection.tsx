@@ -1,106 +1,132 @@
-import { useState } from "react";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { DemoRequestModal } from "./DemoRequestModal";
-import ResidenceHiveDemo from "./ResidenceHiveDemo";
 
-export function HeroSection() {
-  const [demoModalOpen, setDemoModalOpen] = useState(false);
-
+function TodayCard() {
   return (
-    <section id="how-it-works" className="relative min-h-screen flex items-center pt-16 bg-gradient-to-br from-teal-50 to-cyan-100 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-
-          {/* Left — Content */}
-          <div className="text-center lg:text-left">
-            <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm bg-white/80 text-teal-700 border border-teal-200">
-              Now in private pilot
-            </Badge>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-4xl xl:text-5xl font-bold text-gray-900 tracking-tight mb-5">
-              Your buyers deserve better than a listing dump
-            </h1>
-
-            <p className="text-base sm:text-lg text-gray-600 mb-4 leading-relaxed">
-              Leads go cold because agents send 50 listings and hope for the best.
-              ResidenceHive sends a personalized buyer report — properties ranked by
-              their criteria, AI photo analysis that catches what agents miss, and
-              honest market explanations that build trust.
-            </p>
-
-            <p className="text-base sm:text-lg font-semibold text-gray-800 mb-6">
-              Buyers respond because someone finally did the work. Agents close more
-              because buyers show up informed and ready to tour.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
-              <Button
-                size="lg"
-                className="text-base px-7 py-5 h-auto bg-gray-900 hover:bg-gray-800"
-                onClick={() => setDemoModalOpen(true)}
-              >
-                Request demo
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Math comparison card */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 p-4 max-w-lg">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                The math your brokerage is living
-              </p>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-600 line-through decoration-2">$50-80</div>
-                  <div className="text-xs text-gray-500">per lead</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-600 line-through decoration-2">0.5%</div>
-                  <div className="text-xs text-gray-500">convert with listing dumps</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-600 line-through decoration-2">$16,000</div>
-                  <div className="text-xs text-gray-500">lead cost per closing</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-green-700">60s</div>
-                  <div className="text-xs text-gray-500">response time</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-green-700">2-4%</div>
-                  <div className="text-xs text-gray-500">convert with personalized reports</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-green-700">$2,000</div>
-                  <div className="text-xs text-gray-500">lead cost per closing</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-4">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
-              <span className="text-sm text-gray-600">
-                No CRM login. No new workflow. Voice note on WhatsApp → report in their inbox.
-              </span>
-            </div>
-          </div>
-
-          {/* Right — Demo */}
-          <div className="hidden lg:flex justify-center lg:justify-end">
-            <ResidenceHiveDemo />
-          </div>
-
+    <div className="bg-white border border-[#fecaca] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 sm:p-7 opacity-[0.85] relative">
+      <span className="absolute top-4 right-4 px-2.5 py-1 rounded-md text-xs font-semibold uppercase bg-[#fef2f2] text-red-600">
+        Today
+      </span>
+      <p className="text-[#9ca3af] text-xs uppercase tracking-wider font-semibold mb-3">
+        What your leads get now
+      </p>
+      {/* Fake email mockup */}
+      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-sm space-y-1.5 mb-5">
+        <p className="text-[#6b7280]"><span className="font-medium text-[#111827]">From:</span> agent@brokerage.com</p>
+        <p className="text-[#6b7280]"><span className="font-medium text-[#111827]">Subject:</span> Here are some listings for you!</p>
+        <div className="border-t border-[#e5e7eb] pt-2 mt-2 space-y-1">
+          <p className="text-[#6b7280]">123 Main St — $850K — 3bd/2ba</p>
+          <p className="text-[#6b7280]">456 Oak Ave — $920K — 4bd/2ba</p>
+          <p className="text-[#6b7280]">789 Elm Dr — $780K — 3bd/1ba</p>
+          <p className="text-[#6b7280]">321 Pine Rd — $1.1M — 4bd/3ba</p>
+          <p className="text-[#9ca3af] italic text-xs">... and 26 more listings</p>
         </div>
       </div>
+      <div className="text-center">
+        <span className="text-2xl">🗑️</span>
+        <p className="text-red-500 font-bold text-sm mt-1">Buyer never opens it</p>
+        <p className="text-[#9ca3af] text-xs">$200 lead — gone</p>
+      </div>
+    </div>
+  );
+}
 
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent" />
+function WithRHCard() {
+  const listings = [
+    { rank: "#1", address: "60 Lindbergh Ave, Newton", reason: "Best school match + under budget" },
+    { rank: "#2", address: "14 Oak Hill Rd, Newton", reason: "Larger lot, needs some updating" },
+    { rank: "#3", address: "88 Crafts St, Newtonville", reason: "Walk to village, above budget by 5%" },
+  ];
 
-      <DemoRequestModal open={demoModalOpen} onOpenChange={setDemoModalOpen} />
+  return (
+    <div className="bg-white border-2 border-teal-600 rounded-[14px] shadow-[0_0_20px_rgba(13,148,136,0.12)] p-6 sm:p-7 relative">
+      <span className="absolute top-4 right-4 px-2.5 py-1 rounded-md text-xs font-semibold uppercase bg-[#f0fdfa] text-teal-700">
+        With ResidenceHive
+      </span>
+      <p className="text-teal-700 text-xs uppercase tracking-wider font-semibold mb-3">
+        What your leads get instead
+      </p>
+      {/* Buyer report mockup */}
+      <div className="bg-[#f0fdfa] border border-[#99f6e8] rounded-lg p-4 mb-5">
+        <p className="font-semibold text-[#111827] text-sm mb-1">Personalized Buyer Report for Michael</p>
+        <p className="text-teal-700 text-xs font-bold mb-3">Top 5 picks — ranked for you</p>
+        <div className="space-y-2.5">
+          {listings.map((l) => (
+            <div key={l.rank} className="flex items-start gap-2.5">
+              <span className="bg-white text-teal-700 text-xs font-bold px-2 py-0.5 rounded shrink-0 border border-[#99f6e8]">
+                {l.rank}
+              </span>
+              <div>
+                <p className="text-sm font-medium text-[#111827]">{l.address}</p>
+                <p className="text-xs text-[#6b7280]">{l.reason}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="text-center">
+        <span className="text-2xl">💬</span>
+        <p className="text-teal-600 font-bold text-sm mt-1">Buyer engages instantly</p>
+        <p className="text-[#9ca3af] text-xs">Asks about schools, schedules showing</p>
+      </div>
+    </div>
+  );
+}
+
+export function HeroSection() {
+  return (
+    <section className="pt-28 pb-16 bg-gradient-to-b from-[#f0fdfa] to-white">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Badge */}
+        <div className="text-center mb-6">
+          <span className="inline-block px-4 py-1.5 rounded-full text-sm font-medium text-teal-700 bg-[#f0fdfa] border border-[#99f6e8]">
+            Now in Private Pilot — Massachusetts &amp; Ontario
+          </span>
+        </div>
+
+        {/* Headline */}
+        <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-bold text-[#111827] leading-tight text-center mb-10">
+          Which one would <span className="text-teal-600">your buyer</span> respond to?
+        </h1>
+
+        {/* Before/After Cards */}
+        <div className="grid md:grid-cols-2 gap-6 mb-10">
+          <TodayCard />
+          <WithRHCard />
+        </div>
+
+        {/* Bottom text + CTA */}
+        <div className="text-center">
+          <p className="text-[#6b7280] text-base mb-6">
+            AI handles the first response and offer prep. <span className="font-bold text-[#111827]">Your agents handle the relationship.</span>
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+            <button
+              onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+              className="inline-flex items-center justify-center rounded-md bg-teal-600 hover:bg-teal-700 text-white shadow-lg px-8 py-3 text-base font-medium transition-colors"
+            >
+              See How It Works
+            </button>
+            <button
+              onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}
+              className="inline-flex items-center justify-center text-teal-600 hover:text-teal-700 font-medium text-base transition-colors"
+            >
+              Watch the demo →
+            </button>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {[
+              { emoji: "🎯", text: "60-day free pilot" },
+              { emoji: "✅", text: "No contracts" },
+              { emoji: "💬", text: "WhatsApp + iMessage" },
+            ].map((pill) => (
+              <span key={pill.text} className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-[#e5e7eb] rounded-full text-sm font-semibold text-[#111827]">
+                {pill.emoji} {pill.text}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

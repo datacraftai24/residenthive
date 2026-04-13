@@ -5,57 +5,41 @@ const capabilities = [
   "MLS-contextual responses",
   "Automatic intent capture",
   "Compliance guardrails",
-  "Risk detection & escalation",
+  "Risk detection and escalation",
+  "Market-specific form generation",
 ];
 
 export function DifferentiatorsSection() {
   return (
-    <section id="differentiators" className="py-16 sm:py-24 bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+    <section className="py-20">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#111827] mb-4">
             Why ResidenceHive?
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Generic AI hallucinates listings. ResidenceHive is built for compliance-first real estate.
+          <p className="text-[#6b7280] text-lg">
+            Generic AI hallucinates listings. Offer templates miss local requirements.
           </p>
         </div>
-
-        {/* Comparison Table */}
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Table Header */}
-            <div className="grid grid-cols-3 bg-gray-50 border-b border-gray-200">
-              <div className="p-4 text-left">
-                <span className="font-semibold text-gray-900">Capability</span>
+        <div className="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          {/* Header */}
+          <div className="grid grid-cols-3 bg-gray-50 border-b border-[#e5e7eb]">
+            <div className="p-4 font-semibold text-[#111827] text-sm">Capability</div>
+            <div className="p-4 font-semibold text-[#111827] text-sm text-center">CRM + ChatGPT</div>
+            <div className="p-4 font-semibold text-[#111827] text-sm text-center">ResidenceHive</div>
+          </div>
+          {/* Rows */}
+          {capabilities.map((cap, i) => (
+            <div key={cap} className={`grid grid-cols-3 ${i % 2 === 1 ? "bg-gray-50" : "bg-white"} border-b border-[#e5e7eb] last:border-b-0`}>
+              <div className="p-4 text-sm text-[#111827]">{cap}</div>
+              <div className="p-4 flex justify-center">
+                <X className="h-5 w-5 text-red-500" />
               </div>
-              <div className="p-4 text-center border-l border-gray-200">
-                <span className="font-semibold text-gray-500">CRM + ChatGPT</span>
-              </div>
-              <div className="p-4 text-center border-l border-gray-200 bg-teal-50">
-                <span className="font-semibold text-teal-700">ResidenceHive</span>
+              <div className="p-4 flex justify-center">
+                <Check className="h-5 w-5 text-teal-600" />
               </div>
             </div>
-
-            {/* Table Rows */}
-            {capabilities.map((capability, index) => (
-              <div
-                key={index}
-                className={`grid grid-cols-3 ${index < capabilities.length - 1 ? "border-b border-gray-100" : ""}`}
-              >
-                <div className="p-4 text-left">
-                  <span className="text-gray-700">{capability}</span>
-                </div>
-                <div className="p-4 flex justify-center items-center border-l border-gray-100">
-                  <X className="h-5 w-5 text-gray-300" />
-                </div>
-                <div className="p-4 flex justify-center items-center border-l border-gray-100 bg-teal-50/50">
-                  <Check className="h-5 w-5 text-teal-600" />
-                </div>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
     </section>

@@ -2,7 +2,11 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { ClerkProvider } from "@clerk/clerk-react";
+import { HelmetProvider } from "react-helmet-async";
 import Landing from "./pages/landing";
+import MassachusettsPage from "./pages/massachusetts";
+import OntarioPage from "./pages/ontario";
+import OfferBotPage from "./pages/offer-bot";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
@@ -11,23 +15,31 @@ if (!clerkPubKey) {
   console.warn("VITE_CLERK_PUBLISHABLE_KEY is not set. Clerk auth will be disabled.");
 }
 
-// Check if we're on the landing page - render it directly without Clerk
-const isLandingPage = window.location.pathname === "/";
+// Public marketing pages — render without Clerk wrapper
+const publicPageMap: Record<string, React.ComponentType> = {
+  "/": Landing,
+  "/massachusetts": MassachusettsPage,
+  "/ontario": OntarioPage,
+  "/offer-bot": OfferBotPage,
+};
+
+const PublicPage = publicPageMap[window.location.pathname];
 
 createRoot(document.getElementById("root")!).render(
-  isLandingPage ? (
-    // Render landing page directly without Clerk wrapper to avoid redirect
-    <Landing />
-  ) : clerkPubKey ? (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      afterSignOutUrl="/"
-    >
+  <HelmetProvider>
+    {PublicPage ? (
+      <PublicPage />
+    ) : clerkPubKey ? (
+      <ClerkProvider
+        publishableKey={clerkPubKey}
+        signInUrl="/sign-in"
+        signUpUrl="/sign-up"
+        afterSignOutUrl="/"
+      >
+        <App />
+      </ClerkProvider>
+    ) : (
       <App />
-    </ClerkProvider>
-  ) : (
-    <App />
-  )
+    )}
+  </HelmetProvider>
 );
