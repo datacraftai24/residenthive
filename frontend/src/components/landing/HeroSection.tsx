@@ -3,15 +3,15 @@ import { Button } from "@/components/ui/button";
 
 function TodayCard() {
   return (
-    <div className="bg-white border border-[#fecaca] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 sm:p-7 opacity-[0.85] relative">
-      <span className="absolute top-4 right-4 px-2.5 py-1 rounded-md text-xs font-semibold uppercase bg-[#fef2f2] text-red-600">
+    <div className="bg-white border border-[#fecaca] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 sm:p-7 opacity-[0.85] relative">
+      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-semibold uppercase bg-[#fef2f2] text-red-600">
         Today
       </span>
-      <p className="text-[#9ca3af] text-xs uppercase tracking-wider font-semibold mb-3">
+      <p className="text-[#9ca3af] text-[10px] sm:text-xs uppercase tracking-wider font-semibold mb-2 sm:mb-3">
         What your leads get now
       </p>
       {/* Fake email mockup */}
-      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-sm space-y-1.5 mb-5">
+      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-1 sm:space-y-1.5 mb-4 sm:mb-5">
         <p className="text-[#6b7280]"><span className="font-medium text-[#111827]">From:</span> agent@brokerage.com</p>
         <p className="text-[#6b7280]"><span className="font-medium text-[#111827]">Subject:</span> Here are some listings for you!</p>
         <div className="border-t border-[#e5e7eb] pt-2 mt-2 space-y-1">
@@ -39,11 +39,11 @@ function WithRHCard() {
   ];
 
   return (
-    <div className="bg-white border-2 border-teal-600 rounded-[14px] shadow-[0_0_20px_rgba(13,148,136,0.12)] p-6 sm:p-7 relative">
-      <span className="absolute top-4 right-4 px-2.5 py-1 rounded-md text-xs font-semibold uppercase bg-[#f0fdfa] text-teal-700">
-        With ResidenceHive
+    <div className="bg-white border-2 border-teal-600 rounded-[14px] shadow-[0_0_20px_rgba(13,148,136,0.12)] p-4 sm:p-7 relative">
+      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-semibold uppercase bg-[#f0fdfa] text-teal-700">
+        ResidenceHive
       </span>
-      <p className="text-teal-700 text-xs uppercase tracking-wider font-semibold mb-3">
+      <p className="text-teal-700 text-[10px] sm:text-xs uppercase tracking-wider font-semibold mb-2 sm:mb-3">
         What your leads get instead
       </p>
       {/* Buyer report mockup */}
@@ -75,22 +75,22 @@ function WithRHCard() {
 
 export function HeroSection() {
   return (
-    <section className="pt-28 pb-16 bg-gradient-to-b from-[#f0fdfa] to-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="pt-28 pb-16 bg-gradient-to-b from-[#f0fdfa] to-white overflow-hidden">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 overflow-hidden">
         {/* Badge */}
         <div className="text-center mb-6">
-          <span className="inline-block px-4 py-1.5 rounded-full text-sm font-medium text-teal-700 bg-[#f0fdfa] border border-[#99f6e8]">
+          <span className="inline-block px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium text-teal-700 bg-[#f0fdfa] border border-[#99f6e8]">
             Now in Private Pilot — Massachusetts &amp; Ontario
           </span>
         </div>
 
         {/* Headline */}
-        <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-bold text-[#111827] leading-tight text-center mb-10">
+        <h1 className="text-lg sm:text-4xl lg:text-[44px] font-bold text-[#111827] leading-snug text-center mb-6 sm:mb-10">
           Which one would <span className="text-teal-600">your buyer</span> respond to?
         </h1>
 
         {/* Before/After Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-10">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-10">
           <TodayCard />
           <WithRHCard />
         </div>

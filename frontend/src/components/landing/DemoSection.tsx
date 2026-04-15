@@ -12,8 +12,11 @@ export function DemoSection() {
             Voice note → buyer report → compliant chatbot → agent dashboard. The full loop in 60 seconds.
           </p>
         </div>
-        <div className="flex justify-center">
-          <ResidenceHiveDemo />
+        {/* Scale down on mobile to fit viewport */}
+        <div className="flex justify-center overflow-hidden">
+          <div className="transform scale-[0.85] sm:scale-100 origin-top">
+            <ResidenceHiveDemo />
+          </div>
         </div>
       </div>
     </section>

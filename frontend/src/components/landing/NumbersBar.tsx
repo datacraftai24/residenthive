@@ -11,9 +11,9 @@ export function NumbersBar() {
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-[#e5e7eb]">
           {stats.map((stat) => (
-            <div key={stat.label} className="bg-white py-8 px-6 text-center">
-              <div className="text-2xl sm:text-3xl font-bold text-teal-600 mb-1">{stat.number}</div>
-              <div className="text-sm text-[#9ca3af]">{stat.label}</div>
+            <div key={stat.label} className="bg-white py-6 sm:py-8 px-3 sm:px-6 text-center">
+              <div className="text-xl sm:text-3xl font-bold text-teal-600 mb-1">{stat.number}</div>
+              <div className="text-xs sm:text-sm text-[#9ca3af]">{stat.label}</div>
             </div>
           ))}
         </div>
