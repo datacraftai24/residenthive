@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button";
 
 function TodayCard() {
   return (
-    <div className="bg-white border border-[#fecaca] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 sm:p-7 opacity-[0.85] relative">
-      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-semibold uppercase bg-[#fef2f2] text-red-600">
-        Today
-      </span>
-      <p className="text-[#9ca3af] text-[10px] sm:text-xs uppercase tracking-wider font-semibold mb-2 sm:mb-3">
-        What your leads get now
-      </p>
+    <div className="bg-white border border-[#fecaca] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 sm:p-7 opacity-[0.85]">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <p className="text-[#9ca3af] text-[10px] sm:text-xs uppercase tracking-wider font-semibold">
+          What your leads get now
+        </p>
+        <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-xs font-semibold uppercase bg-[#fef2f2] text-red-600 shrink-0 ml-2">
+          Today
+        </span>
+      </div>
       {/* Fake email mockup */}
       <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-1 sm:space-y-1.5 mb-4 sm:mb-5">
         <p className="text-[#6b7280]"><span className="font-medium text-[#111827]">From:</span> agent@brokerage.com</p>
@@ -39,13 +41,15 @@ function WithRHCard() {
   ];
 
   return (
-    <div className="bg-white border-2 border-teal-600 rounded-[14px] shadow-[0_0_20px_rgba(13,148,136,0.12)] p-4 sm:p-7 relative">
-      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-semibold uppercase bg-[#f0fdfa] text-teal-700">
-        ResidenceHive
-      </span>
-      <p className="text-teal-700 text-[10px] sm:text-xs uppercase tracking-wider font-semibold mb-2 sm:mb-3">
-        What your leads get instead
-      </p>
+    <div className="bg-white border-2 border-teal-600 rounded-[14px] shadow-[0_0_20px_rgba(13,148,136,0.12)] p-4 sm:p-7">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <p className="text-teal-700 text-[10px] sm:text-xs uppercase tracking-wider font-semibold">
+          What your leads get instead
+        </p>
+        <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[9px] sm:text-xs font-semibold uppercase bg-[#f0fdfa] text-teal-700 shrink-0 ml-2">
+          With ResidenceHive
+        </span>
+      </div>
       {/* Buyer report mockup */}
       <div className="bg-[#f0fdfa] border border-[#99f6e8] rounded-lg p-4 mb-5">
         <p className="font-semibold text-[#111827] text-sm mb-1">Personalized Buyer Report for Michael</p>
