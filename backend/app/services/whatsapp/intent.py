@@ -748,12 +748,12 @@ async def run_agent(message: str, session) -> AgentResult:
     entities = get_all_entities(session.agent_id)
     entities_text = _format_entities(entities)
 
-    # Active entity display
+    # Active entity display — include id so tools called with entity_id don't hallucinate.
     active_entity = "None"
     if session.active_buyer_name:
-        active_entity = f"{session.active_buyer_name} ({session.active_buyer_code}) — buyer"
+        active_entity = f"{session.active_buyer_name} (id={session.active_buyer_id}, code={session.active_buyer_code}) — buyer"
     elif session.active_lead_name:
-        active_entity = f"{session.active_lead_name} ({session.active_lead_code}) — lead"
+        active_entity = f"{session.active_lead_name} (id={session.active_lead_id}, code={session.active_lead_code}) — lead"
 
     pending_text = "None"
     if session.pending_action:
@@ -1243,12 +1243,62 @@ async def _tool_update_entity(args: Dict, session) -> ToolResult:
     )
 
 
+def _resolve_or_convert_lead_to_profile(lead_id: int, agent_id: int) -> Optional[int]:
+    """
+    Map a lead_id to its buyer_profiles.id. If no profile exists yet, auto-convert
+    (silent — no user-facing prompt). Returns None if the lead doesn't exist
+    for this agent.
+
+    Mirrors the unified-profile UX where leads and buyers are interchangeable
+    for search/report purposes; agents shouldn't need to manage a separate
+    conversion step.
+    """
+    from ...db import get_conn, fetchone_dict
+    from ...routers.leads import _convert_lead_to_profile_internal
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
+                (lead_id, agent_id),
+            )
+            row = fetchone_dict(cur)
+            if row:
+                return row["id"]
+
+            cur.execute(
+                "SELECT * FROM leads WHERE id = %s AND agent_id = %s",
+                (lead_id, agent_id),
+            )
+            lead_row = fetchone_dict(cur)
+
+    if not lead_row:
+        return None
+
+    convert_result = _convert_lead_to_profile_internal(lead_id, agent_id, lead_row)
+    logger.info(f"[WA] Auto-converted lead {lead_id} → buyer profile {convert_result['profileId']}")
+    return convert_result["profileId"]
+
+
+def _entity_id_from_session(args: Dict, session) -> Optional[int]:
+    """
+    Source of truth for entity_id is the session's active entity, not Gemini's
+    args (which sometimes hallucinate ids). Falls back to args if no active.
+    """
+    entity_type = args.get("entity_type", "buyer")
+    if entity_type == "lead" and session.active_lead_id:
+        return session.active_lead_id
+    if entity_type == "buyer" and session.active_buyer_id:
+        return session.active_buyer_id
+    return args.get("entity_id")
+
+
 async def _tool_search(args: Dict, session) -> ToolResult:
     """Search for properties matching a buyer/lead's criteria."""
     from ..search_context_store import generate_search_id, store_search_context
     from .session import SessionManager, SessionState
 
-    entity_id = args.get("entity_id")
+    entity_id = _entity_id_from_session(args, session)
     entity_type = args.get("entity_type", "buyer")
 
     if not entity_id:
@@ -1261,39 +1311,18 @@ async def _tool_search(args: Dict, session) -> ToolResult:
         from ...routers.listings import listings_search, _load_profile
         from ...routers.search import _map_to_agent_listing
 
-        # For buyers, load profile directly. For leads, we need to map to buyer profile ID.
+        # For buyers, load profile directly. For leads, auto-convert to a buyer
+        # profile (silent — agents don't manage the lead/buyer split).
         if entity_type == "buyer":
             profile_id = entity_id
         else:
-            # Check if lead has been converted to a buyer profile
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
-                        return ToolResult(
-                            success=False, data={},
-                            message=(
-                                f"*{lead_name}* is a lead without a buyer profile. "
-                                f"Would you like to convert them to a buyer first?"
-                            ),
-                            needs_confirmation=True,
-                            pending_action={"type": "convert_lead", "data": {
-                                "lead_id": entity_id,
-                                "intent": "search",
-                            }},
-                            actions=[
-                                {"id": "confirm", "title": "Convert to Buyer"},
-                                {"id": "cancel", "title": "Cancel"},
-                            ],
-                        )
+            profile_id = _resolve_or_convert_lead_to_profile(entity_id, session.agent_id)
+            if not profile_id:
+                return ToolResult(
+                    success=False, data={},
+                    message=f"Lead #{entity_id} not found.",
+                    error=f"No lead with id={entity_id} for this agent.",
+                )
 
         profile = _load_profile(profile_id)
         result = listings_search({"profileId": profile_id, "profile": {}})
@@ -1340,7 +1369,7 @@ async def _tool_generate_report(args: Dict, session) -> ToolResult:
     from .session import SessionManager
     import os
 
-    entity_id = args.get("entity_id")
+    entity_id = _entity_id_from_session(args, session)
     entity_type = args.get("entity_type", "buyer")
 
     if not session.last_search_id:
@@ -1353,26 +1382,17 @@ async def _tool_generate_report(args: Dict, session) -> ToolResult:
         from ...routers.buyer_reports import create_buyer_report, CreateBuyerReportRequest
         from ...routers.search import agent_search_photos, agent_search_location
 
-        # For leads, we need the buyer profile ID
+        # For leads, auto-convert to a buyer profile (silent).
         if entity_type == "buyer":
             profile_id = entity_id
         else:
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        return ToolResult(
-                            success=False, data={},
-                            message="No buyer profile found for this lead.",
-                            error="Convert the lead first.",
-                        )
+            profile_id = _resolve_or_convert_lead_to_profile(entity_id, session.agent_id)
+            if not profile_id:
+                return ToolResult(
+                    success=False, data={},
+                    message=f"Lead #{entity_id} not found.",
+                    error=f"No lead with id={entity_id} for this agent.",
+                )
 
         # Run photo + location analysis before generating report
         # (In the dashboard flow, the frontend polls these endpoints)
@@ -1535,7 +1555,7 @@ async def _tool_search_and_report(args: Dict, session) -> ToolResult:
     from .session import SessionManager, SessionState
     import os
 
-    entity_id = args.get("entity_id")
+    entity_id = _entity_id_from_session(args, session)
     entity_type = args.get("entity_type", "buyer")
 
     if not entity_id:
@@ -1548,38 +1568,17 @@ async def _tool_search_and_report(args: Dict, session) -> ToolResult:
         from ...routers.listings import listings_search, _load_profile
         from ...routers.search import _map_to_agent_listing
 
-        # Resolve to buyer profile ID
+        # Resolve to buyer profile ID (auto-convert leads silently).
         if entity_type == "buyer":
             profile_id = entity_id
         else:
-            from ...db import get_conn, fetchone_dict
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM buyer_profiles WHERE parent_lead_id = %s AND agent_id = %s",
-                        (entity_id, session.agent_id),
-                    )
-                    row = fetchone_dict(cur)
-                    if row:
-                        profile_id = row["id"]
-                    else:
-                        lead_name = session.active_lead_name or f"Lead #{entity_id}"
-                        return ToolResult(
-                            success=False, data={},
-                            message=(
-                                f"*{lead_name}* is a lead without a buyer profile. "
-                                f"Would you like to convert them to a buyer first?"
-                            ),
-                            needs_confirmation=True,
-                            pending_action={"type": "convert_lead", "data": {
-                                "lead_id": entity_id,
-                                "intent": "search_and_report",
-                            }},
-                            actions=[
-                                {"id": "confirm", "title": "Convert to Buyer"},
-                                {"id": "cancel", "title": "Cancel"},
-                            ],
-                        )
+            profile_id = _resolve_or_convert_lead_to_profile(entity_id, session.agent_id)
+            if not profile_id:
+                return ToolResult(
+                    success=False, data={},
+                    message=f"Lead #{entity_id} not found.",
+                    error=f"No lead with id={entity_id} for this agent.",
+                )
 
         # Step 1: Search
         profile = _load_profile(profile_id)
