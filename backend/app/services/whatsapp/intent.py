@@ -380,7 +380,7 @@ CONVERSATION CONTINUITY:
 TOOL TRIGGERS (when to call each tool):
 - resolve_entity → agent mentions a person by name/code AND no active entity is set
 - select_entity → ALWAYS call this after disambiguation. When agent picks from a list (e.g., "2" or "the lead one"), call select_entity with that entity's id/type/name/code. This locks in the active entity for the rest of the conversation. Then ask your follow-up question.
-- process_new_lead → message contains a name AND (email OR phone) AND property preferences
+- process_new_lead → message contains a name AND (email OR phone) AND property preferences. After this tool succeeds, the new lead becomes the Active entity automatically — do NOT call resolve_entity for them on the next turn.
 - update_entity → agent asks to change/update/add something, OR provides a value you asked for (budget, email, location, sqft, year built, garage, lot size, HOA, listing freshness). Use the active entity. Editable fields include: budget, location, bedrooms, bathrooms, homeType, mustHaveFeatures, dealbreakers, minSqft, maxSqft, minYearBuilt, maxYearBuilt, minGarageSpaces, maxMaintenanceFee, minLotSizeSqft, maxDaysOnMarket.
 - search_properties → agent says search/find/look but NOT report. MUST have an active entity.
 - search_and_report → agent says "report for X", "send report to X", "search and report", "run report", or any request that implies both search and report generation. This is a compound tool — ONE call does search + report.
@@ -1122,6 +1122,7 @@ async def _tool_process_lead(args: Dict, session) -> ToolResult:
     """Extract and save a new lead from pasted text."""
     from .agent import process_lead_from_text
     from .buyer_codes import assign_code_to_lead
+    from .session import SessionManager
 
     raw_text = args.get("raw_text", "")
     source = args.get("source", "unknown")
@@ -1145,6 +1146,11 @@ async def _tool_process_lead(args: Dict, session) -> ToolResult:
 
         # Assign code to the new lead
         code = assign_code_to_lead(lead_id, session.agent_id, lead_name)
+
+        # Pivot active context to the new lead so the next turn targets it
+        # (and not whatever entity — usually a prior buyer — was active before).
+        session.set_lead_context(lead_id, code or "", lead_name)
+        await SessionManager.save(session)
 
         # Fire outreach generation as background task
         asyncio.create_task(
