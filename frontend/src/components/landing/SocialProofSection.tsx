@@ -1,56 +1,32 @@
-import { Clock, DollarSign, MapPin, Quote } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-
-const metrics = [
-  {
-    icon: Clock,
-    value: "~15 min",
-    label: "saved per listing",
-  },
-  {
-    icon: DollarSign,
-    value: "$100+",
-    label: "lead cost protected",
-  },
-  {
-    icon: MapPin,
-    value: "Toronto",
-    label: "pilot market",
-  },
-];
-
 export function SocialProofSection() {
+  const stats = [
+    { number: "2 Markets", label: "Active pilots" },
+    { number: "MLS PIN", label: "& listing data access" },
+    { number: "6-Tier", label: "Compliance framework" },
+  ];
+
   return (
-    <section className="py-16 sm:py-24 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Metrics */}
-        <div className="grid sm:grid-cols-3 gap-6 mb-16">
-          {metrics.map((metric, index) => (
-            <Card key={index} className="border-gray-200 text-center">
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
-                  <metric.icon className="h-6 w-6 text-teal-600" />
-                </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">
-                  {metric.value}
-                </div>
-                <div className="text-gray-600">{metric.label}</div>
-              </CardContent>
-            </Card>
+    <section className="py-20 bg-[#f8faf9]">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#111827] mb-4">
+            In pilot with Massachusetts and Ontario brokerages
+          </h2>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-6 mb-10">
+          {stats.map((s) => (
+            <div key={s.label} className="bg-white border border-[#e5e7eb] rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7 text-center">
+              <div className="text-2xl font-bold text-teal-600 mb-1">{s.number}</div>
+              <div className="text-sm text-[#6b7280]">{s.label}</div>
+            </div>
           ))}
         </div>
-
         {/* Quote */}
-        <div className="max-w-2xl mx-auto">
-          <Card className="border-teal-200 bg-teal-50/50">
-            <CardContent className="pt-6">
-              <Quote className="h-8 w-8 text-teal-400 mb-4" />
-              <blockquote className="text-xl text-gray-700 mb-4 italic">
-                "This saves me ~15 minutes per listing."
-              </blockquote>
-              <p className="text-gray-500">— Agent (demo)</p>
-            </CardContent>
-          </Card>
+        <div className="bg-white border-l-4 border-teal-600 rounded-r-[14px] border border-[#e5e7eb] shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
+          <p className="text-[#111827] text-lg italic mb-3">
+            "This saves me 15 minutes per listing and catches things I'd miss."
+          </p>
+          <p className="text-[#6b7280] text-sm">— Pilot agent</p>
         </div>
       </div>
     </section>
